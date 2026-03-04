@@ -79,13 +79,23 @@ public class EquipmentController {
 
     @PostMapping("/{id}/inspections")
     @PreAuthorize("hasAuthority('GARAGE:POST')")
-    @Operation(summary = "Texniki baxış əlavə et (sənəd ixtiyari)")
+    @Operation(summary = "Texniki baxış əlavə et")
     public ResponseEntity<ApiResponse<InspectionResponse>> addInspection(
             @PathVariable Long id,
-            @RequestPart("data") @Valid InspectionRequest request,
-            @RequestPart(value = "document", required = false) MultipartFile document) {
+            @RequestBody @Valid InspectionRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Baxış əlavə edildi",
-                equipmentService.addInspection(id, request, document)));
+                equipmentService.addInspection(id, request, null)));
+    }
+
+    @PostMapping("/{id}/inspections/{inspectionId}/document")
+    @PreAuthorize("hasAuthority('GARAGE:POST')")
+    @Operation(summary = "Baxış aktını yüklə")
+    public ResponseEntity<ApiResponse<InspectionResponse>> uploadInspectionDocument(
+            @PathVariable Long id,
+            @PathVariable Long inspectionId,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.success("Sənəd yükləndi",
+                equipmentService.uploadInspectionDocument(id, inspectionId, file)));
     }
 
     @DeleteMapping("/{id}/inspections/{inspectionId}")

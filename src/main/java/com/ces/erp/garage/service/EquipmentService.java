@@ -97,6 +97,20 @@ public class EquipmentService {
     }
 
     @Transactional
+    public InspectionResponse uploadInspectionDocument(Long equipmentId, Long inspectionId, MultipartFile file) {
+        EquipmentInspection inspection = inspectionRepository
+                .findByIdAndEquipmentId(inspectionId, equipmentId)
+                .orElseThrow(() -> new BusinessException("Texniki baxış tapılmadı"));
+        if (inspection.getDocumentPath() != null) {
+            fileStorageService.delete(inspection.getDocumentPath());
+        }
+        String path = fileStorageService.store(file, "inspections");
+        inspection.setDocumentPath(path);
+        inspection.setDocumentName(file.getOriginalFilename());
+        return InspectionResponse.from(inspectionRepository.save(inspection));
+    }
+
+    @Transactional
     public void deleteInspection(Long equipmentId, Long inspectionId) {
         EquipmentInspection inspection = inspectionRepository
                 .findByIdAndEquipmentId(inspectionId, equipmentId)
