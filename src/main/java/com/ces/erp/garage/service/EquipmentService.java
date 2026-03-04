@@ -30,16 +30,19 @@ public class EquipmentService {
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
 
+    @Transactional(readOnly = true)
     public List<EquipmentResponse> getAll() {
         return equipmentRepository.findAllByDeletedFalse().stream()
                 .map(EquipmentResponse::from)
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public EquipmentResponse getById(Long id) {
         return EquipmentResponse.from(findWithDetails(id));
     }
 
+    @Transactional(readOnly = true)
     public List<ProjectHistoryResponse> getProjectHistory(Long id) {
         findOrThrow(id);
         return projectHistoryRepository.findAllByEquipmentIdOrderByStartDateDesc(id).stream()

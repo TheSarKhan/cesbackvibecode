@@ -14,7 +14,7 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
     @Query("SELECT e FROM Equipment e LEFT JOIN FETCH e.responsibleUser LEFT JOIN FETCH e.ownerContractor WHERE e.deleted = false")
     List<Equipment> findAllByDeletedFalse();
 
-    @Query("SELECT e FROM Equipment e LEFT JOIN FETCH e.responsibleUser LEFT JOIN FETCH e.ownerContractor LEFT JOIN FETCH e.inspections LEFT JOIN FETCH e.documents WHERE e.id = :id AND e.deleted = false")
+    @Query("SELECT e FROM Equipment e LEFT JOIN FETCH e.responsibleUser LEFT JOIN FETCH e.ownerContractor WHERE e.id = :id AND e.deleted = false")
     Optional<Equipment> findByIdWithDetails(@Param("id") Long id);
 
     boolean existsByEquipmentCodeAndDeletedFalse(String equipmentCode);
