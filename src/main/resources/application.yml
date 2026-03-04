@@ -36,6 +36,12 @@ app:
     secret: ces-erp-super-secret-key-minimum-256-bit-length-required-here
     access-token-expiry: 86400000     # 24 saat (ms)
     refresh-token-expiry: 604800000   # 7 gün (ms)
+  upload:
+    dir: uploads
+
+spring.servlet.multipart:
+  max-file-size: 50MB
+  max-request-size: 50MB
 
 logging:
   level:

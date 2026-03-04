@@ -35,7 +35,21 @@ public class DataSeeder implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         seedModules();
+        seedMissingModules();
         seedAdminAccount();
+    }
+
+    // ─── Sonradan əlavə olunan modulları seed et ──────────────────────────────
+
+    private void seedMissingModules() {
+        seedModuleIfAbsent("INVESTORS", "İnvestor İdarəetməsi", "Investor Management", 11);
+    }
+
+    private void seedModuleIfAbsent(String code, String az, String en, int order) {
+        if (!moduleRepository.existsByCode(code)) {
+            moduleRepository.save(module(code, az, en, order));
+            log.info("Yeni modul əlavə edildi: {}", code);
+        }
     }
 
     // ─── 10 Sistem modulu (BRD-dən) ───────────────────────────────────────────
