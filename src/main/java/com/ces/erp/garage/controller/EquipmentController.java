@@ -1,6 +1,7 @@
 package com.ces.erp.garage.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.security.UserPrincipal;
 import com.ces.erp.garage.dto.*;
 import com.ces.erp.garage.service.EquipmentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -87,7 +89,7 @@ public class EquipmentController {
                 equipmentService.addInspection(id, request, null)));
     }
 
-    @PostMapping("/{id}/inspections/{inspectionId}/document")
+    @PostMapping(value = "/{id}/inspections/{inspectionId}/document", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('GARAGE:POST')")
     @Operation(summary = "Baxış aktını yüklə")
     public ResponseEntity<ApiResponse<InspectionResponse>> uploadInspectionDocument(
@@ -132,9 +134,10 @@ public class EquipmentController {
     public ResponseEntity<ApiResponse<DocumentResponse>> uploadDocument(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "userId", required = false) Long userId) {
+            @RequestParam(value = "documentName", required = false) String documentName,
+            @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(ApiResponse.success("Sənəd yükləndi",
-                equipmentService.uploadDocument(id, file, userId)));
+                equipmentService.uploadDocument(id, file, documentName, principal.getId())));
     }
 
     @DeleteMapping("/{id}/documents/{documentId}")

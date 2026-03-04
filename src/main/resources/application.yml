@@ -24,6 +24,7 @@ spring:
 
   servlet:
     multipart:
+      enabled: true
       max-file-size: 50MB
       max-request-size: 50MB
 
@@ -42,7 +43,7 @@ app:
     access-token-expiry: 86400000     # 24 saat (ms)
     refresh-token-expiry: 604800000   # 7 gün (ms)
   upload:
-    dir: uploads
+    dir: C:/Users/serxa/uploads/ces-erp
 
 logging:
   level:

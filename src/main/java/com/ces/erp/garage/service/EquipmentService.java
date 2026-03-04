@@ -124,7 +124,7 @@ public class EquipmentService {
     // ─── Sənəd ────────────────────────────────────────────────────────────────
 
     @Transactional
-    public DocumentResponse uploadDocument(Long equipmentId, MultipartFile file, Long userId) {
+    public DocumentResponse uploadDocument(Long equipmentId, MultipartFile file, String documentName, Long userId) {
         Equipment equipment = findOrThrow(equipmentId);
 
         String path = fileStorageService.store(file, "equipment-docs");
@@ -133,9 +133,12 @@ public class EquipmentService {
                 ? userRepository.findByIdAndDeletedFalse(userId).orElse(null)
                 : null;
 
+        String displayName = (documentName != null && !documentName.isBlank())
+                ? documentName : file.getOriginalFilename();
+
         EquipmentDocument doc = EquipmentDocument.builder()
                 .equipment(equipment)
-                .documentName(file.getOriginalFilename())
+                .documentName(displayName)
                 .filePath(path)
                 .fileType(file.getContentType())
                 .uploadedBy(uploader)
