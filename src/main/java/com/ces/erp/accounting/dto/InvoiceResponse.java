@@ -1,0 +1,108 @@
+package com.ces.erp.accounting.dto;
+
+import com.ces.erp.accounting.entity.Invoice;
+import com.ces.erp.enums.InvoiceType;
+import lombok.Builder;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+public class InvoiceResponse {
+
+    private Long id;
+    private InvoiceType type;
+    private String typeLabel;
+
+    private String invoiceNumber;
+    private BigDecimal amount;
+    private LocalDate invoiceDate;
+
+    // Type A
+    private String etaxesId;
+    private String equipmentName;
+    private String companyName;
+
+    // Type B2
+    private String serviceDescription;
+
+    // Əlaqəli layihə
+    private Long projectId;
+    private String projectCode;
+    private String projectCompanyName;
+    private String projectName;
+
+    // Əlaqəli podratçı (B1)
+    private Long contractorId;
+    private String contractorName;
+    private String contractorVoen;
+
+    // Maliyyə (Type A — layihənin xalis gəliri)
+    private BigDecimal projectNetProfit;
+
+    private String notes;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public static InvoiceResponse from(Invoice inv) {
+        String typeLabel = switch (inv.getType()) {
+            case INCOME             -> "A — Gəlir Qaiməsi";
+            case CONTRACTOR_EXPENSE -> "B1 — Podratçı Qaiməsi";
+            case COMPANY_EXPENSE    -> "B2 — Şirkət Xərci";
+        };
+
+        BigDecimal netProfit = null;
+        String projectCode = null;
+        String projectCompanyName = null;
+        String projectName = null;
+        Long projectId = null;
+
+        if (inv.getProject() != null) {
+            projectId = inv.getProject().getId();
+            projectCode = inv.getProject().getProjectCode();
+            var request = inv.getProject().getRequest();
+            if (request != null) {
+                projectCompanyName = request.getCompanyName();
+                projectName = request.getProjectName();
+            }
+            if (inv.getType() == InvoiceType.INCOME) {
+                BigDecimal totalRev = inv.getProject().getRevenues().stream()
+                        .filter(r -> !r.isDeleted())
+                        .map(r -> r.getValue())
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal totalExp = inv.getProject().getExpenses().stream()
+                        .filter(e -> !e.isDeleted())
+                        .map(e -> e.getValue())
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                netProfit = totalRev.subtract(totalExp);
+            }
+        }
+
+        return InvoiceResponse.builder()
+                .id(inv.getId())
+                .type(inv.getType())
+                .typeLabel(typeLabel)
+                .invoiceNumber(inv.getInvoiceNumber())
+                .amount(inv.getAmount())
+                .invoiceDate(inv.getInvoiceDate())
+                .etaxesId(inv.getEtaxesId())
+                .equipmentName(inv.getEquipmentName())
+                .companyName(inv.getCompanyName())
+                .serviceDescription(inv.getServiceDescription())
+                .projectId(projectId)
+                .projectCode(projectCode)
+                .projectCompanyName(projectCompanyName)
+                .projectName(projectName)
+                .contractorId(inv.getContractor() != null ? inv.getContractor().getId() : null)
+                .contractorName(inv.getContractor() != null ? inv.getContractor().getCompanyName() : null)
+                .contractorVoen(inv.getContractor() != null ? inv.getContractor().getVoen() : null)
+                .projectNetProfit(netProfit)
+                .notes(inv.getNotes())
+                .createdAt(inv.getCreatedAt())
+                .updatedAt(inv.getUpdatedAt())
+                .build();
+    }
+}
