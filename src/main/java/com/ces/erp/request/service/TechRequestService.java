@@ -39,7 +39,7 @@ public class TechRequestService {
     @Transactional
     public TechRequestResponse create(TechRequestRequest req, Long userId) {
         TechRequest entity = buildEntity(req, new TechRequest());
-        entity.setStatus(RequestStatus.DRAFT);
+        entity.setStatus(RequestStatus.PENDING);
         entity.setCreatedBy(userRepository.findById(userId).orElse(null));
         TechRequest saved = requestRepository.save(entity);
         return TechRequestResponse.from(saved);
@@ -83,9 +83,6 @@ public class TechRequestService {
         TechRequest entity = findOrThrow(id);
         if (entity.getStatus() != RequestStatus.PENDING) {
             throw new BusinessException("Koordinatora göndərmək üçün sorğu PENDING statusunda olmalıdır");
-        }
-        if (entity.getSelectedEquipment() == null) {
-            throw new BusinessException("Əvvəlcə texnika seçilməlidir");
         }
         entity.setStatus(RequestStatus.SENT_TO_COORDINATOR);
         return TechRequestResponse.from(requestRepository.save(entity));

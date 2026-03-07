@@ -6,6 +6,9 @@ import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.coordinator.entity.CoordinatorPlan;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.ProjectStatus;
+import com.ces.erp.garage.entity.Equipment;
+import com.ces.erp.garage.entity.EquipmentProjectHistory;
+import com.ces.erp.garage.repository.EquipmentProjectHistoryRepository;
 import com.ces.erp.project.dto.FinanceEntryRequest;
 import com.ces.erp.project.dto.ProjectCompleteRequest;
 import com.ces.erp.project.dto.ProjectResponse;
@@ -20,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -31,6 +35,7 @@ public class ProjectService {
     private final ProjectExpenseRepository expenseRepository;
     private final ProjectRevenueRepository revenueRepository;
     private final CoordinatorPlanRepository planRepository;
+    private final EquipmentProjectHistoryRepository equipmentHistoryRepository;
     private final FileStorageService fileStorageService;
 
     // ─── List ─────────────────────────────────────────────────────────────────
@@ -191,6 +196,26 @@ public class ProjectService {
 
         projectRepository.save(p);
         CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+
+        // Texnikanın layihə tarixçəsinə qeyd yaz
+        Equipment eq = plan != null && plan.getSelectedEquipment() != null
+                ? plan.getSelectedEquipment()
+                : (p.getRequest() != null ? p.getRequest().getSelectedEquipment() : null);
+        if (eq != null) {
+            EquipmentProjectHistory history = EquipmentProjectHistory.builder()
+                    .equipment(eq)
+                    .projectId(p.getId())
+                    .projectName(p.getRequest() != null ? p.getRequest().getProjectName() : p.getProjectCode())
+                    .startDate(p.getStartDate())
+                    .endDate(p.getEndDate())
+                    .contractorRevenue(plan != null && plan.getContractorPayment() != null
+                            ? plan.getContractorPayment() : BigDecimal.ZERO)
+                    .status("COMPLETED")
+                    .notes(p.getRequest() != null ? p.getRequest().getCompanyName() : null)
+                    .build();
+            equipmentHistoryRepository.save(history);
+        }
+
         return ProjectResponse.from(p, plan);
     }
 
