@@ -64,6 +64,22 @@ public class CoordinatorPlanController {
                 planService.submitPlan(requestId)));
     }
 
+    @PostMapping("/requests/{requestId}/accept")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Təklifi qəbul et — ACCEPTED statusuna keçir, Layihə yaradılır")
+    public ResponseEntity<ApiResponse<Void>> acceptOffer(@PathVariable Long requestId) {
+        planService.acceptOffer(requestId);
+        return ResponseEntity.ok(ApiResponse.ok("Təklif qəbul edildi, layihə yaradıldı"));
+    }
+
+    @PostMapping("/requests/{requestId}/reject")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Təklifi rədd et — REJECTED statusuna keçir")
+    public ResponseEntity<ApiResponse<Void>> rejectOffer(@PathVariable Long requestId) {
+        planService.rejectOffer(requestId);
+        return ResponseEntity.ok(ApiResponse.ok("Təklif rədd edildi"));
+    }
+
     @PutMapping("/requests/{requestId}/equipment")
     @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
     @Operation(summary = "Koordinator sorğu üçün texnika seçir")

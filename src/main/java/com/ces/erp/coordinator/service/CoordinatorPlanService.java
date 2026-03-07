@@ -9,8 +9,11 @@ import com.ces.erp.coordinator.entity.CoordinatorDocument;
 import com.ces.erp.coordinator.entity.CoordinatorPlan;
 import com.ces.erp.coordinator.repository.CoordinatorDocumentRepository;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
+import com.ces.erp.enums.ProjectStatus;
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.garage.repository.EquipmentRepository;
+import com.ces.erp.project.entity.Project;
+import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.request.entity.TechRequest;
 import com.ces.erp.request.repository.TechRequestRepository;
 import com.ces.erp.user.repository.UserRepository;
@@ -32,6 +35,7 @@ public class CoordinatorPlanService {
     private final EquipmentRepository equipmentRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+    private final ProjectRepository projectRepository;
 
     private static final List<RequestStatus> COORDINATOR_STATUSES = List.of(
             RequestStatus.SENT_TO_COORDINATOR,
@@ -94,6 +98,39 @@ public class CoordinatorPlanService {
         return planRepository.findByRequestId(requestId)
                 .map(CoordinatorPlanResponse::from)
                 .orElseThrow();
+    }
+
+    // ─── Qəbul / Rədd ────────────────────────────────────────────────────────
+
+    @Transactional
+    public void acceptOffer(Long requestId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.OFFER_SENT) {
+            throw new BusinessException("Təklif yalnız OFFER_SENT statusunda qəbul edilə bilər");
+        }
+        request.setStatus(RequestStatus.ACCEPTED);
+        requestRepository.save(request);
+
+        // Layihə artıq yaradılmayıbsa — PENDING layihə yarat
+        if (!projectRepository.existsByRequestIdAndDeletedFalse(requestId)) {
+            int nextNum = projectRepository.findMaxProjectCodeNumber() + 1;
+            Project project = Project.builder()
+                    .projectCode("PRJ-" + String.format("%04d", nextNum))
+                    .request(request)
+                    .status(ProjectStatus.PENDING)
+                    .build();
+            projectRepository.save(project);
+        }
+    }
+
+    @Transactional
+    public void rejectOffer(Long requestId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.OFFER_SENT) {
+            throw new BusinessException("Təklif yalnız OFFER_SENT statusunda rədd edilə bilər");
+        }
+        request.setStatus(RequestStatus.REJECTED);
+        requestRepository.save(request);
     }
 
     // ─── Texnika seçimi ───────────────────────────────────────────────────────

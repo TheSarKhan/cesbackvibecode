@@ -18,4 +18,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     Optional<Project> findByRequestIdAndDeletedFalse(Long requestId);
 
     boolean existsByRequestIdAndDeletedFalse(Long requestId);
+
+    @Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(project_code FROM 5) AS INTEGER)), 0) FROM projects WHERE project_code LIKE 'PRJ-%'", nativeQuery = true)
+    int findMaxProjectCodeNumber();
 }
