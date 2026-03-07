@@ -20,6 +20,7 @@ public class ContractorRequest {
     private String voen;
 
     private String contactPerson;
+    private String phone;
     private String address;
     private String paymentType;
 

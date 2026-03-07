@@ -165,4 +165,45 @@ public class EquipmentController {
             throw new com.ces.erp.common.exception.BusinessException("Fayl endirilə bilmədi");
         }
     }
+
+    // ─── Texnikanın şəkilləri ─────────────────────────────────────────────────
+
+    @PostMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('GARAGE:POST')")
+    @Operation(summary = "Texnika şəkli yüklə")
+    public ResponseEntity<ApiResponse<com.ces.erp.garage.dto.ImageResponse>> uploadImage(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Şəkil yükləndi",
+                equipmentService.uploadImage(id, file, principal.getId())));
+    }
+
+    @DeleteMapping("/{id}/images/{imageId}")
+    @PreAuthorize("hasAuthority('GARAGE:DELETE')")
+    @Operation(summary = "Texnika şəklini sil")
+    public ResponseEntity<ApiResponse<Void>> deleteImage(@PathVariable Long id,
+                                                          @PathVariable Long imageId) {
+        equipmentService.deleteImage(id, imageId);
+        return ResponseEntity.ok(ApiResponse.ok("Şəkil silindi"));
+    }
+
+    @GetMapping("/{id}/images/{imageId}/view")
+    @PreAuthorize("hasAuthority('GARAGE:GET')")
+    @Operation(summary = "Texnika şəklini göstər (inline)")
+    public ResponseEntity<Resource> viewImage(@PathVariable Long id,
+                                               @PathVariable Long imageId) {
+        try {
+            Path path = equipmentService.resolveImagePath(id, imageId);
+            Resource resource = new UrlResource(path.toUri());
+            String ct = resource.getURL().openConnection().getContentType();
+            MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + path.getFileName() + "\"")
+                    .contentType(mediaType)
+                    .body(resource);
+        } catch (Exception e) {
+            throw new com.ces.erp.common.exception.BusinessException("Şəkil göstərilə bilmədi");
+        }
+    }
 }

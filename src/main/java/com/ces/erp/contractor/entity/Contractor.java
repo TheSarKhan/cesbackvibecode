@@ -25,6 +25,9 @@ public class Contractor extends BaseEntity {
 
     private String contactPerson;
 
+    @Column(length = 50)
+    private String phone;
+
     @Column(columnDefinition = "TEXT")
     private String address;
 

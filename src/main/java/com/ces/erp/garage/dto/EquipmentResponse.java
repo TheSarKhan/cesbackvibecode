@@ -35,16 +35,32 @@ public class EquipmentResponse {
     private Long responsibleUserId;
     private String responsibleUserName;
     private OwnershipType ownershipType;
+
+    // Company / Investor / Contractor ownership
     private Long ownerContractorId;
     private String ownerContractorName;
+    private String ownerContractorVoen;
+    private String ownerContractorPhone;
+    private String ownerContractorContact;
+
     private String ownerInvestorName;
     private String ownerInvestorVoen;
     private String ownerInvestorPhone;
+
+    // Inspection dates
+    private LocalDate lastInspectionDate;
+    private LocalDate nextInspectionDate;
+
+    // Statuses
+    private String technicalReadinessStatus;
     private EquipmentStatus status;
     private String repairStatus;
+
     private String notes;
+
     private List<InspectionResponse> inspections;
     private List<DocumentResponse> documents;
+    private List<ImageResponse> images;
     private LocalDateTime createdAt;
 
     public static EquipmentResponse from(Equipment e) {
@@ -71,14 +87,21 @@ public class EquipmentResponse {
                 .ownershipType(e.getOwnershipType())
                 .ownerContractorId(e.getOwnerContractor() != null ? e.getOwnerContractor().getId() : null)
                 .ownerContractorName(e.getOwnerContractor() != null ? e.getOwnerContractor().getCompanyName() : null)
+                .ownerContractorVoen(e.getOwnerContractor() != null ? e.getOwnerContractor().getVoen() : null)
+                .ownerContractorPhone(e.getOwnerContractor() != null ? e.getOwnerContractor().getPhone() : null)
+                .ownerContractorContact(e.getOwnerContractor() != null ? e.getOwnerContractor().getContactPerson() : null)
                 .ownerInvestorName(e.getOwnerInvestorName())
                 .ownerInvestorVoen(e.getOwnerInvestorVoen())
                 .ownerInvestorPhone(e.getOwnerInvestorPhone())
+                .lastInspectionDate(e.getLastInspectionDate())
+                .nextInspectionDate(e.getNextInspectionDate())
+                .technicalReadinessStatus(e.getTechnicalReadinessStatus())
                 .status(e.getStatus())
                 .repairStatus(e.getRepairStatus())
                 .notes(e.getNotes())
                 .inspections(e.getInspections().stream().map(InspectionResponse::from).toList())
                 .documents(e.getDocuments().stream().map(DocumentResponse::from).toList())
+                .images(e.getImages().stream().map(ImageResponse::from).toList())
                 .createdAt(e.getCreatedAt())
                 .build();
     }

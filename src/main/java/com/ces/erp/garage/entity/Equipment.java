@@ -90,6 +90,13 @@ public class Equipment extends BaseEntity {
     @Column(length = 50)
     private String ownerInvestorPhone;
 
+    private LocalDate lastInspectionDate;
+
+    private LocalDate nextInspectionDate;
+
+    @Column(length = 100)
+    private String technicalReadinessStatus;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
@@ -107,6 +114,10 @@ public class Equipment extends BaseEntity {
     @OneToMany(mappedBy = "equipment", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<EquipmentDocument> documents = new ArrayList<>();
+
+    @OneToMany(mappedBy = "equipment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<EquipmentImage> images = new ArrayList<>();
 
     @OneToMany(mappedBy = "equipment", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

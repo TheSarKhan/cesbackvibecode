@@ -47,6 +47,10 @@ public class EquipmentRequest {
     private String ownerInvestorVoen;
     private String ownerInvestorPhone;
 
+    private LocalDate lastInspectionDate;
+    private LocalDate nextInspectionDate;
+    private String technicalReadinessStatus;
+
     @NotNull(message = "Status boş ola bilməz")
     private EquipmentStatus status;
 

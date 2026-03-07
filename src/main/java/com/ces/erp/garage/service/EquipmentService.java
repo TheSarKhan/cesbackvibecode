@@ -25,6 +25,7 @@ public class EquipmentService {
     private final EquipmentRepository equipmentRepository;
     private final EquipmentInspectionRepository inspectionRepository;
     private final EquipmentDocumentRepository documentRepository;
+    private final EquipmentImageRepository imageRepository;
     private final EquipmentProjectHistoryRepository projectHistoryRepository;
     private final ContractorRepository contractorRepository;
     private final UserRepository userRepository;
@@ -121,7 +122,7 @@ public class EquipmentService {
         inspectionRepository.delete(inspection);
     }
 
-    // ─── Sənəd ────────────────────────────────────────────────────────────────
+    // ─── Texniki sənəd ────────────────────────────────────────────────────────
 
     @Transactional
     public DocumentResponse uploadDocument(Long equipmentId, MultipartFile file, String documentName, Long userId) {
@@ -173,6 +174,50 @@ public class EquipmentService {
         return fileStorageService.resolve(inspection.getDocumentPath());
     }
 
+    // ─── Şəkillər ─────────────────────────────────────────────────────────────
+
+    @Transactional
+    public ImageResponse uploadImage(Long equipmentId, MultipartFile file, Long userId) {
+        Equipment equipment = findOrThrow(equipmentId);
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new BusinessException("Yalnız şəkil faylları yüklənə bilər");
+        }
+
+        String path = fileStorageService.store(file, "equipment-images");
+
+        User uploader = userId != null
+                ? userRepository.findByIdAndDeletedFalse(userId).orElse(null)
+                : null;
+
+        EquipmentImage image = EquipmentImage.builder()
+                .equipment(equipment)
+                .imagePath(path)
+                .imageName(file.getOriginalFilename())
+                .fileType(contentType)
+                .uploadedBy(uploader)
+                .build();
+
+        return ImageResponse.from(imageRepository.save(image));
+    }
+
+    @Transactional
+    public void deleteImage(Long equipmentId, Long imageId) {
+        EquipmentImage image = imageRepository
+                .findByIdAndEquipmentId(imageId, equipmentId)
+                .orElseThrow(() -> new BusinessException("Şəkil tapılmadı"));
+        fileStorageService.delete(image.getImagePath());
+        imageRepository.delete(image);
+    }
+
+    public java.nio.file.Path resolveImagePath(Long equipmentId, Long imageId) {
+        EquipmentImage image = imageRepository
+                .findByIdAndEquipmentId(imageId, equipmentId)
+                .orElseThrow(() -> new BusinessException("Şəkil tapılmadı"));
+        return fileStorageService.resolve(image.getImagePath());
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private Equipment buildEquipment(EquipmentRequest r, Equipment e) {
@@ -192,6 +237,9 @@ public class EquipmentService {
         e.setHourKmCounter(r.getHourKmCounter());
         e.setMotoHours(r.getMotoHours());
         e.setStorageLocation(r.getStorageLocation());
+        e.setLastInspectionDate(r.getLastInspectionDate());
+        e.setNextInspectionDate(r.getNextInspectionDate());
+        e.setTechnicalReadinessStatus(r.getTechnicalReadinessStatus());
         e.setStatus(r.getStatus());
         e.setRepairStatus(r.getRepairStatus());
         e.setNotes(r.getNotes());

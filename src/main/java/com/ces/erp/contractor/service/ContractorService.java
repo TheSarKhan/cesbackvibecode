@@ -61,6 +61,7 @@ public class ContractorService {
         c.setCompanyName(r.getCompanyName());
         c.setVoen(r.getVoen());
         c.setContactPerson(r.getContactPerson());
+        c.setPhone(r.getPhone());
         c.setAddress(r.getAddress());
         c.setPaymentType(r.getPaymentType());
         c.setStatus(r.getStatus());

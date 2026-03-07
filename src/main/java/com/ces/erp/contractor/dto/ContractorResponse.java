@@ -17,6 +17,7 @@ public class ContractorResponse {
     private String companyName;
     private String voen;
     private String contactPerson;
+    private String phone;
     private String address;
     private String paymentType;
     private ContractorStatus status;
@@ -31,6 +32,7 @@ public class ContractorResponse {
                 .companyName(c.getCompanyName())
                 .voen(c.getVoen())
                 .contactPerson(c.getContactPerson())
+                .phone(c.getPhone())
                 .address(c.getAddress())
                 .paymentType(c.getPaymentType())
                 .status(c.getStatus())
