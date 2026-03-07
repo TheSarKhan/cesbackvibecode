@@ -13,4 +13,5 @@ public class PermissionRequest {
     private boolean canPost;
     private boolean canPut;
     private boolean canDelete;
+    private boolean canSendToCoordinator;
 }

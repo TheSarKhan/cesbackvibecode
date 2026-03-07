@@ -34,10 +34,11 @@ public class UserPrincipal implements UserDetails {
                     .flatMap(p -> {
                         String code = p.getModule().getCode();
                         return Stream.of(
-                                p.isCanGet()    ? new SimpleGrantedAuthority(code + ":GET")    : null,
-                                p.isCanPost()   ? new SimpleGrantedAuthority(code + ":POST")   : null,
-                                p.isCanPut()    ? new SimpleGrantedAuthority(code + ":PUT")    : null,
-                                p.isCanDelete() ? new SimpleGrantedAuthority(code + ":DELETE") : null
+                                p.isCanGet()               ? new SimpleGrantedAuthority(code + ":GET")                : null,
+                                p.isCanPost()              ? new SimpleGrantedAuthority(code + ":POST")               : null,
+                                p.isCanPut()               ? new SimpleGrantedAuthority(code + ":PUT")                : null,
+                                p.isCanDelete()            ? new SimpleGrantedAuthority(code + ":DELETE")             : null,
+                                p.isCanSendToCoordinator() ? new SimpleGrantedAuthority(code + ":SEND_COORDINATOR")   : null
                         ).filter(a -> a != null);
                     })
                     .toList();

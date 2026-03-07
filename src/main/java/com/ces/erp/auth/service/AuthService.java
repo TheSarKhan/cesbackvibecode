@@ -88,6 +88,7 @@ public class AuthService {
                             .canPost(p.isCanPost())
                             .canPut(p.isCanPut())
                             .canDelete(p.isCanDelete())
+                            .canSendToCoordinator(p.isCanSendToCoordinator())
                             .build())
                     .toList();
         }

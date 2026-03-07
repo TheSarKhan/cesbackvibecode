@@ -39,12 +39,48 @@ public class DataSeeder implements CommandLineRunner {
         seedModules();
         seedMissingModules();
         seedAdminAccount();
+        seedMissingPermissionsForAdmin();
     }
 
     // ─── Sonradan əlavə olunan modulları seed et ──────────────────────────────
 
     private void seedMissingModules() {
         seedModuleIfAbsent("INVESTORS", "İnvestor İdarəetməsi", "Investor Management", 11);
+    }
+
+    // ─── Admin roluna çatışmayan icazələri əlavə et ───────────────────────────
+
+    private void seedMissingPermissionsForAdmin() {
+        userRepository.findByEmailAndDeletedFalse("admin@ces.az").ifPresent(admin -> {
+            if (admin.getRole() == null) return;
+            Role role = admin.getRole();
+            List<Long> existingModuleIds = rolePermissionRepository.findAllByRoleId(role.getId())
+                    .stream().map(p -> p.getModule().getId()).toList();
+
+            moduleRepository.findAll().stream()
+                    .filter(m -> !existingModuleIds.contains(m.getId()))
+                    .forEach(m -> {
+                        rolePermissionRepository.save(RolePermission.builder()
+                                .role(role)
+                                .module(m)
+                                .canGet(true)
+                                .canPost(true)
+                                .canPut(true)
+                                .canDelete(true)
+                                .canSendToCoordinator("REQUESTS".equals(m.getCode()))
+                                .build());
+                        log.info("Admin roluna əlavə icazə verildi: {}", m.getCode());
+                    });
+
+            // REQUESTS modulu üçün canSendToCoordinator-u yoxla və aktivləşdir
+            rolePermissionRepository.findAllByRoleId(role.getId()).stream()
+                    .filter(p -> "REQUESTS".equals(p.getModule().getCode()) && !p.isCanSendToCoordinator())
+                    .forEach(p -> {
+                        p.setCanSendToCoordinator(true);
+                        rolePermissionRepository.save(p);
+                        log.info("Admin üçün REQUESTS:SEND_COORDINATOR aktivləşdirildi");
+                    });
+        });
     }
 
     private void seedModuleIfAbsent(String code, String az, String en, int order) {
@@ -110,6 +146,7 @@ public class DataSeeder implements CommandLineRunner {
                         .canPost(true)
                         .canPut(true)
                         .canDelete(true)
+                        .canSendToCoordinator("REQUESTS".equals(m.getCode()))
                         .build())
                 .toList();
         rolePermissionRepository.saveAll(permissions);

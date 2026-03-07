@@ -41,4 +41,8 @@ public class RolePermission {
     @Column(nullable = false)
     @Builder.Default
     private boolean canDelete = false;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean canSendToCoordinator = false;
 }

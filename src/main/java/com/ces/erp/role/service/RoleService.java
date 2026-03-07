@@ -104,6 +104,7 @@ public class RoleService {
                             .canPost(pr.isCanPost())
                             .canPut(pr.isCanPut())
                             .canDelete(pr.isCanDelete())
+                            .canSendToCoordinator(pr.isCanSendToCoordinator())
                             .build();
                 })
                 .toList();

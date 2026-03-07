@@ -31,6 +31,7 @@ public class RoleResponse {
         private boolean canPost;
         private boolean canPut;
         private boolean canDelete;
+        private boolean canSendToCoordinator;
 
         public static PermissionResponse from(RolePermission p) {
             return PermissionResponse.builder()
@@ -41,6 +42,7 @@ public class RoleResponse {
                     .canPost(p.isCanPost())
                     .canPut(p.isCanPut())
                     .canDelete(p.isCanDelete())
+                    .canSendToCoordinator(p.isCanSendToCoordinator())
                     .build();
         }
     }
