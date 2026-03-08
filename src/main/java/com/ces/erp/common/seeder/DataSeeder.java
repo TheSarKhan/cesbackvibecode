@@ -46,6 +46,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private void seedMissingModules() {
         seedModuleIfAbsent("INVESTORS", "İnvestor İdarəetməsi", "Investor Management", 11);
+        seedModuleIfAbsent("OPERATORS", "Operator İdarəetməsi", "Operator Management", 12);
     }
 
     // ─── Admin roluna çatışmayan icazələri əlavə et ───────────────────────────
