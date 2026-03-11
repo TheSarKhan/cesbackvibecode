@@ -3,26 +3,26 @@ version: '3.9'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: ces-erp-postgres
+    container_name: ces-postgres
     environment:
       POSTGRES_DB: ces_erp
       POSTGRES_USER: ces_user
       POSTGRES_PASSWORD: ces_password
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ces_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    container_name: ces-erp-redis
+    container_name: ces-redis
     ports:
-      - "6379:6379"
+      - "6381:6379"
     volumes:
-      - redis_data:/data
+      - ces_redis_data:/data
     restart: unless-stopped
 
 volumes:
-  postgres_data:
-  redis_data:
+  ces_postgres_data:
+  ces_redis_data:
