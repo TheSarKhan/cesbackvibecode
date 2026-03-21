@@ -1,5 +1,8 @@
 package com.ces.erp.garage.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
@@ -11,6 +14,7 @@ import com.ces.erp.garage.repository.*;
 import com.ces.erp.enums.OwnershipType;
 import com.ces.erp.user.entity.User;
 import com.ces.erp.user.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +24,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class EquipmentService {
+public class EquipmentService implements ApprovalHandler {
 
     private final EquipmentRepository equipmentRepository;
     private final EquipmentInspectionRepository inspectionRepository;
@@ -30,6 +34,27 @@ public class EquipmentService {
     private final ContractorRepository contractorRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "EQUIPMENT"; }
+    @Override public String getModuleCode()  { return "GARAGE"; }
+    @Override public String getLabel(Long id) { return findOrThrow(id).getName(); }
+    @Override public Object getSnapshot(Long id) { return EquipmentResponse.from(findWithDetails(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            EquipmentRequest req = objectMapper.readValue(json, EquipmentRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     @Transactional(readOnly = true)
     public List<EquipmentResponse> getAll() {
@@ -59,6 +84,7 @@ public class EquipmentService {
     }
 
     @Transactional
+    @RequiresApproval(module = "GARAGE", entityType = "EQUIPMENT")
     public EquipmentResponse update(Long id, EquipmentRequest request) {
         Equipment equipment = findOrThrow(id);
         validateCodes(request, id);
@@ -66,6 +92,7 @@ public class EquipmentService {
     }
 
     @Transactional
+    @RequiresApproval(module = "GARAGE", entityType = "EQUIPMENT", isDelete = true)
     public void delete(Long id) {
         Equipment equipment = findOrThrow(id);
         equipment.softDelete();

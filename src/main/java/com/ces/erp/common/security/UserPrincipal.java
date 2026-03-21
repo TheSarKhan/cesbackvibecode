@@ -38,7 +38,8 @@ public class UserPrincipal implements UserDetails {
                                 p.isCanPost()              ? new SimpleGrantedAuthority(code + ":POST")               : null,
                                 p.isCanPut()               ? new SimpleGrantedAuthority(code + ":PUT")                : null,
                                 p.isCanDelete()            ? new SimpleGrantedAuthority(code + ":DELETE")             : null,
-                                p.isCanSendToCoordinator() ? new SimpleGrantedAuthority(code + ":SEND_COORDINATOR")   : null
+                                p.isCanSendToCoordinator() ? new SimpleGrantedAuthority(code + ":SEND_COORDINATOR")   : null,
+                                p.isCanSubmitOffer()       ? new SimpleGrantedAuthority(code + ":SUBMIT_OFFER")       : null
                         ).filter(a -> a != null);
                     })
                     .toList();

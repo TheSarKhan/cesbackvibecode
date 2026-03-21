@@ -14,4 +14,6 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
 
     @Query("SELECT o FROM Operator o LEFT JOIN FETCH o.documents WHERE o.id = :id AND o.deleted = false")
     Optional<Operator> findByIdActive(Long id);
+
+    List<Operator> findAllByDeletedTrue();
 }

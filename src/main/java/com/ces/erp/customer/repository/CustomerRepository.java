@@ -18,4 +18,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     boolean existsByVoenAndDeletedFalse(String voen);
 
     boolean existsByVoenAndIdNotAndDeletedFalse(String voen, @Param("id") Long id);
+
+    List<Customer> findAllByDeletedTrue();
 }

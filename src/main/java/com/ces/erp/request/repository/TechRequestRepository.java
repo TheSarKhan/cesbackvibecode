@@ -21,4 +21,6 @@ public interface TechRequestRepository extends JpaRepository<TechRequest, Long> 
 
     @Query("SELECT r FROM TechRequest r LEFT JOIN FETCH r.customer LEFT JOIN FETCH r.selectedEquipment e LEFT JOIN FETCH e.ownerContractor LEFT JOIN FETCH r.createdBy WHERE r.status IN :statuses AND r.deleted = false ORDER BY r.createdAt DESC")
     List<TechRequest> findAllByStatusInAndDeletedFalse(@Param("statuses") List<RequestStatus> statuses);
+
+    List<TechRequest> findAllByDeletedTrue();
 }

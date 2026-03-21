@@ -38,5 +38,6 @@ public class LoginResponse {
         private boolean canPut;
         private boolean canDelete;
         private boolean canSendToCoordinator;
+        private boolean canSubmitOffer;
     }
 }

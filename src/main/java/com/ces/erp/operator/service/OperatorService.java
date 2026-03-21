@@ -1,5 +1,8 @@
 package com.ces.erp.operator.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.enums.OperatorDocumentType;
@@ -9,6 +12,7 @@ import com.ces.erp.operator.entity.Operator;
 import com.ces.erp.operator.entity.OperatorDocument;
 import com.ces.erp.operator.repository.OperatorDocumentRepository;
 import com.ces.erp.operator.repository.OperatorRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -21,11 +25,35 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class OperatorService {
+public class OperatorService implements ApprovalHandler {
 
     private final OperatorRepository operatorRepository;
     private final OperatorDocumentRepository documentRepository;
     private final FileStorageService fileStorageService;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "OPERATOR"; }
+    @Override public String getModuleCode()  { return "OPERATORS"; }
+    @Override public String getLabel(Long id) {
+        Operator o = findOrThrow(id);
+        return o.getFirstName() + " " + o.getLastName();
+    }
+    @Override public Object getSnapshot(Long id) { return OperatorResponse.from(findOrThrow(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            OperatorRequest req = objectMapper.readValue(json, OperatorRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     public List<OperatorResponse> getAll() {
         return operatorRepository.findAllActive().stream()
@@ -52,6 +80,7 @@ public class OperatorService {
     }
 
     @Transactional
+    @RequiresApproval(module = "OPERATORS", entityType = "OPERATOR")
     public OperatorResponse update(Long id, OperatorRequest req) {
         Operator o = findOrThrow(id);
         o.setFirstName(req.getFirstName());
@@ -65,6 +94,7 @@ public class OperatorService {
     }
 
     @Transactional
+    @RequiresApproval(module = "OPERATORS", entityType = "OPERATOR", isDelete = true)
     public void delete(Long id) {
         Operator o = findOrThrow(id);
         o.softDelete();

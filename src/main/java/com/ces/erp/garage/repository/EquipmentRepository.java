@@ -26,4 +26,6 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
     boolean existsBySerialNumberAndIdNotAndDeletedFalse(String serialNumber, Long id);
 
     List<Equipment> findAllByStatusAndDeletedFalse(EquipmentStatus status);
+
+    List<Equipment> findAllByDeletedTrue();
 }

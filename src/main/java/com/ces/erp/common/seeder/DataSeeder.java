@@ -47,6 +47,8 @@ public class DataSeeder implements CommandLineRunner {
     private void seedMissingModules() {
         seedModuleIfAbsent("INVESTORS", "İnvestor İdarəetməsi", "Investor Management", 11);
         seedModuleIfAbsent("OPERATORS", "Operator İdarəetməsi", "Operator Management", 12);
+        seedModuleIfAbsent("OPERATIONS_APPROVAL", "Əməliyyatların Təsdiqi", "Operations Approval", 13);
+        seedModuleIfAbsent("TRASH", "Silinmiş Məlumatlar", "Deleted Data", 14);
     }
 
     // ─── Admin roluna çatışmayan icazələri əlavə et ───────────────────────────
@@ -69,6 +71,7 @@ public class DataSeeder implements CommandLineRunner {
                                 .canPut(true)
                                 .canDelete(true)
                                 .canSendToCoordinator("REQUESTS".equals(m.getCode()))
+                                .canSubmitOffer("COORDINATOR".equals(m.getCode()))
                                 .build());
                         log.info("Admin roluna əlavə icazə verildi: {}", m.getCode());
                     });
@@ -80,6 +83,15 @@ public class DataSeeder implements CommandLineRunner {
                         p.setCanSendToCoordinator(true);
                         rolePermissionRepository.save(p);
                         log.info("Admin üçün REQUESTS:SEND_COORDINATOR aktivləşdirildi");
+                    });
+
+            // COORDINATOR modulu üçün canSubmitOffer-u yoxla və aktivləşdir
+            rolePermissionRepository.findAllByRoleId(role.getId()).stream()
+                    .filter(p -> "COORDINATOR".equals(p.getModule().getCode()) && !p.isCanSubmitOffer())
+                    .forEach(p -> {
+                        p.setCanSubmitOffer(true);
+                        rolePermissionRepository.save(p);
+                        log.info("Admin üçün COORDINATOR:SUBMIT_OFFER aktivləşdirildi");
                     });
         });
     }

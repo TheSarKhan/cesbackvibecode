@@ -1,5 +1,8 @@
 package com.ces.erp.request.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.customer.repository.CustomerRepository;
@@ -11,6 +14,7 @@ import com.ces.erp.request.entity.TechParam;
 import com.ces.erp.request.entity.TechRequest;
 import com.ces.erp.request.repository.TechRequestRepository;
 import com.ces.erp.user.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,12 +23,33 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class TechRequestService {
+public class TechRequestService implements ApprovalHandler {
 
     private final TechRequestRepository requestRepository;
     private final CustomerRepository customerRepository;
     private final EquipmentRepository equipmentRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "REQUEST"; }
+    @Override public String getModuleCode()  { return "REQUESTS"; }
+    @Override public String getLabel(Long id) { return findOrThrow(id).getRequestCode(); }
+    @Override public Object getSnapshot(Long id) { return TechRequestResponse.from(findOrThrow(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            TechRequestRequest req = objectMapper.readValue(json, TechRequestRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     public List<TechRequestResponse> getAll() {
         return requestRepository.findAllByDeletedFalse().stream()
@@ -46,6 +71,7 @@ public class TechRequestService {
     }
 
     @Transactional
+    @RequiresApproval(module = "REQUESTS", entityType = "REQUEST")
     public TechRequestResponse update(Long id, TechRequestRequest req) {
         TechRequest entity = findOrThrow(id);
         if (entity.getStatus() == RequestStatus.SENT_TO_COORDINATOR
@@ -89,6 +115,7 @@ public class TechRequestService {
     }
 
     @Transactional
+    @RequiresApproval(module = "REQUESTS", entityType = "REQUEST", isDelete = true)
     public void delete(Long id) {
         TechRequest entity = findOrThrow(id);
         entity.softDelete();

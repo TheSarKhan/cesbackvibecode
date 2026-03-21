@@ -1,5 +1,7 @@
 package com.ces.erp.common.exception;
 
+import com.ces.erp.approval.dto.PendingOperationResponse;
+import com.ces.erp.approval.exception.PendingApprovalException;
 import com.ces.erp.common.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +16,16 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(PendingApprovalException.class)
+    public ResponseEntity<ApiResponse<PendingOperationResponse>> handlePendingApproval(PendingApprovalException ex) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ApiResponse.<PendingOperationResponse>builder()
+                        .success(true)
+                        .message("Əməliyyat təsdiq gözləyir")
+                        .data(ex.getOperation())
+                        .build());
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {

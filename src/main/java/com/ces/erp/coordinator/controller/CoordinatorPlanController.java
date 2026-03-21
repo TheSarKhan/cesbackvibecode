@@ -57,7 +57,7 @@ public class CoordinatorPlanController {
     }
 
     @PostMapping("/requests/{requestId}/submit")
-    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @PreAuthorize("hasAuthority('COORDINATOR:SUBMIT_OFFER')")
     @Operation(summary = "Planı bitir və sorğuyu OFFER_SENT statusuna keçir")
     public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> submitPlan(@PathVariable Long requestId) {
         return ResponseEntity.ok(ApiResponse.success("Təklif göndərildi",

@@ -1,11 +1,15 @@
 package com.ces.erp.investor.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.investor.dto.InvestorRequest;
 import com.ces.erp.investor.dto.InvestorResponse;
 import com.ces.erp.investor.entity.Investor;
 import com.ces.erp.investor.repository.InvestorRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,9 +18,30 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class InvestorService {
+public class InvestorService implements ApprovalHandler {
 
     private final InvestorRepository investorRepository;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "INVESTOR"; }
+    @Override public String getModuleCode()  { return "INVESTORS"; }
+    @Override public String getLabel(Long id) { return findOrThrow(id).getCompanyName(); }
+    @Override public Object getSnapshot(Long id) { return InvestorResponse.from(findOrThrow(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            InvestorRequest req = objectMapper.readValue(json, InvestorRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     public List<InvestorResponse> getAll() {
         return investorRepository.findAllByDeletedFalse().stream()
@@ -37,6 +62,7 @@ public class InvestorService {
     }
 
     @Transactional
+    @RequiresApproval(module = "INVESTORS", entityType = "INVESTOR")
     public InvestorResponse update(Long id, InvestorRequest request) {
         Investor investor = findOrThrow(id);
         if (investorRepository.existsByVoenAndIdNotAndDeletedFalse(request.getVoen(), id)) {
@@ -46,6 +72,7 @@ public class InvestorService {
     }
 
     @Transactional
+    @RequiresApproval(module = "INVESTORS", entityType = "INVESTOR", isDelete = true)
     public void delete(Long id) {
         Investor investor = findOrThrow(id);
         investor.softDelete();

@@ -32,6 +32,7 @@ public class RoleResponse {
         private boolean canPut;
         private boolean canDelete;
         private boolean canSendToCoordinator;
+        private boolean canSubmitOffer;
 
         public static PermissionResponse from(RolePermission p) {
             return PermissionResponse.builder()
@@ -43,6 +44,7 @@ public class RoleResponse {
                     .canPut(p.isCanPut())
                     .canDelete(p.isCanDelete())
                     .canSendToCoordinator(p.isCanSendToCoordinator())
+                    .canSubmitOffer(p.isCanSubmitOffer())
                     .build();
         }
     }

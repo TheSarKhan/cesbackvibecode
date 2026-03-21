@@ -15,4 +15,6 @@ public interface InvestorRepository extends JpaRepository<Investor, Long> {
     boolean existsByVoenAndDeletedFalse(String voen);
 
     boolean existsByVoenAndIdNotAndDeletedFalse(String voen, Long id);
+
+    List<Investor> findAllByDeletedTrue();
 }

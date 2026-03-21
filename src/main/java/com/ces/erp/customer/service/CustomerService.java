@@ -1,5 +1,8 @@
 package com.ces.erp.customer.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
@@ -11,6 +14,7 @@ import com.ces.erp.customer.entity.CustomerDocument;
 import com.ces.erp.customer.repository.CustomerDocumentRepository;
 import com.ces.erp.customer.repository.CustomerRepository;
 import com.ces.erp.user.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,12 +25,33 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class CustomerService {
+public class CustomerService implements ApprovalHandler {
 
     private final CustomerRepository customerRepository;
     private final CustomerDocumentRepository documentRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "CUSTOMER"; }
+    @Override public String getModuleCode()  { return "CUSTOMER_MANAGEMENT"; }
+    @Override public String getLabel(Long id) { return findOrThrow(id).getCompanyName(); }
+    @Override public Object getSnapshot(Long id) { return CustomerResponse.from(findOrThrow(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            CustomerRequest req = objectMapper.readValue(json, CustomerRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     public List<CustomerResponse> getAll() {
         return customerRepository.findAllByDeletedFalse().stream()
@@ -48,6 +73,7 @@ public class CustomerService {
     }
 
     @Transactional
+    @RequiresApproval(module = "CUSTOMER_MANAGEMENT", entityType = "CUSTOMER")
     public CustomerResponse update(Long id, CustomerRequest request) {
         Customer customer = findOrThrow(id);
         if (request.getVoen() != null && !request.getVoen().isBlank()
@@ -58,6 +84,7 @@ public class CustomerService {
     }
 
     @Transactional
+    @RequiresApproval(module = "CUSTOMER_MANAGEMENT", entityType = "CUSTOMER", isDelete = true)
     public void delete(Long id) {
         Customer customer = findOrThrow(id);
         customer.softDelete();

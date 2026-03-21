@@ -5,11 +5,15 @@ import com.ces.erp.accounting.dto.InvoiceRequest;
 import com.ces.erp.accounting.dto.InvoiceResponse;
 import com.ces.erp.accounting.entity.Invoice;
 import com.ces.erp.accounting.repository.InvoiceRepository;
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.enums.InvoiceType;
 import com.ces.erp.project.repository.ProjectRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,11 +23,35 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class InvoiceService {
+public class InvoiceService implements ApprovalHandler {
 
     private final InvoiceRepository invoiceRepository;
     private final ProjectRepository projectRepository;
     private final ContractorRepository contractorRepository;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "INVOICE"; }
+    @Override public String getModuleCode()  { return "ACCOUNTING"; }
+    @Override public String getLabel(Long id) {
+        Invoice inv = findOrThrow(id);
+        return inv.getInvoiceNumber() != null ? inv.getInvoiceNumber() : "Qaimə #" + id;
+    }
+    @Override public Object getSnapshot(Long id) { return InvoiceResponse.from(findOrThrow(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            InvoiceRequest req = objectMapper.readValue(json, InvoiceRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     // ─── List & Summary ───────────────────────────────────────────────────────
 
@@ -98,6 +126,7 @@ public class InvoiceService {
     }
 
     @Transactional
+    @RequiresApproval(module = "ACCOUNTING", entityType = "INVOICE")
     public InvoiceResponse update(Long id, InvoiceRequest req) {
         Invoice inv = findOrThrow(id);
         validate(req, id);
@@ -125,6 +154,7 @@ public class InvoiceService {
     }
 
     @Transactional
+    @RequiresApproval(module = "ACCOUNTING", entityType = "INVOICE", isDelete = true)
     public void delete(Long id) {
         Invoice inv = findOrThrow(id);
         inv.softDelete();

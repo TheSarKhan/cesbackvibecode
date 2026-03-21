@@ -39,4 +39,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     List<Invoice> findAllByProjectIdAndDeletedFalse(Long projectId);
 
     boolean existsByEtaxesIdAndDeletedFalse(String etaxesId);
+
+    List<Invoice> findAllByDeletedTrue();
 }

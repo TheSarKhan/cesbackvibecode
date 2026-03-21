@@ -45,4 +45,8 @@ public class RolePermission {
     @Column(nullable = false, columnDefinition = "boolean default false")
     @Builder.Default
     private boolean canSendToCoordinator = false;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean canSubmitOffer = false;
 }

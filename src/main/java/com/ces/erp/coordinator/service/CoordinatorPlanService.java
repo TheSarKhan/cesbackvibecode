@@ -1,5 +1,8 @@
 package com.ces.erp.coordinator.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
@@ -27,7 +30,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class CoordinatorPlanService {
+public class CoordinatorPlanService implements ApprovalHandler {
 
     private final TechRequestRepository requestRepository;
     private final CoordinatorPlanRepository planRepository;
@@ -36,6 +39,23 @@ public class CoordinatorPlanService {
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final ProjectRepository projectRepository;
+
+    @Override public String getEntityType() { return "COORDINATOR_SUBMIT"; }
+    @Override public String getModuleCode()  { return "COORDINATOR"; }
+    @Override public String getLabel(Long id) {
+        return requestRepository.findByIdAndDeletedFalse(id)
+                .map(TechRequest::getRequestCode).orElse("Sorğu #" + id);
+    }
+    @Override public Object getSnapshot(Long id) {
+        return planRepository.findByRequestId(id)
+                .map(CoordinatorPlanResponse::from)
+                .orElse(null);
+    }
+    @Override public void applyEdit(Long id, String json) {
+        ApprovalContext.setApplying(true);
+        try { submitPlan(id); } finally { ApprovalContext.clear(); }
+    }
+    @Override public void applyDelete(Long id) { /* istifadə edilmir */ }
 
     private static final List<RequestStatus> COORDINATOR_STATUSES = List.of(
             RequestStatus.SENT_TO_COORDINATOR,
@@ -84,6 +104,7 @@ public class CoordinatorPlanService {
     }
 
     @Transactional
+    @RequiresApproval(module = "COORDINATOR", entityType = "COORDINATOR_SUBMIT")
     public CoordinatorPlanResponse submitPlan(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
         if (request.getStatus() != RequestStatus.SENT_TO_COORDINATOR) {
