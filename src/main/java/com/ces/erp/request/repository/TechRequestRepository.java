@@ -2,6 +2,9 @@ package com.ces.erp.request.repository;
 
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.request.entity.TechRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,4 +32,20 @@ public interface TechRequestRepository extends JpaRepository<TechRequest, Long> 
 
     @Query("SELECT COUNT(r) FROM TechRequest r WHERE r.deleted = true")
     long countByDeletedTrue();
+
+    @EntityGraph(attributePaths = {"customer", "selectedEquipment", "createdBy"})
+    @Query("SELECT r FROM TechRequest r WHERE r.deleted = false" +
+            " AND (CAST(:search AS string) IS NULL OR LOWER(r.companyName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(r.requestCode, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(r.projectName, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(r.region, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))" +
+            " AND (CAST(:status AS string) IS NULL OR r.status = :status)" +
+            " AND (CAST(:region AS string) IS NULL OR r.region = :region)" +
+            " AND (CAST(:projectType AS string) IS NULL OR r.projectType = :projectType)")
+    Page<TechRequest> findAllFiltered(
+            @Param("search") String search,
+            @Param("status") RequestStatus status,
+            @Param("region") String region,
+            @Param("projectType") String projectType,
+            Pageable pageable);
 }
