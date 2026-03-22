@@ -22,4 +22,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     List<Customer> findAllByDeletedTrue();
 
     long countByDeletedFalse();
+
+    long countByDeletedTrue();
 }

@@ -18,4 +18,6 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
     List<Operator> findAllByDeletedTrue();
 
     long countByDeletedFalse();
+
+    long countByDeletedTrue();
 }

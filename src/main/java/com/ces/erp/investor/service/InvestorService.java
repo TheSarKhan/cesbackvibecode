@@ -3,6 +3,7 @@ package com.ces.erp.investor.service;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.investor.dto.InvestorRequest;
@@ -22,6 +23,7 @@ public class InvestorService implements ApprovalHandler {
 
     private final InvestorRepository investorRepository;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
 
     @Override public String getEntityType() { return "INVESTOR"; }
     @Override public String getModuleCode()  { return "INVESTORS"; }
@@ -58,7 +60,9 @@ public class InvestorService implements ApprovalHandler {
         if (investorRepository.existsByVoenAndDeletedFalse(request.getVoen())) {
             throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
         }
-        return InvestorResponse.from(investorRepository.save(toEntity(request, new Investor())));
+        Investor saved = investorRepository.save(toEntity(request, new Investor()));
+        auditService.log("İNVESTOR", saved.getId(), saved.getCompanyName(), "YARADILDI", "Yeni investor qeydiyyatı");
+        return InvestorResponse.from(saved);
     }
 
     @Transactional
@@ -68,13 +72,16 @@ public class InvestorService implements ApprovalHandler {
         if (investorRepository.existsByVoenAndIdNotAndDeletedFalse(request.getVoen(), id)) {
             throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
         }
-        return InvestorResponse.from(investorRepository.save(toEntity(request, investor)));
+        Investor updated = investorRepository.save(toEntity(request, investor));
+        auditService.log("İNVESTOR", updated.getId(), updated.getCompanyName(), "YENİLƏNDİ", "İnvestor məlumatları yeniləndi");
+        return InvestorResponse.from(updated);
     }
 
     @Transactional
     @RequiresApproval(module = "INVESTORS", entityType = "INVESTOR", isDelete = true)
     public void delete(Long id) {
         Investor investor = findOrThrow(id);
+        auditService.log("İNVESTOR", investor.getId(), investor.getCompanyName(), "SİLİNDİ", "İnvestor silindi");
         investor.softDelete();
         investorRepository.save(investor);
     }

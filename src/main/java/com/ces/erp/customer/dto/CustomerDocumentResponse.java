@@ -4,6 +4,7 @@ import com.ces.erp.customer.entity.CustomerDocument;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -14,6 +15,7 @@ public class CustomerDocumentResponse {
     private String documentName;
     private String fileType;
     private String uploadedByUserName;
+    private LocalDate documentDate;
     private LocalDateTime createdAt;
 
     public static CustomerDocumentResponse from(CustomerDocument d) {
@@ -22,6 +24,7 @@ public class CustomerDocumentResponse {
                 .documentName(d.getDocumentName())
                 .fileType(d.getFileType())
                 .uploadedByUserName(d.getUploadedBy() != null ? d.getUploadedBy().getFullName() : null)
+                .documentDate(d.getDocumentDate())
                 .createdAt(d.getCreatedAt())
                 .build();
     }

@@ -10,6 +10,7 @@ import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.enums.InvoiceType;
 import com.ces.erp.project.repository.ProjectRepository;
@@ -29,6 +30,7 @@ public class InvoiceService implements ApprovalHandler {
     private final ProjectRepository projectRepository;
     private final ContractorRepository contractorRepository;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
 
     @Override public String getEntityType() { return "INVOICE"; }
     @Override public String getModuleCode()  { return "ACCOUNTING"; }
@@ -122,7 +124,9 @@ public class InvoiceService implements ApprovalHandler {
                     .orElseThrow(() -> new ResourceNotFoundException("Podratçı", req.getContractorId())));
         }
 
-        return InvoiceResponse.from(invoiceRepository.save(inv));
+        Invoice saved = invoiceRepository.save(inv);
+        notificationService.success("Yeni faktura", "Faktura yaradıldı: " + saved.getInvoiceNumber(), "ACCOUNTING");
+        return InvoiceResponse.from(saved);
     }
 
     @Transactional

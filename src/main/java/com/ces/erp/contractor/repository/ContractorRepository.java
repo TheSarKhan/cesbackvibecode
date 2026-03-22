@@ -19,4 +19,6 @@ public interface ContractorRepository extends JpaRepository<Contractor, Long> {
     List<Contractor> findAllByDeletedTrue();
 
     long countByDeletedFalse();
+
+    long countByDeletedTrue();
 }

@@ -39,7 +39,7 @@ app:
     access-token-expiry: 86400000
     refresh-token-expiry: 604800000
   upload:
-    dir: /opt/ces/uploads
+    dir: C:/Users/serxa/ces-uploads
 
 logging:
   level:

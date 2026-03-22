@@ -49,6 +49,7 @@ public class DataSeeder implements CommandLineRunner {
         seedModuleIfAbsent("OPERATORS", "Operator İdarəetməsi", "Operator Management", 12);
         seedModuleIfAbsent("OPERATIONS_APPROVAL", "Əməliyyatların Təsdiqi", "Operations Approval", 13);
         seedModuleIfAbsent("TRASH", "Silinmiş Məlumatlar", "Deleted Data", 14);
+        seedModuleIfAbsent("AUDIT_LOG", "Audit Jurnal", "Audit Log", 15);
     }
 
     // ─── Admin roluna çatışmayan icazələri əlavə et ───────────────────────────

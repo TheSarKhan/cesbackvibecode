@@ -47,7 +47,6 @@ public class CoordinatorSeeder implements CommandLineRunner {
                     // Koordinator planı yarıda — məlumatlar daxil edilib, hələ göndərilməyib
                     CoordinatorPlan plan = CoordinatorPlan.builder()
                             .request(r)
-                            .operatorName("Tural Əliyev")
                             .equipmentPrice(new BigDecimal("2100.00"))   // 14 gün × 150 AZN/gün
                             .contractorPayment(new BigDecimal("0.00"))   // şirkətin öz texnikası
                             .transportationPrice(new BigDecimal("1200.00"))
@@ -66,7 +65,6 @@ public class CoordinatorSeeder implements CommandLineRunner {
                     // Tam tamamlanmış plan — layihəyə keçirilmiş
                     CoordinatorPlan plan = CoordinatorPlan.builder()
                             .request(r)
-                            .operatorName("Fərid Musayev")
                             .equipmentPrice(new BigDecimal("1050.00"))   // 7 gün × 150 AZN/gün
                             .contractorPayment(new BigDecimal("0.00"))
                             .transportationPrice(new BigDecimal("0.00"))

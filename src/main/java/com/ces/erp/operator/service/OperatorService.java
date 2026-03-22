@@ -3,6 +3,7 @@ package com.ces.erp.operator.service;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.enums.OperatorDocumentType;
@@ -31,6 +32,7 @@ public class OperatorService implements ApprovalHandler {
     private final OperatorDocumentRepository documentRepository;
     private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
 
     @Override public String getEntityType() { return "OPERATOR"; }
     @Override public String getModuleCode()  { return "OPERATORS"; }
@@ -76,7 +78,9 @@ public class OperatorService implements ApprovalHandler {
                 .specialization(req.getSpecialization())
                 .notes(req.getNotes())
                 .build();
-        return OperatorResponse.from(operatorRepository.save(o));
+        Operator saved = operatorRepository.save(o);
+        auditService.log("OPERATOR", saved.getId(), saved.getFirstName() + " " + saved.getLastName(), "YARADILDI", "Yeni operator qeydiyyatı");
+        return OperatorResponse.from(saved);
     }
 
     @Transactional
@@ -90,13 +94,16 @@ public class OperatorService implements ApprovalHandler {
         o.setEmail(req.getEmail());
         o.setSpecialization(req.getSpecialization());
         o.setNotes(req.getNotes());
-        return OperatorResponse.from(operatorRepository.save(o));
+        Operator updated = operatorRepository.save(o);
+        auditService.log("OPERATOR", updated.getId(), updated.getFirstName() + " " + updated.getLastName(), "YENİLƏNDİ", "Operator məlumatları yeniləndi");
+        return OperatorResponse.from(updated);
     }
 
     @Transactional
     @RequiresApproval(module = "OPERATORS", entityType = "OPERATOR", isDelete = true)
     public void delete(Long id) {
         Operator o = findOrThrow(id);
+        auditService.log("OPERATOR", o.getId(), o.getFirstName() + " " + o.getLastName(), "SİLİNDİ", "Operator silindi");
         o.softDelete();
         operatorRepository.save(o);
     }

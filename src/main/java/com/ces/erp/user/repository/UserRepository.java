@@ -26,4 +26,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findAllByDeletedTrue();
 
     long countByDeletedFalseAndActiveTrue();
+
+    long countByDeletedTrue();
 }

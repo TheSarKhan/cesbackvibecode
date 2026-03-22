@@ -2,6 +2,7 @@ package com.ces.erp.coordinator.entity;
 
 import com.ces.erp.common.entity.BaseEntity;
 import com.ces.erp.garage.entity.Equipment;
+import com.ces.erp.operator.entity.Operator;
 import com.ces.erp.request.entity.TechRequest;
 import jakarta.persistence.*;
 import lombok.*;
@@ -29,7 +30,9 @@ public class CoordinatorPlan extends BaseEntity {
     @JoinColumn(name = "equipment_id")
     private Equipment selectedEquipment;
 
-    private String operatorName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "operator_id")
+    private Operator operator;
 
     @Column(precision = 12, scale = 2)
     private BigDecimal equipmentPrice;

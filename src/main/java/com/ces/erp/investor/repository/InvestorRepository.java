@@ -19,4 +19,6 @@ public interface InvestorRepository extends JpaRepository<Investor, Long> {
     List<Investor> findAllByDeletedTrue();
 
     long countByDeletedFalse();
+
+    long countByDeletedTrue();
 }

@@ -25,9 +25,17 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
 
     boolean existsBySerialNumberAndIdNotAndDeletedFalse(String serialNumber, Long id);
 
+    @Query("SELECT e FROM Equipment e LEFT JOIN FETCH e.responsibleUser LEFT JOIN FETCH e.ownerContractor WHERE e.ownerContractor.id = :contractorId AND e.deleted = false")
+    List<Equipment> findAllByOwnerContractorIdAndDeletedFalse(@Param("contractorId") Long contractorId);
+
+    @Query("SELECT e FROM Equipment e LEFT JOIN FETCH e.responsibleUser LEFT JOIN FETCH e.ownerContractor WHERE ((:voen IS NOT NULL AND e.ownerInvestorVoen = :voen) OR (:name IS NOT NULL AND e.ownerInvestorName = :name)) AND e.deleted = false")
+    List<Equipment> findAllByInvestor(@Param("voen") String voen, @Param("name") String name);
+
     List<Equipment> findAllByStatusAndDeletedFalse(EquipmentStatus status);
 
     List<Equipment> findAllByDeletedTrue();
 
     long countByStatusAndDeletedFalse(EquipmentStatus status);
+
+    long countByDeletedTrue();
 }

@@ -77,9 +77,10 @@ public class CustomerController {
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "documentName", required = false) String documentName,
+            @RequestParam(value = "documentDate", required = false) String documentDate,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(ApiResponse.success("Sənəd yükləndi",
-                customerService.uploadDocument(id, file, documentName, principal.getId())));
+                customerService.uploadDocument(id, file, documentName, documentDate, principal.getId())));
     }
 
     @DeleteMapping("/{id}/documents/{documentId}")

@@ -54,14 +54,14 @@ public class DashboardService {
                 .activeRequests(techRequestRepository.countByStatusInAndDeletedFalse(activeRequestStatuses))
                 .activeProjects(projectRepository.countByStatusAndDeletedFalse(ProjectStatus.ACTIVE))
                 .deletedRecords(
-                        customerRepository.findAllByDeletedTrue().size() +
-                        contractorRepository.findAllByDeletedTrue().size() +
-                        investorRepository.findAllByDeletedTrue().size() +
-                        operatorRepository.findAllByDeletedTrue().size() +
-                        equipmentRepository.findAllByDeletedTrue().size() +
-                        techRequestRepository.findAllByDeletedTrue().size() +
-                        projectRepository.findAllByDeletedTrue().size() +
-                        userRepository.findAllByDeletedTrue().size()
+                        customerRepository.countByDeletedTrue() +
+                        contractorRepository.countByDeletedTrue() +
+                        investorRepository.countByDeletedTrue() +
+                        operatorRepository.countByDeletedTrue() +
+                        equipmentRepository.countByDeletedTrue() +
+                        techRequestRepository.countByDeletedTrue() +
+                        projectRepository.countByDeletedTrue() +
+                        userRepository.countByDeletedTrue()
                 )
                 .build();
     }

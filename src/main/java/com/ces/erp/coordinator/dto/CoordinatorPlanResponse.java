@@ -24,6 +24,15 @@ public class CoordinatorPlanResponse {
     private String contactPerson;
     private String contactPhone;
     private String projectName;
+
+    // Müştəri məlumatları
+    private Long customerId;
+    private String customerVoen;
+    private String customerAddress;
+    private String customerSupplierPerson;
+    private String customerSupplierPhone;
+    private String customerOfficeContactPerson;
+    private String customerOfficeContactPhone;
     private String region;
     private ProjectType projectType;
     private Integer dayCount;
@@ -38,8 +47,12 @@ public class CoordinatorPlanResponse {
     private String ownershipType;
     private String contractorName;
 
+    // Təsdiq vəziyyəti
+    private boolean hasPendingSubmit;
+
     // Plan məlumatları
     private Long planId;
+    private Long operatorId;
     private String operatorName;
     private BigDecimal equipmentPrice;
     private BigDecimal contractorPayment;
@@ -78,6 +91,7 @@ public class CoordinatorPlanResponse {
                 r.getParams().stream()
                         .map(p -> ParamDto.builder().paramKey(p.getParamKey()).paramValue(p.getParamValue()).build())
                         .toList();
+        var customer = r.getCustomer();
         return CoordinatorPlanResponse.builder()
                 .requestId(r.getId())
                 .requestCode("REQ-" + String.format("%04d", r.getId()))
@@ -91,6 +105,13 @@ public class CoordinatorPlanResponse {
                 .transportationRequired(r.isTransportationRequired())
                 .requestStatus(r.getStatus())
                 .params(params)
+                .customerId(customer != null ? customer.getId() : null)
+                .customerVoen(customer != null ? customer.getVoen() : null)
+                .customerAddress(customer != null ? customer.getAddress() : null)
+                .customerSupplierPerson(customer != null ? customer.getSupplierPerson() : null)
+                .customerSupplierPhone(customer != null ? customer.getSupplierPhone() : null)
+                .customerOfficeContactPerson(customer != null ? customer.getOfficeContactPerson() : null)
+                .customerOfficeContactPhone(customer != null ? customer.getOfficeContactPhone() : null)
                 .build();
     }
 
@@ -129,7 +150,10 @@ public class CoordinatorPlanResponse {
                 .toList();
 
         base.setPlanId(plan.getId());
-        base.setOperatorName(plan.getOperatorName());
+        base.setOperatorId(plan.getOperator() != null ? plan.getOperator().getId() : null);
+        base.setOperatorName(plan.getOperator() != null
+                ? plan.getOperator().getFirstName() + " " + plan.getOperator().getLastName()
+                : null);
         base.setEquipmentPrice(plan.getEquipmentPrice());
         base.setContractorPayment(plan.getContractorPayment());
         base.setTransportationPrice(plan.getTransportationPrice());

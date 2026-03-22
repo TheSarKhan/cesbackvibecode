@@ -3,6 +3,7 @@ package com.ces.erp.customer.service;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
@@ -32,6 +33,7 @@ public class CustomerService implements ApprovalHandler {
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
 
     @Override public String getEntityType() { return "CUSTOMER"; }
     @Override public String getModuleCode()  { return "CUSTOMER_MANAGEMENT"; }
@@ -69,7 +71,9 @@ public class CustomerService implements ApprovalHandler {
                 && customerRepository.existsByVoenAndDeletedFalse(request.getVoen())) {
             throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
         }
-        return CustomerResponse.from(customerRepository.save(toEntity(request, new Customer())));
+        Customer saved = customerRepository.save(toEntity(request, new Customer()));
+        auditService.log("MÜŞTƏRİ", saved.getId(), saved.getCompanyName(), "YARADILDI", "Yeni müştəri qeydiyyatı");
+        return CustomerResponse.from(saved);
     }
 
     @Transactional
@@ -80,13 +84,16 @@ public class CustomerService implements ApprovalHandler {
                 && customerRepository.existsByVoenAndIdNotAndDeletedFalse(request.getVoen(), id)) {
             throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
         }
-        return CustomerResponse.from(customerRepository.save(toEntity(request, customer)));
+        Customer updated = customerRepository.save(toEntity(request, customer));
+        auditService.log("MÜŞTƏRİ", updated.getId(), updated.getCompanyName(), "YENİLƏNDİ", "Müştəri məlumatları yeniləndi");
+        return CustomerResponse.from(updated);
     }
 
     @Transactional
     @RequiresApproval(module = "CUSTOMER_MANAGEMENT", entityType = "CUSTOMER", isDelete = true)
     public void delete(Long id) {
         Customer customer = findOrThrow(id);
+        auditService.log("MÜŞTƏRİ", customer.getId(), customer.getCompanyName(), "SİLİNDİ", "Müştəri silindi");
         customer.softDelete();
         customerRepository.save(customer);
     }
@@ -95,7 +102,8 @@ public class CustomerService implements ApprovalHandler {
 
     @Transactional
     public CustomerDocumentResponse uploadDocument(Long customerId, MultipartFile file,
-                                                    String documentName, Long uploadedByUserId) {
+                                                    String documentName, String documentDate,
+                                                    Long uploadedByUserId) {
         Customer customer = findOrThrow(customerId);
         String path = fileStorageService.store(file, "customer-documents");
         String originalName = file.getOriginalFilename();
@@ -103,11 +111,16 @@ public class CustomerService implements ApprovalHandler {
                 ? originalName.substring(originalName.lastIndexOf(".") + 1).toUpperCase()
                 : "FILE";
 
+        java.time.LocalDate parsedDate = (documentDate != null && !documentDate.isBlank())
+                ? java.time.LocalDate.parse(documentDate)
+                : java.time.LocalDate.now();
+
         CustomerDocument doc = CustomerDocument.builder()
                 .customer(customer)
                 .filePath(path)
                 .documentName(documentName != null && !documentName.isBlank() ? documentName : originalName)
                 .fileType(fileType)
+                .documentDate(parsedDate)
                 .uploadedBy(uploadedByUserId != null
                         ? userRepository.findById(uploadedByUserId).orElse(null)
                         : null)

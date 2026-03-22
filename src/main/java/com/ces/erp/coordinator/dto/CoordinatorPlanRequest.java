@@ -8,7 +8,7 @@ import java.time.LocalDate;
 @Data
 public class CoordinatorPlanRequest {
 
-    private String operatorName;
+    private Long operatorId;
 
     private BigDecimal equipmentPrice;
     private BigDecimal contractorPayment;

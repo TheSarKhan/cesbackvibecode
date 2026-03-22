@@ -68,6 +68,24 @@ public class EquipmentController {
         return ResponseEntity.ok(ApiResponse.ok("Texnika silindi"));
     }
 
+    // ─── Filtr endpointləri ───────────────────────────────────────────────────
+
+    @GetMapping("/by-contractor/{contractorId}")
+    @PreAuthorize("hasAuthority('GARAGE:GET')")
+    @Operation(summary = "Podratçıya aid texnikaları gətir")
+    public ResponseEntity<ApiResponse<List<EquipmentResponse>>> getByContractor(@PathVariable Long contractorId) {
+        return ResponseEntity.ok(ApiResponse.success(equipmentService.getByContractor(contractorId)));
+    }
+
+    @GetMapping("/by-investor")
+    @PreAuthorize("hasAuthority('GARAGE:GET')")
+    @Operation(summary = "İnvestora aid texnikaları gətir (VÖEN və ya ad ilə)")
+    public ResponseEntity<ApiResponse<List<EquipmentResponse>>> getByInvestor(
+            @RequestParam(required = false) String voen,
+            @RequestParam(required = false) String name) {
+        return ResponseEntity.ok(ApiResponse.success(equipmentService.getByInvestor(voen, name)));
+    }
+
     // ─── Layihə tarixçəsi (popup) ─────────────────────────────────────────────
 
     @GetMapping("/{id}/project-history")

@@ -26,4 +26,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     List<Project> findAllByDeletedTrue();
 
     long countByStatusAndDeletedFalse(ProjectStatus status);
+
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.deleted = true")
+    long countByDeletedTrue();
 }

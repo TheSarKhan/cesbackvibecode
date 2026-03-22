@@ -64,6 +64,20 @@ public class EquipmentService implements ApprovalHandler {
     }
 
     @Transactional(readOnly = true)
+    public List<EquipmentResponse> getByContractor(Long contractorId) {
+        return equipmentRepository.findAllByOwnerContractorIdAndDeletedFalse(contractorId).stream()
+                .map(EquipmentResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<EquipmentResponse> getByInvestor(String voen, String name) {
+        return equipmentRepository.findAllByInvestor(voen, name).stream()
+                .map(EquipmentResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public EquipmentResponse getById(Long id) {
         return EquipmentResponse.from(findWithDetails(id));
     }

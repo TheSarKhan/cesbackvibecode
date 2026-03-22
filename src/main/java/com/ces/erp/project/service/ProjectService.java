@@ -1,5 +1,6 @@
 package com.ces.erp.project.service;
 
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
@@ -37,6 +38,7 @@ public class ProjectService {
     private final CoordinatorPlanRepository planRepository;
     private final EquipmentProjectHistoryRepository equipmentHistoryRepository;
     private final FileStorageService fileStorageService;
+    private final AuditService auditService;
 
     // ─── List ─────────────────────────────────────────────────────────────────
 
@@ -76,6 +78,7 @@ public class ProjectService {
         }
 
         projectRepository.save(p);
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YARADILDI", "Yeni layihə yaradıldı");
         CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
         return ProjectResponse.from(p, plan);
     }
@@ -195,6 +198,7 @@ public class ProjectService {
         }
 
         projectRepository.save(p);
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YENİLƏNDİ", "Layihə tamamlandı");
         CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
 
         // Texnikanın layihə tarixçəsinə qeyd yaz
@@ -229,6 +233,7 @@ public class ProjectService {
         }
         p.setEndDate(endDate);
         projectRepository.save(p);
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YENİLƏNDİ", "Layihə yeniləndi");
         CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
         return ProjectResponse.from(p, plan);
     }

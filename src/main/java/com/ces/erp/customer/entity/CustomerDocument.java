@@ -5,6 +5,8 @@ import com.ces.erp.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
+
 @Entity
 @Table(name = "customer_documents")
 @Getter
@@ -26,6 +28,8 @@ public class CustomerDocument extends BaseEntity {
 
     @Column(length = 50)
     private String fileType;
+
+    private LocalDate documentDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "uploaded_by")

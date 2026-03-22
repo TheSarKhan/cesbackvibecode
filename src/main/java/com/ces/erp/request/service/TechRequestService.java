@@ -3,8 +3,10 @@ package com.ces.erp.request.service;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.customer.repository.CustomerRepository;
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.garage.repository.EquipmentRepository;
@@ -30,6 +32,8 @@ public class TechRequestService implements ApprovalHandler {
     private final EquipmentRepository equipmentRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
+    private final NotificationService notificationService;
 
     @Override public String getEntityType() { return "REQUEST"; }
     @Override public String getModuleCode()  { return "REQUESTS"; }
@@ -67,6 +71,8 @@ public class TechRequestService implements ApprovalHandler {
         entity.setStatus(RequestStatus.PENDING);
         entity.setCreatedBy(userRepository.findById(userId).orElse(null));
         TechRequest saved = requestRepository.save(entity);
+        auditService.log("SORĞU", saved.getId(), saved.getRequestCode(), "YARADILDI", "Yeni texniki sorğu yaradıldı");
+        notificationService.success("Yeni sorğu", saved.getRequestCode() + " sorğusu yaradıldı", "REQUESTS");
         return TechRequestResponse.from(saved);
     }
 
@@ -80,7 +86,9 @@ public class TechRequestService implements ApprovalHandler {
             throw new BusinessException("Bu statusda olan sorğu redaktə edilə bilməz");
         }
         buildEntity(req, entity);
-        return TechRequestResponse.from(requestRepository.save(entity));
+        TechRequest updated = requestRepository.save(entity);
+        auditService.log("SORĞU", updated.getId(), updated.getRequestCode(), "YENİLƏNDİ", "Sorğu yeniləndi");
+        return TechRequestResponse.from(updated);
     }
 
     @Transactional
@@ -111,13 +119,16 @@ public class TechRequestService implements ApprovalHandler {
             throw new BusinessException("Koordinatora göndərmək üçün sorğu PENDING statusunda olmalıdır");
         }
         entity.setStatus(RequestStatus.SENT_TO_COORDINATOR);
-        return TechRequestResponse.from(requestRepository.save(entity));
+        TechRequest saved = requestRepository.save(entity);
+        notificationService.info("Sorğu göndərildi", saved.getRequestCode() + " koordinatora göndərildi", "REQUESTS");
+        return TechRequestResponse.from(saved);
     }
 
     @Transactional
     @RequiresApproval(module = "REQUESTS", entityType = "REQUEST", isDelete = true)
     public void delete(Long id) {
         TechRequest entity = findOrThrow(id);
+        auditService.log("SORĞU", entity.getId(), entity.getRequestCode(), "SİLİNDİ", "Sorğu silindi");
         entity.softDelete();
         requestRepository.save(entity);
     }

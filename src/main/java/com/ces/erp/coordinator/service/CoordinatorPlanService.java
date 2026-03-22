@@ -6,6 +6,7 @@ import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
+import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.coordinator.dto.CoordinatorPlanRequest;
 import com.ces.erp.coordinator.dto.CoordinatorPlanResponse;
 import com.ces.erp.coordinator.entity.CoordinatorDocument;
@@ -14,7 +15,10 @@ import com.ces.erp.coordinator.repository.CoordinatorDocumentRepository;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.ProjectStatus;
 import com.ces.erp.enums.RequestStatus;
+import com.ces.erp.approval.repository.PendingOperationRepository;
+import com.ces.erp.enums.OperationStatus;
 import com.ces.erp.garage.repository.EquipmentRepository;
+import com.ces.erp.operator.repository.OperatorRepository;
 import com.ces.erp.project.entity.Project;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.request.entity.TechRequest;
@@ -36,9 +40,12 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final CoordinatorPlanRepository planRepository;
     private final CoordinatorDocumentRepository documentRepository;
     private final EquipmentRepository equipmentRepository;
+    private final OperatorRepository operatorRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final ProjectRepository projectRepository;
+    private final NotificationService notificationService;
+    private final PendingOperationRepository pendingOperationRepository;
 
     @Override public String getEntityType() { return "COORDINATOR_SUBMIT"; }
     @Override public String getModuleCode()  { return "COORDINATOR"; }
@@ -66,9 +73,15 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
     public List<CoordinatorPlanResponse> getRequests() {
         return requestRepository.findAllByStatusInAndDeletedFalse(COORDINATOR_STATUSES).stream()
-                .map(r -> planRepository.findByRequestId(r.getId())
-                        .map(CoordinatorPlanResponse::from)
-                        .orElseGet(() -> CoordinatorPlanResponse.fromRequest(r)))
+                .map(r -> {
+                    CoordinatorPlanResponse resp = planRepository.findByRequestId(r.getId())
+                            .map(CoordinatorPlanResponse::from)
+                            .orElseGet(() -> CoordinatorPlanResponse.fromRequest(r));
+                    resp.setHasPendingSubmit(pendingOperationRepository
+                            .existsByEntityTypeAndEntityIdAndStatusAndDeletedFalse(
+                                    "COORDINATOR_SUBMIT", r.getId(), OperationStatus.PENDING));
+                    return resp;
+                })
                 .toList();
     }
 
@@ -89,7 +102,12 @@ public class CoordinatorPlanService implements ApprovalHandler {
         CoordinatorPlan plan = planRepository.findByRequestId(requestId)
                 .orElseGet(() -> CoordinatorPlan.builder().request(request).build());
 
-        plan.setOperatorName(req.getOperatorName());
+        if (req.getOperatorId() != null) {
+            plan.setOperator(operatorRepository.findByIdActive(req.getOperatorId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Operator", req.getOperatorId())));
+        } else {
+            plan.setOperator(null);
+        }
         plan.setEquipmentPrice(req.getEquipmentPrice());
         plan.setContractorPayment(req.getContractorPayment());
         plan.setTransportationPrice(req.getTransportationPrice());
@@ -115,6 +133,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         request.setStatus(RequestStatus.OFFER_SENT);
         requestRepository.save(request);
+        notificationService.info("Təklif göndərildi", request.getRequestCode() + " üçün koordinator təklifi göndərildi", "COORDINATOR");
 
         return planRepository.findByRequestId(requestId)
                 .map(CoordinatorPlanResponse::from)
