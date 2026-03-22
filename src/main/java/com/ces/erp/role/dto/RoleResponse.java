@@ -20,6 +20,14 @@ public class RoleResponse {
     private boolean active;
     private LocalDateTime createdAt;
     private List<PermissionResponse> permissions;
+    private List<ApprovalDeptInfo> approvalDepartments;
+
+    @Data
+    @Builder
+    public static class ApprovalDeptInfo {
+        private Long id;
+        private String name;
+    }
 
     @Data
     @Builder
@@ -53,6 +61,11 @@ public class RoleResponse {
         List<PermissionResponse> perms = role.getPermissions() == null ? List.of() :
                 role.getPermissions().stream().map(PermissionResponse::from).toList();
 
+        List<ApprovalDeptInfo> approvalDepts = role.getApprovalDepartments() == null ? List.of() :
+                role.getApprovalDepartments().stream()
+                        .map(d -> ApprovalDeptInfo.builder().id(d.getId()).name(d.getName()).build())
+                        .toList();
+
         return RoleResponse.builder()
                 .id(role.getId())
                 .name(role.getName())
@@ -62,6 +75,7 @@ public class RoleResponse {
                 .active(role.isActive())
                 .createdAt(role.getCreatedAt())
                 .permissions(perms)
+                .approvalDepartments(approvalDepts)
                 .build();
     }
 }

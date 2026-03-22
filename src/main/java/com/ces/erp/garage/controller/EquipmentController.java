@@ -68,6 +68,24 @@ public class EquipmentController {
         return ResponseEntity.ok(ApiResponse.ok("Texnika silindi"));
     }
 
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('GARAGE:PUT')")
+    @Operation(summary = "Texnikanın statusunu dəyiş (səbəblə)")
+    public ResponseEntity<ApiResponse<EquipmentResponse>> updateStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody StatusChangeRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Status yeniləndi",
+                equipmentService.updateStatus(id, request.getStatus(), request.getReason(), principal.getId())));
+    }
+
+    @GetMapping("/{id}/status-history")
+    @PreAuthorize("hasAuthority('GARAGE:GET')")
+    @Operation(summary = "Texnikanın status tarixçəsi")
+    public ResponseEntity<ApiResponse<List<StatusLogResponse>>> getStatusHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(equipmentService.getStatusHistory(id)));
+    }
+
     // ─── Filtr endpointləri ───────────────────────────────────────────────────
 
     @GetMapping("/by-contractor/{contractorId}")

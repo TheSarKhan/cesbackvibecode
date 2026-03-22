@@ -6,6 +6,7 @@ import com.ces.erp.role.entity.Role;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,6 +47,8 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private boolean hasApproval = false;
+
+    private LocalDateTime lastLoginAt;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

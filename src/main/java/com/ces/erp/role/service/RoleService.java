@@ -58,6 +58,7 @@ public class RoleService {
 
         role = roleRepository.save(role);
         savePermissions(role, request);
+        saveApprovalDepartments(role, request.getApprovalDepartmentIds());
         return RoleResponse.from(roleRepository.findByIdWithPermissions(role.getId()).orElseThrow());
     }
 
@@ -78,6 +79,7 @@ public class RoleService {
         rolePermissionRepository.flush();
         roleRepository.save(role);
         savePermissions(role, request);
+        saveApprovalDepartments(role, request.getApprovalDepartmentIds());
 
         return RoleResponse.from(roleRepository.findByIdWithPermissions(role.getId()).orElseThrow());
     }
@@ -111,5 +113,14 @@ public class RoleService {
                 .toList();
 
         rolePermissionRepository.saveAll(permissions);
+    }
+
+    private void saveApprovalDepartments(Role role, List<Long> approvalDepartmentIds) {
+        role.getApprovalDepartments().clear();
+        if (approvalDepartmentIds != null && !approvalDepartmentIds.isEmpty()) {
+            List<Department> depts = departmentRepository.findAllById(approvalDepartmentIds);
+            role.getApprovalDepartments().addAll(depts);
+        }
+        roleRepository.save(role);
     }
 }

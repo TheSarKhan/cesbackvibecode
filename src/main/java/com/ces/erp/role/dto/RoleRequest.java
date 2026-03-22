@@ -18,4 +18,6 @@ public class RoleRequest {
     private Long departmentId;
 
     private List<PermissionRequest> permissions;
+
+    private List<Long> approvalDepartmentIds;
 }

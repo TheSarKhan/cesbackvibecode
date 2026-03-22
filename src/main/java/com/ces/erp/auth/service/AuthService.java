@@ -15,6 +15,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -34,7 +35,7 @@ public class AuthService {
     // Redis key formatı: "refresh:{token}" → userId
     private static final String REFRESH_PREFIX = "refresh:";
 
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
@@ -42,6 +43,9 @@ public class AuthService {
 
         User user = userRepository.findByEmailAndDeletedFalse(request.getEmail())
                 .orElseThrow(() -> new BusinessException("İstifadəçi tapılmadı"));
+
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
 
         return buildLoginResponse(user);
     }

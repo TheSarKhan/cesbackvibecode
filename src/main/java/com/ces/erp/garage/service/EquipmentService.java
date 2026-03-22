@@ -10,7 +10,10 @@ import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.garage.dto.*;
 import com.ces.erp.garage.entity.*;
+import com.ces.erp.garage.entity.EquipmentStatusLog;
 import com.ces.erp.garage.repository.*;
+import com.ces.erp.garage.repository.EquipmentStatusLogRepository;
+import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.OwnershipType;
 import com.ces.erp.user.entity.User;
 import com.ces.erp.user.repository.UserRepository;
@@ -31,10 +34,24 @@ public class EquipmentService implements ApprovalHandler {
     private final EquipmentDocumentRepository documentRepository;
     private final EquipmentImageRepository imageRepository;
     private final EquipmentProjectHistoryRepository projectHistoryRepository;
+    private final EquipmentStatusLogRepository statusLogRepository;
     private final ContractorRepository contractorRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
+
+    // Status keçid qaydaları — hansı statusdan hansına keçmək olar
+    // RENTED → manual dəyişiklik yoxdur (yalnız layihə bağlandıqda avtomatik IN_TRANSIT olur)
+    // IN_TRANSIT → anbardar IN_INSPECTION statusuna keçirə bilər
+    // IN_INSPECTION → baxış bitdikdə AVAILABLE, problem varsa DEFECTIVE
+    private static final java.util.Map<EquipmentStatus, java.util.Set<EquipmentStatus>> ALLOWED_TRANSITIONS = java.util.Map.of(
+            EquipmentStatus.AVAILABLE,      java.util.Set.of(EquipmentStatus.RENTED, EquipmentStatus.DEFECTIVE, EquipmentStatus.OUT_OF_SERVICE),
+            EquipmentStatus.RENTED,         java.util.Set.of(),
+            EquipmentStatus.IN_TRANSIT,     java.util.Set.of(EquipmentStatus.IN_INSPECTION),
+            EquipmentStatus.IN_INSPECTION,  java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.DEFECTIVE),
+            EquipmentStatus.DEFECTIVE,      java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.OUT_OF_SERVICE),
+            EquipmentStatus.OUT_OF_SERVICE, java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.DEFECTIVE)
+    );
 
     @Override public String getEntityType() { return "EQUIPMENT"; }
     @Override public String getModuleCode()  { return "GARAGE"; }
@@ -111,6 +128,54 @@ public class EquipmentService implements ApprovalHandler {
         Equipment equipment = findOrThrow(id);
         equipment.softDelete();
         equipmentRepository.save(equipment);
+    }
+
+    @Transactional
+    public EquipmentResponse updateStatus(Long id, String status, String reason, Long userId) {
+        Equipment equipment = findOrThrow(id);
+
+        EquipmentStatus newStatus;
+        try {
+            newStatus = EquipmentStatus.valueOf(status);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("Yanlış status: " + status);
+        }
+
+        EquipmentStatus oldStatus = equipment.getStatus();
+        if (oldStatus == newStatus) {
+            throw new BusinessException("Texnika artıq bu statusdadır");
+        }
+
+        // Keçid qaydalarını yoxla
+        java.util.Set<EquipmentStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(oldStatus, java.util.Set.of());
+        if (!allowed.contains(newStatus)) {
+            throw new BusinessException(
+                    String.format("'%s' statusundan '%s' statusuna keçid mümkün deyil",
+                            oldStatus.name(), newStatus.name()));
+        }
+
+        User changedBy = userRepository.findByIdAndDeletedFalse(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", userId));
+
+        // Logu yaz
+        statusLogRepository.save(EquipmentStatusLog.builder()
+                .equipment(equipment)
+                .oldStatus(oldStatus)
+                .newStatus(newStatus)
+                .reason(reason)
+                .changedBy(changedBy)
+                .build());
+
+        equipment.setStatus(newStatus);
+        return EquipmentResponse.from(equipmentRepository.save(equipment));
+    }
+
+    @Transactional(readOnly = true)
+    public List<StatusLogResponse> getStatusHistory(Long equipmentId) {
+        findOrThrow(equipmentId); // mövcudluq yoxlaması
+        return statusLogRepository.findAllByEquipmentIdOrderByChangedAtDesc(equipmentId).stream()
+                .map(StatusLogResponse::from)
+                .toList();
     }
 
     // ─── Texniki baxış ────────────────────────────────────────────────────────

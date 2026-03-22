@@ -8,10 +8,11 @@ import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.approval.repository.PendingOperationRepository;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import com.ces.erp.department.entity.Department;
 import com.ces.erp.enums.OperationStatus;
 import com.ces.erp.enums.OperationType;
+import com.ces.erp.role.entity.Role;
 import com.ces.erp.user.entity.User;
-import com.ces.erp.user.entity.UserApprovalDepartment;
 import com.ces.erp.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,18 +39,18 @@ public class ApprovalService {
         User user = userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", userId));
 
+        if (!hasApprovalAccess(user)) {
+            return List.of();
+        }
+
+        List<Long> deptIds = getApprovalDeptIds(user);
         List<PendingOperation> ops;
 
-        if (user.isHasApproval() && !user.getApprovalDepartments().isEmpty()) {
-            List<Long> deptIds = user.getApprovalDepartments().stream()
-                    .map(ud -> ud.getDepartment().getId())
-                    .toList();
+        if (!deptIds.isEmpty()) {
             ops = pendingOperationRepository.findAllByDepartmentIds(deptIds);
-        } else if (user.isHasApproval()) {
-            // hasApproval amma heç bir şöbə verilməyib → hamısını göstər
-            ops = pendingOperationRepository.findAllActive();
         } else {
-            return List.of();
+            // Heç bir şöbə verilməyib → hamısını göstər
+            ops = pendingOperationRepository.findAllActive();
         }
 
         return ops.stream().map(ApprovalSummaryResponse::from).toList();
@@ -71,7 +72,7 @@ public class ApprovalService {
         User approver = userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", userId));
 
-        if (!approver.isHasApproval()) {
+        if (!hasApprovalAccess(approver)) {
             throw new BusinessException("Sizin təsdiq icazəniz yoxdur");
         }
 
@@ -106,7 +107,7 @@ public class ApprovalService {
         User approver = userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", userId));
 
-        if (!approver.isHasApproval()) {
+        if (!hasApprovalAccess(approver)) {
             throw new BusinessException("Sizin təsdiq icazəniz yoxdur");
         }
 
@@ -127,19 +128,55 @@ public class ApprovalService {
     }
 
     private void checkAccess(User approver, PendingOperation op) {
-        if (!approver.isHasApproval()) {
+        if (!hasApprovalAccess(approver)) {
             throw new BusinessException("Sizin təsdiq icazəniz yoxdur");
         }
-        // Şöbə yoxlaması: approvalDepartments boşdursa hamısına baxar
-        List<Long> allowedDepts = approver.getApprovalDepartments().stream()
-                .map(UserApprovalDepartment::getDepartment)
-                .map(d -> d.getId())
-                .toList();
+
+        List<Long> allowedDepts = getApprovalDeptIds(approver);
 
         if (!allowedDepts.isEmpty() && op.getPerformerDepartment() != null) {
             if (!allowedDepts.contains(op.getPerformerDepartment().getId())) {
                 throw new BusinessException("Bu şöbənin əməliyyatını təsdiq etmək icazəniz yoxdur");
             }
         }
+    }
+
+    /**
+     * İstifadəçinin təsdiq icazəsi var mı — rolun OPERATIONS_APPROVAL icazəsindən
+     * və ya köhnə user-səviyyə hasApproval bayrağından yoxlayır.
+     */
+    private boolean hasApprovalAccess(User user) {
+        // Köhnə (user-səviyyə) yoxlama — geriyə uyğunluq
+        if (user.isHasApproval()) return true;
+
+        // Yeni (rol-səviyyə) yoxlama
+        Role role = user.getRole();
+        if (role == null || role.getPermissions() == null) return false;
+        return role.getPermissions().stream()
+                .anyMatch(p -> "OPERATIONS_APPROVAL".equals(p.getModule().getCode())
+                        && (p.isCanGet() || p.isCanPut()));
+    }
+
+    /**
+     * İstifadəçinin təsdiq edə biləcəyi şöbə ID-ləri —
+     * əvvəlcə rolun approvalDepartments, sonra köhnə user-səviyyə yoxlanır.
+     */
+    private List<Long> getApprovalDeptIds(User user) {
+        // Rolun approval şöbələri
+        Role role = user.getRole();
+        if (role != null && role.getApprovalDepartments() != null && !role.getApprovalDepartments().isEmpty()) {
+            return role.getApprovalDepartments().stream()
+                    .map(Department::getId)
+                    .toList();
+        }
+
+        // Köhnə user-səviyyə (geriyə uyğunluq)
+        if (user.getApprovalDepartments() != null && !user.getApprovalDepartments().isEmpty()) {
+            return user.getApprovalDepartments().stream()
+                    .map(ud -> ud.getDepartment().getId())
+                    .toList();
+        }
+
+        return List.of();
     }
 }

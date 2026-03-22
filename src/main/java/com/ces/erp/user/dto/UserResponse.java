@@ -23,12 +23,25 @@ public class UserResponse {
     private boolean hasApproval;
     private List<ApprovalDeptInfo> approvalDepartments;
     private LocalDateTime createdAt;
+    private LocalDateTime lastLoginAt;
+    private List<PermissionInfo> permissions;
 
     @Data
     @Builder
     public static class ApprovalDeptInfo {
         private Long id;
         private String name;
+    }
+
+    @Data
+    @Builder
+    public static class PermissionInfo {
+        private String moduleCode;
+        private String moduleName;
+        private boolean canGet;
+        private boolean canPost;
+        private boolean canPut;
+        private boolean canDelete;
     }
 
     public static UserResponse from(User user) {
@@ -39,6 +52,20 @@ public class UserResponse {
                                 .name(ad.getDepartment().getName())
                                 .build())
                         .toList();
+
+        List<PermissionInfo> permissions = List.of();
+        if (user.getRole() != null && user.getRole().getPermissions() != null) {
+            permissions = user.getRole().getPermissions().stream()
+                    .map(p -> PermissionInfo.builder()
+                            .moduleCode(p.getModule().getCode())
+                            .moduleName(p.getModule().getNameAz())
+                            .canGet(p.isCanGet())
+                            .canPost(p.isCanPost())
+                            .canPut(p.isCanPut())
+                            .canDelete(p.isCanDelete())
+                            .build())
+                    .toList();
+        }
 
         return UserResponse.builder()
                 .id(user.getId())
@@ -53,6 +80,8 @@ public class UserResponse {
                 .hasApproval(user.isHasApproval())
                 .approvalDepartments(approvalDepts)
                 .createdAt(user.getCreatedAt())
+                .lastLoginAt(user.getLastLoginAt())
+                .permissions(permissions)
                 .build();
     }
 }

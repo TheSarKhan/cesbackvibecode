@@ -6,10 +6,12 @@ import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.coordinator.entity.CoordinatorPlan;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
+import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.ProjectStatus;
 import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.garage.entity.EquipmentProjectHistory;
 import com.ces.erp.garage.repository.EquipmentProjectHistoryRepository;
+import com.ces.erp.garage.repository.EquipmentRepository;
 import com.ces.erp.project.dto.FinanceEntryRequest;
 import com.ces.erp.project.dto.ProjectCompleteRequest;
 import com.ces.erp.project.dto.ProjectResponse;
@@ -37,6 +39,7 @@ public class ProjectService {
     private final ProjectRevenueRepository revenueRepository;
     private final CoordinatorPlanRepository planRepository;
     private final EquipmentProjectHistoryRepository equipmentHistoryRepository;
+    private final EquipmentRepository equipmentRepository;
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
 
@@ -218,6 +221,12 @@ public class ProjectService {
                     .notes(p.getRequest() != null ? p.getRequest().getCompanyName() : null)
                     .build();
             equipmentHistoryRepository.save(history);
+
+            // Texnikanı avtomatik "Yolda" statusuna keçir
+            if (eq.getStatus() == EquipmentStatus.RENTED) {
+                eq.setStatus(EquipmentStatus.IN_TRANSIT);
+                equipmentRepository.save(eq);
+            }
         }
 
         return ProjectResponse.from(p, plan);
