@@ -23,7 +23,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import com.ces.erp.common.dto.PagedResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +49,7 @@ public class EquipmentService implements ApprovalHandler {
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
+    private final GarageNotificationService notificationService;
 
     // Status keçid qaydaları — hansı statusdan hansına keçmək olar
     // RENTED → manual dəyişiklik yoxdur (yalnız layihə bağlandıqda avtomatik IN_TRANSIT olur)
@@ -81,6 +92,42 @@ public class EquipmentService implements ApprovalHandler {
     }
 
     @Transactional(readOnly = true)
+    public PagedResponse<EquipmentResponse> getAllPaged(
+            String search, EquipmentStatus status, OwnershipType ownershipType,
+            String type, String brand, String location,
+            BigDecimal priceMin, BigDecimal priceMax,
+            Integer yearMin, Integer yearMax,
+            BigDecimal motoMin, BigDecimal motoMax,
+            Pageable pageable) {
+        Page<Equipment> page = equipmentRepository.findAllFiltered(
+                search, status, ownershipType, type, brand, location,
+                priceMin, priceMax, yearMin, yearMax, motoMin, motoMax, pageable);
+        return PagedResponse.from(page, EquipmentResponse::from);
+    }
+
+    public Map<String, List<String>> getAllowedTransitions() {
+        return ALLOWED_TRANSITIONS.entrySet().stream()
+                .collect(Collectors.toMap(
+                        e -> e.getKey().name(),
+                        e -> e.getValue().stream().map(Enum::name).toList()
+                ));
+    }
+
+    @Transactional(readOnly = true)
+    public BigDecimal calculateDepreciatedValue(Long id) {
+        Equipment eq = findOrThrow(id);
+        if (eq.getPurchasePrice() == null || eq.getDepreciationRate() == null || eq.getPurchaseDate() == null) {
+            return eq.getCurrentMarketValue();
+        }
+        long months = ChronoUnit.MONTHS.between(eq.getPurchaseDate(), LocalDate.now());
+        BigDecimal annualRate = eq.getDepreciationRate().divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP);
+        BigDecimal monthlyRate = annualRate.divide(BigDecimal.valueOf(12), 6, RoundingMode.HALF_UP);
+        BigDecimal totalDepreciation = monthlyRate.multiply(BigDecimal.valueOf(months));
+        BigDecimal factor = BigDecimal.ONE.subtract(totalDepreciation).max(BigDecimal.ZERO);
+        return eq.getPurchasePrice().multiply(factor).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    @Transactional(readOnly = true)
     public List<EquipmentResponse> getByContractor(Long contractorId) {
         return equipmentRepository.findAllByOwnerContractorIdAndDeletedFalse(contractorId).stream()
                 .map(EquipmentResponse::from)
@@ -111,7 +158,9 @@ public class EquipmentService implements ApprovalHandler {
     public EquipmentResponse create(EquipmentRequest request) {
         validateCodes(request, null);
         Equipment equipment = buildEquipment(request, new Equipment());
-        return EquipmentResponse.from(equipmentRepository.save(equipment));
+        EquipmentResponse response = EquipmentResponse.from(equipmentRepository.save(equipment));
+        notificationService.notifyEquipmentChanged("CREATED", response.getId());
+        return response;
     }
 
     @Transactional
@@ -119,7 +168,9 @@ public class EquipmentService implements ApprovalHandler {
     public EquipmentResponse update(Long id, EquipmentRequest request) {
         Equipment equipment = findOrThrow(id);
         validateCodes(request, id);
-        return EquipmentResponse.from(equipmentRepository.save(buildEquipment(request, equipment)));
+        EquipmentResponse response = EquipmentResponse.from(equipmentRepository.save(buildEquipment(request, equipment)));
+        notificationService.notifyEquipmentChanged("UPDATED", id);
+        return response;
     }
 
     @Transactional
@@ -128,6 +179,7 @@ public class EquipmentService implements ApprovalHandler {
         Equipment equipment = findOrThrow(id);
         equipment.softDelete();
         equipmentRepository.save(equipment);
+        notificationService.notifyEquipmentChanged("DELETED", id);
     }
 
     @Transactional
@@ -167,7 +219,9 @@ public class EquipmentService implements ApprovalHandler {
                 .build());
 
         equipment.setStatus(newStatus);
-        return EquipmentResponse.from(equipmentRepository.save(equipment));
+        EquipmentResponse response = EquipmentResponse.from(equipmentRepository.save(equipment));
+        notificationService.notifyEquipmentChanged("STATUS_CHANGED", id);
+        return response;
     }
 
     @Transactional(readOnly = true)

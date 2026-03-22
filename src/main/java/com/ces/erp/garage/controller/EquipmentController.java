@@ -1,7 +1,10 @@
 package com.ces.erp.garage.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.security.UserPrincipal;
+import com.ces.erp.enums.EquipmentStatus;
+import com.ces.erp.enums.OwnershipType;
 import com.ces.erp.garage.dto.*;
 import com.ces.erp.garage.service.EquipmentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +13,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -18,8 +24,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/garage/equipment")
@@ -33,9 +41,52 @@ public class EquipmentController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('GARAGE:GET')")
-    @Operation(summary = "Bütün texnikaları gətir")
+    @Operation(summary = "Bütün texnikaları gətir (sadə)")
     public ResponseEntity<ApiResponse<List<EquipmentResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(equipmentService.getAll()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('GARAGE:GET')")
+    @Operation(summary = "Texnikaları filtrlərlə və paginasiya ilə gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<EquipmentResponse>>> getAllPaged(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) EquipmentStatus status,
+            @RequestParam(required = false) OwnershipType ownershipType,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String brand,
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) BigDecimal priceMin,
+            @RequestParam(required = false) BigDecimal priceMax,
+            @RequestParam(required = false) Integer yearMin,
+            @RequestParam(required = false) Integer yearMax,
+            @RequestParam(required = false) BigDecimal motoMin,
+            @RequestParam(required = false) BigDecimal motoMax,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase("desc")
+                ? Sort.by(sortBy).descending()
+                : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return ResponseEntity.ok(ApiResponse.success(
+                equipmentService.getAllPaged(search, status, ownershipType, type, brand, location,
+                        priceMin, priceMax, yearMin, yearMax, motoMin, motoMax, pageable)));
+    }
+
+    @GetMapping("/status-transitions")
+    @PreAuthorize("hasAuthority('GARAGE:GET')")
+    @Operation(summary = "İcazə verilən status keçidləri")
+    public ResponseEntity<ApiResponse<Map<String, List<String>>>> getStatusTransitions() {
+        return ResponseEntity.ok(ApiResponse.success(equipmentService.getAllowedTransitions()));
+    }
+
+    @GetMapping("/{id}/depreciation")
+    @PreAuthorize("hasAuthority('GARAGE:GET')")
+    @Operation(summary = "Texnikanın amortizasiya hesablanmış dəyəri")
+    public ResponseEntity<ApiResponse<BigDecimal>> getDepreciatedValue(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(equipmentService.calculateDepreciatedValue(id)));
     }
 
     @GetMapping("/{id}")
@@ -76,7 +127,7 @@ public class EquipmentController {
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(ApiResponse.success("Status yeniləndi",
-                equipmentService.updateStatus(id, request.getStatus(), request.getReason(), principal.getId())));
+                equipmentService.updateStatus(id, request.getStatus().name(), request.getReason(), principal.getId())));
     }
 
     @GetMapping("/{id}/status-history")
