@@ -16,4 +16,6 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
     Optional<Operator> findByIdActive(Long id);
 
     List<Operator> findAllByDeletedTrue();
+
+    long countByDeletedFalse();
 }

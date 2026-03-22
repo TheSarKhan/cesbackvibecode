@@ -28,4 +28,6 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
     List<Equipment> findAllByStatusAndDeletedFalse(EquipmentStatus status);
 
     List<Equipment> findAllByDeletedTrue();
+
+    long countByStatusAndDeletedFalse(EquipmentStatus status);
 }

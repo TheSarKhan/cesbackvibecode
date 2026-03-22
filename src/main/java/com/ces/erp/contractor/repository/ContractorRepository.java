@@ -17,4 +17,6 @@ public interface ContractorRepository extends JpaRepository<Contractor, Long> {
     boolean existsByVoenAndIdNotAndDeletedFalse(String voen, Long id);
 
     List<Contractor> findAllByDeletedTrue();
+
+    long countByDeletedFalse();
 }

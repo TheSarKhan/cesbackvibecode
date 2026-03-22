@@ -1,5 +1,6 @@
 package com.ces.erp.project.repository;
 
+import com.ces.erp.enums.ProjectStatus;
 import com.ces.erp.project.entity.Project;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -23,4 +24,6 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     int findMaxProjectCodeNumber();
 
     List<Project> findAllByDeletedTrue();
+
+    long countByStatusAndDeletedFalse(ProjectStatus status);
 }

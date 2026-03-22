@@ -24,4 +24,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailWithPermissions(@Param("email") String email);
 
     List<User> findAllByDeletedTrue();
+
+    long countByDeletedFalseAndActiveTrue();
 }

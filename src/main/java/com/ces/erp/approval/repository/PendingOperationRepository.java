@@ -43,4 +43,6 @@ public interface PendingOperationRepository extends JpaRepository<PendingOperati
             WHERE p.id = :id AND p.deleted = false
             """)
     Optional<PendingOperation> findByIdActive(@Param("id") Long id);
+
+    long countByStatusAndDeletedFalse(OperationStatus status);
 }
