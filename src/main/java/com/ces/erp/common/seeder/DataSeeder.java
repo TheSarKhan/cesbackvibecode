@@ -50,6 +50,7 @@ public class DataSeeder implements CommandLineRunner {
         seedModuleIfAbsent("OPERATIONS_APPROVAL", "Əməliyyatların Təsdiqi", "Operations Approval", 13);
         seedModuleIfAbsent("TRASH", "Silinmiş Məlumatlar", "Deleted Data", 14);
         seedModuleIfAbsent("AUDIT_LOG", "Audit Jurnal", "Audit Log", 15);
+        seedModuleIfAbsent("CONFIG", "Konfiqurasiya Modulu", "Configuration Module", 16);
     }
 
     // ─── Admin roluna çatışmayan icazələri əlavə et ───────────────────────────
@@ -107,24 +108,27 @@ public class DataSeeder implements CommandLineRunner {
     // ─── 10 Sistem modulu (BRD-dən) ───────────────────────────────────────────
 
     private void seedModules() {
-        if (moduleRepository.count() > 0) return;
-        log.info("Sistem modulları seed edilir...");
+        if (moduleRepository.count() == 0) {
+            log.info("Sistem modulları seed edilir...");
 
-        List<SystemModule> modules = List.of(
-                module("CUSTOMER_MANAGEMENT",    "Müştəri İdarəetməsi",      "Customer Management",         1),
-                module("CONTRACTOR_MANAGEMENT",  "Podratçı İdarəetməsi",     "Contractor Management",       2),
-                module("ROLE_PERMISSION",        "Rol və İcazə İdarəetməsi", "Role & Permission Management",3),
-                module("EMPLOYEE_MANAGEMENT",    "İşçi İdarəetməsi",         "Employee Management",         4),
-                module("GARAGE",                 "Qaraj Modulu",             "Garage / Fleet Management",   5),
-                module("REQUESTS",               "Sorğular Modulu",          "Requests Module",             6),
-                module("COORDINATOR",            "Koordinator Modulu",       "Coordinator Module",          7),
-                module("PROJECTS",               "Layihələr Modulu",         "Projects Module",             8),
-                module("ACCOUNTING",             "Mühasibatlıq Modulu",      "Accounting Module",           9),
-                module("SERVICE_MANAGEMENT",     "Texniki Servis Modulu",    "Service Management",         10)
-        );
+            List<SystemModule> modules = List.of(
+                    module("CUSTOMER_MANAGEMENT",    "Müştəri İdarəetməsi",      "Customer Management",         1),
+                    module("CONTRACTOR_MANAGEMENT",  "Podratçı İdarəetməsi",     "Contractor Management",       2),
+                    module("ROLE_PERMISSION",        "Rol və İcazə İdarəetməsi", "Role & Permission Management",3),
+                    module("EMPLOYEE_MANAGEMENT",    "İşçi İdarəetməsi",         "Employee Management",         4),
+                    module("GARAGE",                 "Qaraj Modulu",             "Garage / Fleet Management",   5),
+                    module("REQUESTS",               "Sorğular Modulu",          "Requests Module",             6),
+                    module("COORDINATOR",            "Koordinator Modulu",       "Coordinator Module",          7),
+                    module("PROJECTS",               "Layihələr Modulu",         "Projects Module",             8),
+                    module("ACCOUNTING",             "Mühasibatlıq Modulu",      "Accounting Module",           9),
+                    module("SERVICE_MANAGEMENT",     "Texniki Servis Modulu",    "Service Management",         10),
+                    module("CONFIG",                 "Konfiqurasiya Modulu",     "Configuration Module",       11)
+            );
 
-        moduleRepository.saveAll(modules);
-        log.info("{} modul əlavə edildi.", modules.size());
+            moduleRepository.saveAll(modules);
+            log.info("{} modul əlavə edildi.", modules.size());
+        }
+
     }
 
     // ─── Super Admin hesabı ────────────────────────────────────────────────────
