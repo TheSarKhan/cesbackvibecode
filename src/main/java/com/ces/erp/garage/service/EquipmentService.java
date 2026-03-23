@@ -285,8 +285,18 @@ public class EquipmentService implements ApprovalHandler {
     // ─── Texniki sənəd ────────────────────────────────────────────────────────
 
     @Transactional
-    public DocumentResponse uploadDocument(Long equipmentId, MultipartFile file, String documentName, Long userId) {
+    public DocumentResponse uploadDocument(Long equipmentId, MultipartFile file, String documentName, String documentType, Long userId) {
         Equipment equipment = findOrThrow(equipmentId);
+
+        // Məcburi sənəd yenidən yüklənirsə — əvvəlkini sil
+        if (documentType != null && !documentType.equals("OTHER")) {
+            List<EquipmentDocument> oldDocs = documentRepository
+                    .findAllByEquipmentIdAndDocumentType(equipmentId, documentType);
+            for (EquipmentDocument old : oldDocs) {
+                fileStorageService.delete(old.getFilePath());
+                documentRepository.delete(old);
+            }
+        }
 
         String path = fileStorageService.store(file, "equipment-docs");
 
@@ -300,6 +310,7 @@ public class EquipmentService implements ApprovalHandler {
         EquipmentDocument doc = EquipmentDocument.builder()
                 .equipment(equipment)
                 .documentName(displayName)
+                .documentType(documentType)
                 .filePath(path)
                 .fileType(file.getContentType())
                 .uploadedBy(uploader)

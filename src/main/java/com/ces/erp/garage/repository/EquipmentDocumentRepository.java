@@ -11,4 +11,6 @@ public interface EquipmentDocumentRepository extends JpaRepository<EquipmentDocu
     List<EquipmentDocument> findAllByEquipmentId(Long equipmentId);
 
     Optional<EquipmentDocument> findByIdAndEquipmentId(Long id, Long equipmentId);
+
+    List<EquipmentDocument> findAllByEquipmentIdAndDocumentType(Long equipmentId, String documentType);
 }

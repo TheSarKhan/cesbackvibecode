@@ -29,6 +29,8 @@ public class EquipmentDocument {
     @Column(nullable = false)
     private String documentName;
 
+    private String documentType;
+
     @Column(nullable = false)
     private String filePath;
 

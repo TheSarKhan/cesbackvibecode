@@ -34,11 +34,16 @@ public class CoordinatorPlan extends BaseEntity {
     @JoinColumn(name = "operator_id")
     private Operator operator;
 
+    private Integer dayCount;
+
     @Column(precision = 12, scale = 2)
     private BigDecimal equipmentPrice;
 
     @Column(precision = 12, scale = 2)
     private BigDecimal contractorPayment;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal operatorPayment;
 
     @Column(precision = 12, scale = 2)
     private BigDecimal transportationPrice;

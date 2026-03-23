@@ -17,6 +17,8 @@ import com.ces.erp.enums.ProjectStatus;
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.approval.repository.PendingOperationRepository;
 import com.ces.erp.enums.OperationStatus;
+import com.ces.erp.garage.entity.EquipmentDocument;
+import com.ces.erp.garage.repository.EquipmentDocumentRepository;
 import com.ces.erp.garage.repository.EquipmentRepository;
 import com.ces.erp.operator.repository.OperatorRepository;
 import com.ces.erp.project.entity.Project;
@@ -40,6 +42,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final CoordinatorPlanRepository planRepository;
     private final CoordinatorDocumentRepository documentRepository;
     private final EquipmentRepository equipmentRepository;
+    private final EquipmentDocumentRepository equipmentDocumentRepository;
     private final OperatorRepository operatorRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
@@ -108,8 +111,10 @@ public class CoordinatorPlanService implements ApprovalHandler {
         } else {
             plan.setOperator(null);
         }
+        plan.setDayCount(req.getDayCount());
         plan.setEquipmentPrice(req.getEquipmentPrice());
         plan.setContractorPayment(req.getContractorPayment());
+        plan.setOperatorPayment(req.getOperatorPayment());
         plan.setTransportationPrice(req.getTransportationPrice());
         plan.setStartDate(req.getStartDate());
         plan.setEndDate(req.getEndDate());
@@ -200,6 +205,25 @@ public class CoordinatorPlanService implements ApprovalHandler {
         CoordinatorPlan plan = planRepository.findByRequestId(requestId)
                 .orElseThrow(() -> new BusinessException("Əvvəlcə koordinator planını yadda saxlayın"));
 
+        // Məcburi sənəd yenidən yüklənirsə — əvvəlkini sil (koordinator + qaraj)
+        if (documentType != null && !documentType.equals("OTHER")) {
+            List<CoordinatorDocument> oldDocs = documentRepository
+                    .findAllByPlanIdAndDocumentTypeAndDeletedFalse(plan.getId(), documentType);
+            for (CoordinatorDocument old : oldDocs) {
+                fileStorageService.delete(old.getFilePath());
+                old.softDelete();
+                documentRepository.save(old);
+            }
+            if (plan.getSelectedEquipment() != null) {
+                List<EquipmentDocument> oldEqDocs = equipmentDocumentRepository
+                        .findAllByEquipmentIdAndDocumentType(plan.getSelectedEquipment().getId(), documentType);
+                for (EquipmentDocument old : oldEqDocs) {
+                    fileStorageService.delete(old.getFilePath());
+                    equipmentDocumentRepository.delete(old);
+                }
+            }
+        }
+
         String path = fileStorageService.store(file, "coordinator-documents");
         String original = file.getOriginalFilename();
         String fileType = original != null && original.contains(".")
@@ -216,6 +240,20 @@ public class CoordinatorPlanService implements ApprovalHandler {
                 .build();
 
         CoordinatorDocument saved = documentRepository.save(doc);
+
+        // Koordinator sənədini eyni zamanda texnikaya da əlavə et (qarajda görünsün)
+        if (plan.getSelectedEquipment() != null) {
+            EquipmentDocument eqDoc = EquipmentDocument.builder()
+                    .equipment(plan.getSelectedEquipment())
+                    .documentName(saved.getDocumentName())
+                    .filePath(path)
+                    .fileType(fileType)
+                    .documentType(documentType)
+                    .uploadedBy(saved.getUploadedBy())
+                    .build();
+            equipmentDocumentRepository.save(eqDoc);
+        }
+
         return CoordinatorPlanResponse.DocumentDto.builder()
                 .id(saved.getId())
                 .documentName(saved.getDocumentName())

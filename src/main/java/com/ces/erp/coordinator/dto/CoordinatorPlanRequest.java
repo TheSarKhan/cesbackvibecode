@@ -10,8 +10,10 @@ public class CoordinatorPlanRequest {
 
     private Long operatorId;
 
+    private Integer dayCount;
     private BigDecimal equipmentPrice;
     private BigDecimal contractorPayment;
+    private BigDecimal operatorPayment;
     private BigDecimal transportationPrice;
 
     private LocalDate startDate;

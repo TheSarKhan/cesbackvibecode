@@ -222,9 +222,10 @@ public class EquipmentController {
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "documentName", required = false) String documentName,
+            @RequestParam(value = "documentType", required = false) String documentType,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(ApiResponse.success("Sənəd yükləndi",
-                equipmentService.uploadDocument(id, file, documentName, principal.getId())));
+                equipmentService.uploadDocument(id, file, documentName, documentType, principal.getId())));
     }
 
     @DeleteMapping("/{id}/documents/{documentId}")

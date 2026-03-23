@@ -12,6 +12,7 @@ public class DocumentResponse {
 
     private Long id;
     private String documentName;
+    private String documentType;
     private String filePath;
     private String fileType;
     private Long uploadedByUserId;
@@ -22,6 +23,7 @@ public class DocumentResponse {
         return DocumentResponse.builder()
                 .id(d.getId())
                 .documentName(d.getDocumentName())
+                .documentType(d.getDocumentType())
                 .filePath(d.getFilePath())
                 .fileType(d.getFileType())
                 .uploadedByUserId(d.getUploadedBy() != null ? d.getUploadedBy().getId() : null)

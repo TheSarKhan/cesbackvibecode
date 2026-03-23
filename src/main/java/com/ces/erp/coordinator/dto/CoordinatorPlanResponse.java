@@ -46,6 +46,7 @@ public class CoordinatorPlanResponse {
     private String equipmentCode;
     private String ownershipType;
     private String contractorName;
+    private List<String> equipmentDocumentTypes;
 
     // Təsdiq vəziyyəti
     private boolean hasPendingSubmit;
@@ -56,6 +57,7 @@ public class CoordinatorPlanResponse {
     private String operatorName;
     private BigDecimal equipmentPrice;
     private BigDecimal contractorPayment;
+    private BigDecimal operatorPayment;
     private BigDecimal transportationPrice;
     private BigDecimal totalAmount;
     private BigDecimal companyProfit;
@@ -129,13 +131,23 @@ public class CoordinatorPlanResponse {
             base.setEquipmentCode(eq.getEquipmentCode());
             base.setOwnershipType(eq.getOwnershipType().name());
             base.setContractorName(eq.getOwnerContractor() != null ? eq.getOwnerContractor().getCompanyName() : null);
+            base.setEquipmentDocumentTypes(
+                eq.getDocuments() != null
+                    ? eq.getDocuments().stream()
+                        .map(d -> d.getDocumentType())
+                        .filter(t -> t != null && !t.isBlank())
+                        .distinct()
+                        .toList()
+                    : List.of()
+            );
         }
 
         BigDecimal eqPrice = plan.getEquipmentPrice() != null ? plan.getEquipmentPrice() : BigDecimal.ZERO;
         BigDecimal transPrice = plan.getTransportationPrice() != null ? plan.getTransportationPrice() : BigDecimal.ZERO;
         BigDecimal contrPayment = plan.getContractorPayment() != null ? plan.getContractorPayment() : BigDecimal.ZERO;
+        BigDecimal opPayment = plan.getOperatorPayment() != null ? plan.getOperatorPayment() : BigDecimal.ZERO;
         BigDecimal total = eqPrice.add(transPrice);
-        BigDecimal profit = total.subtract(contrPayment);
+        BigDecimal profit = total.subtract(contrPayment).subtract(opPayment);
 
         List<DocumentDto> docs = plan.getDocuments().stream()
                 .filter(d -> !d.isDeleted())
@@ -154,8 +166,13 @@ public class CoordinatorPlanResponse {
         base.setOperatorName(plan.getOperator() != null
                 ? plan.getOperator().getFirstName() + " " + plan.getOperator().getLastName()
                 : null);
+        // Planın öz dayCount-u varsa onu göstər, yoxsa sorğudan gələni saxla
+        if (plan.getDayCount() != null) {
+            base.setDayCount(plan.getDayCount());
+        }
         base.setEquipmentPrice(plan.getEquipmentPrice());
         base.setContractorPayment(plan.getContractorPayment());
+        base.setOperatorPayment(plan.getOperatorPayment());
         base.setTransportationPrice(plan.getTransportationPrice());
         base.setTotalAmount(total);
         base.setCompanyProfit(profit);
