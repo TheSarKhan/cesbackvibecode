@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -65,7 +66,7 @@ public class ProjectService {
     // ─── Müqavilə upload ──────────────────────────────────────────────────────
 
     @Transactional
-    public ProjectResponse uploadContract(Long id, MultipartFile file) {
+    public ProjectResponse uploadContract(Long id, MultipartFile file, LocalDate startDate) {
         Project p = findOrThrow(id);
         if (p.getStatus() != ProjectStatus.PENDING) {
             throw new BusinessException("Müqavilə yalnız PENDING statuslu layihəyə yüklənə bilər");
@@ -76,9 +77,7 @@ public class ProjectService {
         p.setContractFileName(file.getOriginalFilename());
         p.setHasContract(true);
         p.setStatus(ProjectStatus.ACTIVE);
-        if (p.getStartDate() == null) {
-            p.setStartDate(LocalDate.now());
-        }
+        p.setStartDate(startDate != null ? startDate : LocalDate.now());
 
         projectRepository.save(p);
         auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YARADILDI", "Yeni layihə yaradıldı");
@@ -192,9 +191,34 @@ public class ProjectService {
             throw new BusinessException("Yalnız ACTIVE statuslu layihə bağlana bilər");
         }
 
+        // Planlaşdırılan saatlar: dayCount × 9 (1 gün = 9 saat)
+        CoordinatorPlan planForHours = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+        Integer planDayCount = planForHours != null && planForHours.getDayCount() != null
+                ? planForHours.getDayCount()
+                : (p.getRequest() != null ? p.getRequest().getDayCount() : null);
+        BigDecimal scheduled = planDayCount != null
+                ? BigDecimal.valueOf(planDayCount).multiply(BigDecimal.valueOf(9))
+                : BigDecimal.ZERO;
+
+        BigDecimal actual = req.getActualHours();
+        BigDecimal overtimeRate = req.getOvertimeRate() != null ? req.getOvertimeRate() : BigDecimal.ONE;
+        BigDecimal overtimeHours = actual.subtract(scheduled).max(BigDecimal.ZERO);
+
+        // Əlavə vaxt haqqı: overtimeHours × (günlük qiymət / 9) × overtimeRate
+        BigDecimal equipmentPrice = planForHours != null && planForHours.getEquipmentPrice() != null
+                ? planForHours.getEquipmentPrice() : BigDecimal.ZERO;
+        BigDecimal dailyRate = planDayCount != null && planDayCount > 0
+                ? equipmentPrice.divide(BigDecimal.valueOf(planDayCount), 4, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal hourlyRate = dailyRate.divide(BigDecimal.valueOf(9), 4, RoundingMode.HALF_UP);
+        BigDecimal overtimePay = overtimeHours.multiply(hourlyRate).multiply(overtimeRate).setScale(2, RoundingMode.HALF_UP);
+
         p.setEvacuationCost(req.getEvacuationCost());
-        p.setScheduledHours(req.getScheduledHours());
-        p.setActualHours(req.getActualHours());
+        p.setScheduledHours(scheduled);
+        p.setActualHours(actual);
+        p.setOvertimeHours(overtimeHours);
+        p.setOvertimeRate(overtimeRate);
+        p.setOvertimePay(overtimePay);
         p.setStatus(ProjectStatus.COMPLETED);
         if (p.getEndDate() == null) {
             p.setEndDate(LocalDate.now());
@@ -202,7 +226,7 @@ public class ProjectService {
 
         projectRepository.save(p);
         auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YENİLƏNDİ", "Layihə tamamlandı");
-        CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+        CoordinatorPlan plan = planForHours;
 
         // Texnikanın layihə tarixçəsinə qeyd yaz
         Equipment eq = plan != null && plan.getSelectedEquipment() != null

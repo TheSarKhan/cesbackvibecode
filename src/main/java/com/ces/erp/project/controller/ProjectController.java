@@ -47,9 +47,12 @@ public class ProjectController {
     @Operation(summary = "Müqavilə sənədini yüklə — layihəni ACTIVE edir")
     public ResponseEntity<ApiResponse<ProjectResponse>> uploadContract(
             @PathVariable Long id,
-            @RequestParam("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "startDate", required = false) String startDateStr) {
+        LocalDate startDate = startDateStr != null && !startDateStr.isBlank()
+                ? LocalDate.parse(startDateStr) : null;
         return ResponseEntity.ok(ApiResponse.success("Müqavilə yükləndi. Layihə aktiv oldu.",
-                projectService.uploadContract(id, file)));
+                projectService.uploadContract(id, file, startDate)));
     }
 
     // ─── Maliyyə — Xərclər ────────────────────────────────────────────────────

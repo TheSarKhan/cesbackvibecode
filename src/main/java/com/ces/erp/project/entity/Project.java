@@ -53,6 +53,15 @@ public class Project extends BaseEntity {
     @Column(precision = 8, scale = 2)
     private BigDecimal actualHours;
 
+    @Column(precision = 8, scale = 2)
+    private BigDecimal overtimeHours;
+
+    @Column(precision = 5, scale = 2)
+    private BigDecimal overtimeRate;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal overtimePay;
+
     // Maliyyə
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
