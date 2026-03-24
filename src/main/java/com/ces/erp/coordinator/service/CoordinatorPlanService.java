@@ -145,8 +145,21 @@ public class CoordinatorPlanService implements ApprovalHandler {
         if (request.getStatus() != RequestStatus.SENT_TO_COORDINATOR) {
             throw new BusinessException("Plan yalnız SENT_TO_COORDINATOR statusunda göndərilə bilər");
         }
-        if (!planRepository.existsByRequestIdAndDeletedFalse(requestId)) {
-            throw new BusinessException("Əvvəlcə koordinator planını doldurun");
+        CoordinatorPlan existing = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Əvvəlcə koordinator planını doldurun"));
+
+        // Məcburi sahələrin yoxlanması
+        if (existing.getSelectedEquipment() == null) {
+            throw new BusinessException("Texnika seçilməlidir");
+        }
+        if (existing.getEquipmentPrice() == null || existing.getEquipmentPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Texnika qiyməti daxil edilməlidir");
+        }
+        if (existing.getStartDate() == null || existing.getEndDate() == null) {
+            throw new BusinessException("Başlanğıc və bitmə tarixi daxil edilməlidir");
+        }
+        if (existing.getEndDate().isBefore(existing.getStartDate())) {
+            throw new BusinessException("Bitmə tarixi başlanğıc tarixindən əvvəl ola bilməz");
         }
         request.setStatus(RequestStatus.OFFER_SENT);
         requestRepository.save(request);

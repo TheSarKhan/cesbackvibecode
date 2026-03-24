@@ -119,8 +119,8 @@ public class ProjectService {
     @Transactional
     public ProjectResponse.FinanceEntryDto addExpense(Long id, FinanceEntryRequest req) {
         Project p = findOrThrow(id);
-        if (p.getStatus() == ProjectStatus.COMPLETED) {
-            throw new BusinessException("Bağlanmış layihəyə xərc əlavə edilə bilməz");
+        if (p.getStatus() != ProjectStatus.ACTIVE) {
+            throw new BusinessException("Xərc yalnız aktiv layihəyə əlavə edilə bilər");
         }
 
         ProjectExpense expense = ProjectExpense.builder()
@@ -153,8 +153,8 @@ public class ProjectService {
     @Transactional
     public ProjectResponse.FinanceEntryDto addRevenue(Long id, FinanceEntryRequest req) {
         Project p = findOrThrow(id);
-        if (p.getStatus() == ProjectStatus.COMPLETED) {
-            throw new BusinessException("Bağlanmış layihəyə gəlir əlavə edilə bilməz");
+        if (p.getStatus() != ProjectStatus.ACTIVE) {
+            throw new BusinessException("Gəlir yalnız aktiv layihəyə əlavə edilə bilər");
         }
 
         ProjectRevenue revenue = ProjectRevenue.builder()

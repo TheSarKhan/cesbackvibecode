@@ -8,7 +8,9 @@ import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.customer.repository.CustomerRepository;
+import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.RequestStatus;
+import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.garage.repository.EquipmentRepository;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.request.dto.StatusLogResponse;
@@ -210,8 +212,12 @@ public class TechRequestService implements ApprovalHandler {
         if (entity.getStatus() != RequestStatus.PENDING) {
             throw new BusinessException("Texnika seçmək üçün sorğu PENDING statusunda olmalıdır");
         }
-        entity.setSelectedEquipment(equipmentRepository.findById(equipmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Texnika", equipmentId)));
+        Equipment equipment = equipmentRepository.findById(equipmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Texnika", equipmentId));
+        if (equipment.getStatus() == EquipmentStatus.RENTED) {
+            throw new BusinessException("Bu texnika hazırda icarədədir və başqa sorğuya təyin edilə bilməz");
+        }
+        entity.setSelectedEquipment(equipment);
         return TechRequestResponse.from(requestRepository.save(entity));
     }
 
