@@ -24,6 +24,7 @@ public class OperatorResponse {
     private String specialization;
     private String notes;
     private boolean documentsComplete;
+    private boolean busy;
     private Set<String> uploadedDocumentTypes;
     private List<OperatorDocumentResponse> documents;
     private LocalDateTime createdAt;

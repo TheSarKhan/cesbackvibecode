@@ -110,8 +110,15 @@ public class CoordinatorPlanService implements ApprovalHandler {
                 .orElseGet(() -> CoordinatorPlan.builder().request(request).build());
 
         if (req.getOperatorId() != null) {
-            plan.setOperator(operatorRepository.findByIdActive(req.getOperatorId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Operator", req.getOperatorId())));
+            var operator = operatorRepository.findByIdActive(req.getOperatorId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Operator", req.getOperatorId()));
+            boolean busy = planRepository.isOperatorBusyInOtherProject(
+                    req.getOperatorId(), requestId,
+                    List.of(ProjectStatus.PENDING, ProjectStatus.ACTIVE));
+            if (busy) {
+                throw new BusinessException("Bu operator artıq başqa aktiv layihəyə təyin edilib");
+            }
+            plan.setOperator(operator);
         } else {
             plan.setOperator(null);
         }

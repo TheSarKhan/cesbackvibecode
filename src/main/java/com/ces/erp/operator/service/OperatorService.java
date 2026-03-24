@@ -58,8 +58,13 @@ public class OperatorService implements ApprovalHandler {
     }
 
     public List<OperatorResponse> getAll() {
+        var busyIds = operatorRepository.findBusyOperatorIds();
         return operatorRepository.findAllActive().stream()
-                .map(OperatorResponse::from)
+                .map(o -> {
+                    OperatorResponse r = OperatorResponse.from(o);
+                    r.setBusy(busyIds.contains(o.getId()));
+                    return r;
+                })
                 .toList();
     }
 
