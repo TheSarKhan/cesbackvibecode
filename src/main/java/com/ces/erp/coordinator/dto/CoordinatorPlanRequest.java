@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 public class CoordinatorPlanRequest {
@@ -19,9 +20,7 @@ public class CoordinatorPlanRequest {
     private LocalDate startDate;
     private LocalDate endDate;
 
-    private boolean hasFlashingLights;
-    private boolean hasFireExtinguisher;
-    private boolean hasFirstAid;
+    private List<Long> safetyEquipmentIds;
 
     private String notes;
 }

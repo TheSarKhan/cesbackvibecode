@@ -6,6 +6,7 @@ import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
+import com.ces.erp.config.repository.ConfigItemRepository;
 import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.garage.dto.*;
@@ -48,6 +49,7 @@ public class EquipmentService implements ApprovalHandler {
     private final ContractorRepository contractorRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+    private final ConfigItemRepository configItemRepository;
     private final ObjectMapper objectMapper;
     private final GarageNotificationService notificationService;
 
@@ -443,6 +445,11 @@ public class EquipmentService implements ApprovalHandler {
             e.setOwnerInvestorName(null);
             e.setOwnerInvestorVoen(null);
             e.setOwnerInvestorPhone(null);
+        }
+
+        if (r.getSafetyEquipmentIds() != null) {
+            e.getSafetyEquipment().clear();
+            e.getSafetyEquipment().addAll(configItemRepository.findAllById(r.getSafetyEquipmentIds()));
         }
 
         return e;

@@ -52,9 +52,6 @@ public class CoordinatorSeeder implements CommandLineRunner {
                             .transportationPrice(new BigDecimal("1200.00"))
                             .startDate(LocalDate.of(2026, 3, 10))
                             .endDate(LocalDate.of(2026, 3, 24))
-                            .hasFlashingLights(true)
-                            .hasFireExtinguisher(true)
-                            .hasFirstAid(true)
                             .notes("Plan hazırlanır, sənədlər gözlənilir")
                             .build();
                     planRepository.save(plan);
@@ -70,9 +67,6 @@ public class CoordinatorSeeder implements CommandLineRunner {
                             .transportationPrice(new BigDecimal("0.00"))
                             .startDate(LocalDate.of(2026, 2, 17))
                             .endDate(LocalDate.of(2026, 2, 24))
-                            .hasFlashingLights(false)
-                            .hasFireExtinguisher(true)
-                            .hasFirstAid(true)
                             .notes("Layihə uğurla tamamlandı")
                             .build();
                     planRepository.save(plan);

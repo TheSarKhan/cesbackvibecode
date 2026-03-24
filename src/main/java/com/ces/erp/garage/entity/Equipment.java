@@ -1,6 +1,7 @@
 package com.ces.erp.garage.entity;
 
 import com.ces.erp.common.entity.BaseEntity;
+import com.ces.erp.config.entity.ConfigItem;
 import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.OwnershipType;
@@ -129,4 +130,11 @@ public class Equipment extends BaseEntity {
     @OneToMany(mappedBy = "equipment", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<EquipmentProjectHistory> projectHistory = new ArrayList<>();
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "equipment_safety_items",
+            joinColumns = @JoinColumn(name = "equipment_id"),
+            inverseJoinColumns = @JoinColumn(name = "config_item_id"))
+    @Builder.Default
+    private List<ConfigItem> safetyEquipment = new ArrayList<>();
 }

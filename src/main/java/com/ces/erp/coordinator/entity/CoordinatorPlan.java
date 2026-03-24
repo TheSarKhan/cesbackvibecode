@@ -1,6 +1,7 @@
 package com.ces.erp.coordinator.entity;
 
 import com.ces.erp.common.entity.BaseEntity;
+import com.ces.erp.config.entity.ConfigItem;
 import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.operator.entity.Operator;
 import com.ces.erp.request.entity.TechRequest;
@@ -51,17 +52,12 @@ public class CoordinatorPlan extends BaseEntity {
     private LocalDate startDate;
     private LocalDate endDate;
 
-    @Column(nullable = false, columnDefinition = "boolean default false")
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "coordinator_plan_safety_items",
+            joinColumns = @JoinColumn(name = "plan_id"),
+            inverseJoinColumns = @JoinColumn(name = "config_item_id"))
     @Builder.Default
-    private boolean hasFlashingLights = false;
-
-    @Column(nullable = false, columnDefinition = "boolean default false")
-    @Builder.Default
-    private boolean hasFireExtinguisher = false;
-
-    @Column(nullable = false, columnDefinition = "boolean default false")
-    @Builder.Default
-    private boolean hasFirstAid = false;
+    private List<ConfigItem> safetyEquipment = new ArrayList<>();
 
     @Column(columnDefinition = "TEXT")
     private String notes;

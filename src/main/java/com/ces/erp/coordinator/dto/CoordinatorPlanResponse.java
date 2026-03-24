@@ -63,12 +63,17 @@ public class CoordinatorPlanResponse {
     private BigDecimal companyProfit;
     private LocalDate startDate;
     private LocalDate endDate;
-    private boolean hasFlashingLights;
-    private boolean hasFireExtinguisher;
-    private boolean hasFirstAid;
+    private List<SafetyItemDto> safetyEquipment;
     private String notes;
     private List<DocumentDto> documents;
     private LocalDateTime planCreatedAt;
+
+    @Data
+    @Builder
+    public static class SafetyItemDto {
+        private Long id;
+        private String name;
+    }
 
     @Data
     @Builder
@@ -178,9 +183,9 @@ public class CoordinatorPlanResponse {
         base.setCompanyProfit(profit);
         base.setStartDate(plan.getStartDate());
         base.setEndDate(plan.getEndDate());
-        base.setHasFlashingLights(plan.isHasFlashingLights());
-        base.setHasFireExtinguisher(plan.isHasFireExtinguisher());
-        base.setHasFirstAid(plan.isHasFirstAid());
+        base.setSafetyEquipment(plan.getSafetyEquipment().stream()
+                .map(s -> SafetyItemDto.builder().id(s.getId()).name(s.getKey()).build())
+                .toList());
         base.setNotes(plan.getNotes());
         base.setDocuments(docs);
         base.setPlanCreatedAt(plan.getCreatedAt());

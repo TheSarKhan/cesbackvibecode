@@ -13,10 +13,13 @@ import com.ces.erp.coordinator.entity.CoordinatorDocument;
 import com.ces.erp.coordinator.entity.CoordinatorPlan;
 import com.ces.erp.coordinator.repository.CoordinatorDocumentRepository;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
+import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.ProjectStatus;
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.approval.repository.PendingOperationRepository;
 import com.ces.erp.enums.OperationStatus;
+import com.ces.erp.config.repository.ConfigItemRepository;
+import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.garage.entity.EquipmentDocument;
 import com.ces.erp.garage.repository.EquipmentDocumentRepository;
 import com.ces.erp.garage.repository.EquipmentRepository;
@@ -49,6 +52,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final ProjectRepository projectRepository;
     private final NotificationService notificationService;
     private final PendingOperationRepository pendingOperationRepository;
+    private final ConfigItemRepository configItemRepository;
 
     @Override public String getEntityType() { return "COORDINATOR_SUBMIT"; }
     @Override public String getModuleCode()  { return "COORDINATOR"; }
@@ -118,9 +122,10 @@ public class CoordinatorPlanService implements ApprovalHandler {
         plan.setTransportationPrice(req.getTransportationPrice());
         plan.setStartDate(req.getStartDate());
         plan.setEndDate(req.getEndDate());
-        plan.setHasFlashingLights(req.isHasFlashingLights());
-        plan.setHasFireExtinguisher(req.isHasFireExtinguisher());
-        plan.setHasFirstAid(req.isHasFirstAid());
+        if (req.getSafetyEquipmentIds() != null) {
+            plan.getSafetyEquipment().clear();
+            plan.getSafetyEquipment().addAll(configItemRepository.findAllById(req.getSafetyEquipmentIds()));
+        }
         plan.setNotes(req.getNotes());
 
         return CoordinatorPlanResponse.from(planRepository.save(plan));
@@ -138,6 +143,18 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         request.setStatus(RequestStatus.OFFER_SENT);
         requestRepository.save(request);
+
+        // Seçilmiş texnikanın statusunu İcarədə et
+        planRepository.findByRequestId(requestId).ifPresent(plan -> {
+            Equipment eq = plan.getSelectedEquipment() != null
+                    ? plan.getSelectedEquipment()
+                    : request.getSelectedEquipment();
+            if (eq != null) {
+                eq.setStatus(EquipmentStatus.RENTED);
+                equipmentRepository.save(eq);
+            }
+        });
+
         notificationService.info("Təklif göndərildi", request.getRequestCode() + " üçün koordinator təklifi göndərildi", "COORDINATOR");
 
         return planRepository.findByRequestId(requestId)
@@ -176,6 +193,17 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         request.setStatus(RequestStatus.REJECTED);
         requestRepository.save(request);
+
+        // Texnikanı yenidən Mövcud et
+        planRepository.findByRequestId(requestId).ifPresent(plan -> {
+            Equipment eq = plan.getSelectedEquipment() != null
+                    ? plan.getSelectedEquipment()
+                    : request.getSelectedEquipment();
+            if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
+                eq.setStatus(EquipmentStatus.AVAILABLE);
+                equipmentRepository.save(eq);
+            }
+        });
     }
 
     // ─── Texnika seçimi ───────────────────────────────────────────────────────
@@ -190,8 +218,12 @@ public class CoordinatorPlanService implements ApprovalHandler {
         CoordinatorPlan plan = planRepository.findByRequestId(requestId)
                 .orElseGet(() -> CoordinatorPlan.builder().request(request).build());
 
-        plan.setSelectedEquipment(equipmentRepository.findById(equipmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Texnika", equipmentId)));
+        Equipment equipment = equipmentRepository.findById(equipmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Texnika", equipmentId));
+        if (equipment.getStatus() == EquipmentStatus.RENTED) {
+            throw new BusinessException("Bu texnika hazırda icarədədir və başqa layihəyə təyin edilə bilməz");
+        }
+        plan.setSelectedEquipment(equipment);
 
         return CoordinatorPlanResponse.from(planRepository.save(plan));
     }

@@ -61,7 +61,15 @@ public class EquipmentResponse {
     private List<InspectionResponse> inspections;
     private List<DocumentResponse> documents;
     private List<ImageResponse> images;
+    private List<SafetyItemDto> safetyEquipment;
     private LocalDateTime createdAt;
+
+    @Data
+    @Builder
+    public static class SafetyItemDto {
+        private Long id;
+        private String name;
+    }
 
     public static EquipmentResponse from(Equipment e) {
         return EquipmentResponse.builder()
@@ -102,6 +110,9 @@ public class EquipmentResponse {
                 .inspections(e.getInspections().stream().map(InspectionResponse::from).toList())
                 .documents(e.getDocuments().stream().map(DocumentResponse::from).toList())
                 .images(e.getImages().stream().map(ImageResponse::from).toList())
+                .safetyEquipment(e.getSafetyEquipment().stream()
+                        .map(s -> SafetyItemDto.builder().id(s.getId()).name(s.getKey()).build())
+                        .toList())
                 .createdAt(e.getCreatedAt())
                 .build();
     }

@@ -22,6 +22,7 @@ public class ConfigSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        seedSafetyEquipment();
         if (configRepository.count() > 0) return;
         log.info("Konfiqurasiya elementləri seed edilir...");
 
@@ -76,6 +77,17 @@ public class ConfigSeeder implements CommandLineRunner {
 
         configRepository.saveAll(items);
         log.info("{} konfiqurasiya elementi əlavə edildi.", items.size());
+    }
+
+    private void seedSafetyEquipment() {
+        List<String> names = List.of("Sayrışan işıqlar", "Yanğınsöndürən", "Apteçka");
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i);
+            if (!configRepository.existsByCategoryAndKeyAndDeletedFalse("SAFETY_EQUIPMENT", name)) {
+                configRepository.save(item("SAFETY_EQUIPMENT", name, name, i));
+                log.info("SAFETY_EQUIPMENT seeded: {}", name);
+            }
+        }
     }
 
     private ConfigItem item(String category, String key, String value, int order) {
