@@ -26,6 +26,17 @@ spring:
       enabled: true
       max-file-size: 50MB
       max-request-size: 50MB
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: serxan.babayev.06@gmail.com
+    password: "klmp yxwd jtdz ptmn"
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 springdoc:
   api-docs:
@@ -40,6 +51,8 @@ app:
     refresh-token-expiry: 604800000
   upload:
     dir: C:/Users/serxa/ces-uploads
+  frontend:
+    url: http://localhost:3000
 
 logging:
   level:
