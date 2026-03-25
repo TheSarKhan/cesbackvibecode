@@ -1,9 +1,12 @@
 package com.ces.erp.project.service;
 
 import com.ces.erp.common.audit.AuditService;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import com.ces.erp.coordinator.entity.CoordinatorPlan;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.EquipmentStatus;
@@ -54,6 +57,18 @@ public class ProjectService {
                     return ProjectResponse.from(p, plan);
                 })
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<ProjectResponse> getAllPaged(int page, int size, String search, String status) {
+        String q = (search != null && !search.isBlank()) ? search : null;
+        ProjectStatus s = (status != null && !status.isBlank()) ? ProjectStatus.valueOf(status) : null;
+        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        var result = projectRepository.findAllFiltered(q, s, pageable);
+        return PagedResponse.from(result, p -> {
+            CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+            return ProjectResponse.from(p, plan);
+        });
     }
 
     @Transactional(readOnly = true)
@@ -259,10 +274,23 @@ public class ProjectService {
     // ─── Bitmə tarixini yenilə ────────────────────────────────────────────────
 
     @Transactional
+    public ProjectResponse updateStartDate(Long id, LocalDate startDate) {
+        Project p = findOrThrow(id);
+        if (p.getStatus() == ProjectStatus.COMPLETED) {
+            throw new BusinessException("Bağlanmış layihənin başlanğıc tarixi dəyişdirilə bilməz");
+        }
+        p.setStartDate(startDate);
+        projectRepository.save(p);
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YENİLƏNDİ", "Başlanğıc tarixi yeniləndi");
+        CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+        return ProjectResponse.from(p, plan);
+    }
+
+    @Transactional
     public ProjectResponse updateEndDate(Long id, LocalDate endDate) {
         Project p = findOrThrow(id);
-        if (p.getStatus() != ProjectStatus.ACTIVE) {
-            throw new BusinessException("Bitmə tarixi yalnız ACTIVE layihədə dəyişdirilə bilər");
+        if (p.getStatus() == ProjectStatus.COMPLETED) {
+            throw new BusinessException("Bağlanmış layihənin bitmə tarixi dəyişdirilə bilməz");
         }
         p.setEndDate(endDate);
         projectRepository.save(p);

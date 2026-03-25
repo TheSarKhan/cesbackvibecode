@@ -1,6 +1,7 @@
 package com.ces.erp.config.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.config.dto.ConfigItemRequest;
 import com.ces.erp.config.dto.ConfigItemResponse;
 import com.ces.erp.config.service.ConfigService;
@@ -28,6 +29,17 @@ public class ConfigController {
     @Operation(summary = "Bütün konfiqurasiya elementlərini kateqoriya üzrə gətir")
     public ResponseEntity<ApiResponse<Map<String, List<ConfigItemResponse>>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(configService.getAllGrouped()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('CONFIG:GET')")
+    @Operation(summary = "Konfiqurasiya elementlərini səhifələnmiş gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<ConfigItemResponse>>> getAllPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String category) {
+        return ResponseEntity.ok(ApiResponse.success(configService.getAllPaged(page, size, q, category)));
     }
 
     @GetMapping("/categories")

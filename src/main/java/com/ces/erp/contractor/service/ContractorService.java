@@ -3,6 +3,12 @@ package com.ces.erp.contractor.service;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
+import com.ces.erp.common.dto.PagedResponse;
+import com.ces.erp.enums.ContractorStatus;
+import com.ces.erp.enums.RiskLevel;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.contractor.dto.ContractorRequest;
@@ -22,6 +28,7 @@ public class ContractorService implements ApprovalHandler {
 
     private final ContractorRepository contractorRepository;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
 
     @Override public String getEntityType() { return "CONTRACTOR"; }
     @Override public String getModuleCode()  { return "CONTRACTOR_MANAGEMENT"; }
@@ -49,6 +56,15 @@ public class ContractorService implements ApprovalHandler {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public PagedResponse<ContractorResponse> getAllPaged(int page, int size, String search, String status, String riskLevel) {
+        String q = (search != null && !search.isBlank()) ? search : null;
+        ContractorStatus s = (status != null && !status.isBlank()) ? ContractorStatus.valueOf(status) : null;
+        RiskLevel r = (riskLevel != null && !riskLevel.isBlank()) ? RiskLevel.valueOf(riskLevel) : null;
+        var pageable = PageRequest.of(page, size, Sort.by("companyName").ascending());
+        return PagedResponse.from(contractorRepository.findAllFiltered(q, s, r, pageable), ContractorResponse::from);
+    }
+
     public ContractorResponse getById(Long id) {
         return ContractorResponse.from(findOrThrow(id));
     }
@@ -58,7 +74,9 @@ public class ContractorService implements ApprovalHandler {
         if (contractorRepository.existsByVoenAndDeletedFalse(request.getVoen())) {
             throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
         }
-        return ContractorResponse.from(contractorRepository.save(toEntity(request, new Contractor())));
+        Contractor saved = contractorRepository.save(toEntity(request, new Contractor()));
+        auditService.log("PODRATÇI", saved.getId(), saved.getCompanyName(), "YARADILDI", "Yeni podratçı qeydiyyatı");
+        return ContractorResponse.from(saved);
     }
 
     @Transactional
@@ -68,13 +86,16 @@ public class ContractorService implements ApprovalHandler {
         if (contractorRepository.existsByVoenAndIdNotAndDeletedFalse(request.getVoen(), id)) {
             throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
         }
-        return ContractorResponse.from(contractorRepository.save(toEntity(request, contractor)));
+        Contractor updated = contractorRepository.save(toEntity(request, contractor));
+        auditService.log("PODRATÇI", updated.getId(), updated.getCompanyName(), "YENİLƏNDİ", "Podratçı məlumatları yeniləndi");
+        return ContractorResponse.from(updated);
     }
 
     @Transactional
     @RequiresApproval(module = "CONTRACTOR_MANAGEMENT", entityType = "CONTRACTOR", isDelete = true)
     public void delete(Long id) {
         Contractor contractor = findOrThrow(id);
+        auditService.log("PODRATÇI", contractor.getId(), contractor.getCompanyName(), "SİLİNDİ", "Podratçı silindi");
         contractor.softDelete();
         contractorRepository.save(contractor);
     }

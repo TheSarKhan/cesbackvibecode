@@ -8,6 +8,10 @@ import com.ces.erp.accounting.repository.InvoiceRepository;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
+import com.ces.erp.common.dto.PagedResponse;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.websocket.NotificationService;
@@ -31,6 +35,7 @@ public class InvoiceService implements ApprovalHandler {
     private final ContractorRepository contractorRepository;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
+    private final AuditService auditService;
 
     @Override public String getEntityType() { return "INVOICE"; }
     @Override public String getModuleCode()  { return "ACCOUNTING"; }
@@ -69,6 +74,14 @@ public class InvoiceService implements ApprovalHandler {
         return invoiceRepository.findAllByType(type).stream()
                 .map(InvoiceResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<InvoiceResponse> getAllPaged(int page, int size, String search, String type) {
+        String q = (search != null && !search.isBlank()) ? search : null;
+        InvoiceType t = (type != null && !type.isBlank()) ? InvoiceType.valueOf(type) : null;
+        var pageable = PageRequest.of(page, size, Sort.by("invoiceDate").descending().and(Sort.by("createdAt").descending()));
+        return PagedResponse.from(invoiceRepository.findAllFiltered(q, t, pageable), InvoiceResponse::from);
     }
 
     @Transactional(readOnly = true)
@@ -126,6 +139,7 @@ public class InvoiceService implements ApprovalHandler {
 
         Invoice saved = invoiceRepository.save(inv);
         notificationService.success("Yeni faktura", "Faktura yaradıldı: " + saved.getInvoiceNumber(), "ACCOUNTING");
+        auditService.log("FAKTURA", saved.getId(), saved.getInvoiceNumber(), "YARADILDI", "Yeni faktura qeydiyyatı");
         return InvoiceResponse.from(saved);
     }
 
@@ -154,13 +168,16 @@ public class InvoiceService implements ApprovalHandler {
                         .orElseThrow(() -> new ResourceNotFoundException("Podratçı", req.getContractorId()))
                 : null);
 
-        return InvoiceResponse.from(invoiceRepository.save(inv));
+        Invoice updated = invoiceRepository.save(inv);
+        auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "YENİLƏNDİ", "Faktura məlumatları yeniləndi");
+        return InvoiceResponse.from(updated);
     }
 
     @Transactional
     @RequiresApproval(module = "ACCOUNTING", entityType = "INVOICE", isDelete = true)
     public void delete(Long id) {
         Invoice inv = findOrThrow(id);
+        auditService.log("FAKTURA", inv.getId(), inv.getInvoiceNumber(), "SİLİNDİ", "Faktura silindi");
         inv.softDelete();
         invoiceRepository.save(inv);
     }

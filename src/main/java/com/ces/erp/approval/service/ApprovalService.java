@@ -6,6 +6,7 @@ import com.ces.erp.approval.dto.RejectRequest;
 import com.ces.erp.approval.entity.PendingOperation;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.approval.repository.PendingOperationRepository;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.department.entity.Department;
@@ -30,6 +31,7 @@ public class ApprovalService {
     private final PendingOperationRepository pendingOperationRepository;
     private final UserRepository userRepository;
     private final List<ApprovalHandler> handlers;
+    private final AuditService auditService;
 
     private Map<String, ApprovalHandler> registry() {
         return handlers.stream().collect(Collectors.toMap(ApprovalHandler::getEntityType, h -> h));
@@ -99,7 +101,10 @@ public class ApprovalService {
         op.setStatus(OperationStatus.APPROVED);
         op.setProcessedBy(approver);
         op.setProcessedAt(LocalDateTime.now());
-        return ApprovalSummaryResponse.from(pendingOperationRepository.save(op));
+        PendingOperation saved = pendingOperationRepository.save(op);
+        auditService.log("TƏSDİQ", saved.getId(), saved.getEntityLabel(), "TƏSDİQLƏNDİ",
+                saved.getModuleCode() + " — " + saved.getOperationType() + " əməliyyatı təsdiqləndi");
+        return ApprovalSummaryResponse.from(saved);
     }
 
     @Transactional
@@ -124,7 +129,11 @@ public class ApprovalService {
         op.setProcessedBy(approver);
         op.setProcessedAt(LocalDateTime.now());
         op.setRejectReason(request != null ? request.getReason() : null);
-        return ApprovalSummaryResponse.from(pendingOperationRepository.save(op));
+        PendingOperation saved = pendingOperationRepository.save(op);
+        auditService.log("TƏSDİQ", saved.getId(), saved.getEntityLabel(), "RƏDD EDİLDİ",
+                saved.getModuleCode() + " — " + saved.getOperationType() + " əməliyyatı rədd edildi"
+                + (saved.getRejectReason() != null ? ": " + saved.getRejectReason() : ""));
+        return ApprovalSummaryResponse.from(saved);
     }
 
     private void checkAccess(User approver, PendingOperation op) {

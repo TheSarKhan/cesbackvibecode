@@ -1,7 +1,11 @@
 package com.ces.erp.user.service;
 
+import com.ces.erp.common.audit.AuditService;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import com.ces.erp.department.entity.Department;
 import com.ces.erp.department.repository.DepartmentRepository;
 import com.ces.erp.role.entity.Role;
@@ -29,11 +33,18 @@ public class UserService {
     private final DepartmentRepository departmentRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
 
     public List<UserResponse> getAll() {
         return userRepository.findAllByDeletedFalse().stream()
                 .map(UserResponse::from)
                 .toList();
+    }
+
+    public PagedResponse<UserResponse> getAllPaged(int page, int size, String search, Long departmentId) {
+        String q = (search != null && !search.isBlank()) ? search : null;
+        var pageable = PageRequest.of(page, size, Sort.by("fullName").ascending());
+        return PagedResponse.from(userRepository.findAllFiltered(q, departmentId, pageable), UserResponse::from);
     }
 
     public UserResponse getById(Long id) {
@@ -66,7 +77,9 @@ public class UserService {
                 .role(role)
                 .build();
 
-        return UserResponse.from(userRepository.save(user));
+        User saved = userRepository.save(user);
+        auditService.log("İSTİFADƏÇİ", saved.getId(), saved.getFullName(), "YARADILDI", "Yeni istifadəçi qeydiyyatı");
+        return UserResponse.from(saved);
     }
 
     @Transactional
@@ -97,7 +110,9 @@ public class UserService {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        return UserResponse.from(userRepository.save(user));
+        User updated = userRepository.save(user);
+        auditService.log("İSTİFADƏÇİ", updated.getId(), updated.getFullName(), "YENİLƏNDİ", "İstifadəçi məlumatları yeniləndi");
+        return UserResponse.from(updated);
     }
 
     @Transactional
@@ -140,6 +155,7 @@ public class UserService {
     public void delete(Long id) {
         User user = userRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", id));
+        auditService.log("İSTİFADƏÇİ", user.getId(), user.getFullName(), "SİLİNDİ", "İstifadəçi silindi");
         user.softDelete();
         userRepository.save(user);
     }

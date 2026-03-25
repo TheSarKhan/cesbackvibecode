@@ -26,7 +26,7 @@ public class CustomerSeeder implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         if (customerRepository.count() > 0) return;
-        log.info("Müştəri seed edilir...");
+        log.info("Müştərilər seed edilir...");
 
         List<Customer> customers = List.of(
 
@@ -41,7 +41,7 @@ public class CustomerSeeder implements CommandLineRunner {
                         .paymentTypes(Set.of("TRANSFER"))
                         .status(CustomerStatus.ACTIVE)
                         .riskLevel(RiskLevel.LOW)
-                        .notes("Uzunmüddətli müştəri, vaxtında ödəyir")
+                        .notes("3 ay ərzində 4 sorğu. Vaxtında ödəyir. VIP müştəri.")
                         .build(),
 
                 Customer.builder()
@@ -55,7 +55,7 @@ public class CustomerSeeder implements CommandLineRunner {
                         .paymentTypes(Set.of("CASH", "TRANSFER"))
                         .status(CustomerStatus.ACTIVE)
                         .riskLevel(RiskLevel.MEDIUM)
-                        .notes("Böyük həcmli texnika kirayəsi")
+                        .notes("Böyük həcmli sifarişlər. Bir dəfə ödəniş gecikib.")
                         .build(),
 
                 Customer.builder()
@@ -69,7 +69,7 @@ public class CustomerSeeder implements CommandLineRunner {
                         .paymentTypes(Set.of("TRANSFER"))
                         .status(CustomerStatus.ACTIVE)
                         .riskLevel(RiskLevel.LOW)
-                        .notes("Sumqayıt filialı üzrə aktiv müştəri")
+                        .notes("Sumqayıt filialı üzrə daimi müştəri. Aylıq müqavilə.")
                         .build(),
 
                 Customer.builder()
@@ -80,24 +80,66 @@ public class CustomerSeeder implements CommandLineRunner {
                         .supplierPhone("+994557890123")
                         .officeContactPerson("Günel Rəhimova")
                         .officeContactPhone("+994508901234")
-                        .paymentTypes(Set.of("CASH"))
+                        .paymentTypes(Set.of("CASH", "TRANSFER"))
                         .status(CustomerStatus.VARIABLE)
                         .riskLevel(RiskLevel.MEDIUM)
-                        .notes("Mövsümi sifarişlər verir")
+                        .notes("Gəncə bölgəsində yol tikintisi. Mövsümi aktivlik.")
                         .build(),
 
                 Customer.builder()
-                        .companyName("Caspian Oil Services Ltd")
-                        .voen("5060708090")
-                        .address("Bakı, Xəzər rayonu, Sahil küç. 3")
-                        .supplierPerson("Nicat Əhmədov")
-                        .supplierPhone("+994709012345")
-                        .officeContactPerson("Zəhra Mustafayeva")
-                        .officeContactPhone("+994509012345")
+                        .companyName("SOCAR Tikinti ASC")
+                        .voen("5060708091")
+                        .address("Bakı, Hüsü Hacıyev küç. 40, SOCAR MK")
+                        .supplierPerson("Fuad Babaxanov")
+                        .supplierPhone("+994503334455")
+                        .officeContactPerson("Şəhriyar Əhmədov")
+                        .officeContactPhone("+994703334455")
                         .paymentTypes(Set.of("TRANSFER"))
+                        .status(CustomerStatus.ACTIVE)
+                        .riskLevel(RiskLevel.LOW)
+                        .notes("Neft-qaz sektoru. Xüsusi texniki tələblər. Çox etibarlı.")
+                        .build(),
+
+                Customer.builder()
+                        .companyName("AzərGold QSC")
+                        .voen("6070809091")
+                        .address("Bakı, Üzeyir Hacıbəyov küç. 33")
+                        .supplierPerson("Rəşad Abbasov")
+                        .supplierPhone("+994554445566")
+                        .officeContactPerson("Vüsal Məmmədov")
+                        .officeContactPhone("+994704445566")
+                        .paymentTypes(Set.of("TRANSFER"))
+                        .status(CustomerStatus.ACTIVE)
+                        .riskLevel(RiskLevel.LOW)
+                        .notes("Mədən sektoru. Ağır texnikaya tələbat yüksəkdir.")
+                        .build(),
+
+                Customer.builder()
+                        .companyName("Bakı Metro MMC")
+                        .voen("7080901012")
+                        .address("Bakı, Hüsü Hacıyev küç. 33, Metro İdarəsi")
+                        .supplierPerson("Elnur Cəfərov")
+                        .supplierPhone("+994505556677")
+                        .officeContactPerson("Lalə Mustafayeva")
+                        .officeContactPhone("+994705556677")
+                        .paymentTypes(Set.of("TRANSFER"))
+                        .status(CustomerStatus.ACTIVE)
+                        .riskLevel(RiskLevel.LOW)
+                        .notes("Dövlət müəssisəsi. Böyük büdcə. Ödənişlər 30 gün müddətli.")
+                        .build(),
+
+                Customer.builder()
+                        .companyName("Delta İnşaat Ltd")
+                        .voen("8091011121")
+                        .address("Bakı, Binəqədi r., sənaye zonaası")
+                        .supplierPerson("Orxan Kərimov")
+                        .supplierPhone("+994556667788")
+                        .officeContactPerson("Sevinc Qasımova")
+                        .officeContactPhone("+994506667788")
+                        .paymentTypes(Set.of("CASH"))
                         .status(CustomerStatus.PASSIVE)
                         .riskLevel(RiskLevel.HIGH)
-                        .notes("Ödənişdə gecikməsi var, müvəqqəti passiv")
+                        .notes("Ödənişdə sistemli gecikmə. Yanvar sifarişi ləğv edildi.")
                         .build()
         );
 

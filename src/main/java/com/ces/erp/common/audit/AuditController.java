@@ -31,8 +31,8 @@ public class AuditController {
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "50") int size
     ) {
-        LocalDateTime fromDt = from != null ? LocalDate.parse(from).atStartOfDay() : null;
-        LocalDateTime toDt   = to   != null ? LocalDate.parse(to).atTime(23, 59, 59) : null;
+        LocalDateTime fromDt = from != null ? LocalDate.parse(from).atStartOfDay() : LocalDateTime.of(1900, 1, 1, 0, 0);
+        LocalDateTime toDt   = to   != null ? LocalDate.parse(to).atTime(23, 59, 59) : LocalDateTime.of(2099, 12, 31, 23, 59, 59);
         String qLower = (q != null && !q.isBlank()) ? q.toLowerCase() : null;
         String etFilter = (entityType != null && !entityType.isBlank()) ? entityType : null;
         String acFilter = (action     != null && !action.isBlank())     ? action     : null;

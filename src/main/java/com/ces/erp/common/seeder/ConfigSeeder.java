@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Component
-@Order(5)
+@Order(2)
 @RequiredArgsConstructor
 @Slf4j
 public class ConfigSeeder implements CommandLineRunner {
@@ -22,81 +22,88 @@ public class ConfigSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        seedSafetyEquipment();
         if (configRepository.count() > 0) return;
         log.info("Konfiqurasiya elementləri seed edilir...");
 
         List<ConfigItem> items = List.of(
-                // ─── Texnika brendləri ────────────────────────
-                item("EQUIPMENT_BRAND", "CAT",        "Caterpillar",       0),
-                item("EQUIPMENT_BRAND", "Komatsu",    "Komatsu",           1),
-                item("EQUIPMENT_BRAND", "Volvo",      "Volvo CE",          2),
-                item("EQUIPMENT_BRAND", "Hitachi",    "Hitachi",           3),
-                item("EQUIPMENT_BRAND", "JCB",        "JCB",               4),
-                item("EQUIPMENT_BRAND", "Liebherr",   "Liebherr",          5),
-                item("EQUIPMENT_BRAND", "Doosan",     "Doosan",            6),
-                item("EQUIPMENT_BRAND", "Hyundai",    "Hyundai CE",        7),
-                item("EQUIPMENT_BRAND", "XCMG",       "XCMG",              8),
-                item("EQUIPMENT_BRAND", "Sany",       "Sany",              9),
-                item("EQUIPMENT_BRAND", "Zoomlion",   "Zoomlion",         10),
 
-                // ─── Texnika növləri ──────────────────────────
-                item("EQUIPMENT_TYPE", "Ekskavator",       "Ekskavator",       0),
-                item("EQUIPMENT_TYPE", "Yükləyici",        "Yükləyici",        1),
-                item("EQUIPMENT_TYPE", "Buldozer",         "Buldozer",         2),
-                item("EQUIPMENT_TYPE", "Greyder",          "Greyder",          3),
-                item("EQUIPMENT_TYPE", "Kran",             "Kran",             4),
-                item("EQUIPMENT_TYPE", "Kompressor",       "Kompressor",       5),
-                item("EQUIPMENT_TYPE", "Generator",        "Generator",        6),
-                item("EQUIPMENT_TYPE", "Qazıcı",          "Qazıcı maşın",    7),
-                item("EQUIPMENT_TYPE", "Betonqarışdıran", "Betonqarışdıran",  8),
-                item("EQUIPMENT_TYPE", "Roller",           "Roller / Silindr", 9),
-                item("EQUIPMENT_TYPE", "Forklift",         "Forklift",        10),
-                item("EQUIPMENT_TYPE", "Yük maşını",      "Yük maşını",      11),
+                // ─── Texnika brendləri ────────────────────────────────────────
+                item("EQUIPMENT_BRAND", "Caterpillar", 0),
+                item("EQUIPMENT_BRAND", "Komatsu",     1),
+                item("EQUIPMENT_BRAND", "Volvo CE",    2),
+                item("EQUIPMENT_BRAND", "Hitachi",     3),
+                item("EQUIPMENT_BRAND", "JCB",         4),
+                item("EQUIPMENT_BRAND", "Liebherr",    5),
+                item("EQUIPMENT_BRAND", "Doosan",      6),
+                item("EQUIPMENT_BRAND", "Hyundai CE",  7),
+                item("EQUIPMENT_BRAND", "XCMG",        8),
+                item("EQUIPMENT_BRAND", "Sany",        9),
+                item("EQUIPMENT_BRAND", "Zoomlion",   10),
+                item("EQUIPMENT_BRAND", "Bobcat",     11),
+                item("EQUIPMENT_BRAND", "Dynapac",    12),
+                item("EQUIPMENT_BRAND", "Bomag",      13),
+                item("EQUIPMENT_BRAND", "Mercedes-Benz", 14),
 
-                // ─── Bölgələr ────────────────────────────────
-                item("REGION", "Bakı",       "Bakı",        0),
-                item("REGION", "Sumqayıt",   "Sumqayıt",    1),
-                item("REGION", "Gəncə",     "Gəncə",      2),
-                item("REGION", "Lənkəran",  "Lənkəran",   3),
-                item("REGION", "Şəki",      "Şəki",       4),
-                item("REGION", "Mingəçevir", "Mingəçevir",  5),
-                item("REGION", "Naxçıvan",  "Naxçıvan",   6),
-                item("REGION", "Şirvan",    "Şirvan",     7),
-                item("REGION", "Quba",       "Quba",        8),
-                item("REGION", "Zaqatala",   "Zaqatala",    9),
+                // ─── Texnika növləri ──────────────────────────────────────────
+                item("EQUIPMENT_TYPE", "Ekskavator",         0),
+                item("EQUIPMENT_TYPE", "Yükləyici",          1),
+                item("EQUIPMENT_TYPE", "Buldozer",           2),
+                item("EQUIPMENT_TYPE", "Greyder",            3),
+                item("EQUIPMENT_TYPE", "Kran",               4),
+                item("EQUIPMENT_TYPE", "Kompressor",         5),
+                item("EQUIPMENT_TYPE", "Generator",          6),
+                item("EQUIPMENT_TYPE", "Qazıcı",            7),
+                item("EQUIPMENT_TYPE", "Betonqarışdıran",   8),
+                item("EQUIPMENT_TYPE", "Roller / Silindir",  9),
+                item("EQUIPMENT_TYPE", "Forklift",          10),
+                item("EQUIPMENT_TYPE", "Yük maşını",        11),
+                item("EQUIPMENT_TYPE", "Mini Ekskavator",   12),
+                item("EQUIPMENT_TYPE", "Teleskopik Yükləyici", 13),
 
-                // ─── Texniki parametr adları ─────────────────
-                item("TECH_PARAM", "Çəki (ton)",       "Texnikanın çəkisi",     0),
-                item("TECH_PARAM", "Güc (HP)",         "Mühərrik gücü",         1),
-                item("TECH_PARAM", "Tutum (m³)",      "Çanaq tutumu",          2),
-                item("TECH_PARAM", "Hündürlük (m)",   "Maksimal hündürlük",    3),
-                item("TECH_PARAM", "Uzunluq (m)",      "Boom uzunluğu",         4),
-                item("TECH_PARAM", "Yük qaldırma (ton)", "Yük qaldırma gücü",  5)
+                // ─── Bölgələr ────────────────────────────────────────────────
+                item("REGION", "Bakı",        0),
+                item("REGION", "Sumqayıt",    1),
+                item("REGION", "Gəncə",      2),
+                item("REGION", "Lənkəran",   3),
+                item("REGION", "Şəki",       4),
+                item("REGION", "Mingəçevir",  5),
+                item("REGION", "Naxçıvan",   6),
+                item("REGION", "Şirvan",     7),
+                item("REGION", "Quba",        8),
+                item("REGION", "Zaqatala",    9),
+                item("REGION", "Abşeron",    10),
+                item("REGION", "Xırdalan",   11),
+                item("REGION", "Balaxanı",   12),
+
+                // ─── Texniki parametr adları ──────────────────────────────────
+                item("TECH_PARAM", "Texnika növü",         0),
+                item("TECH_PARAM", "Çəki (ton)",           1),
+                item("TECH_PARAM", "Güc (HP)",             2),
+                item("TECH_PARAM", "Tutum (m³)",          3),
+                item("TECH_PARAM", "Hündürlük (m)",       4),
+                item("TECH_PARAM", "Yük qaldırma (ton)",  5),
+                item("TECH_PARAM", "Boom uzunluğu (m)",    6),
+                item("TECH_PARAM", "İş müddəti (gün)",    7),
+                item("TECH_PARAM", "Torpaq növü",          8),
+                item("TECH_PARAM", "İş saatları",          9),
+                item("TECH_PARAM", "Kovş həcmi (m³)",    10),
+
+                // ─── Təhlükəsizlik avadanlıqları ─────────────────────────────
+                item("SAFETY_EQUIPMENT", "Sayrışan işıqlar",  0),
+                item("SAFETY_EQUIPMENT", "Yanğınsöndürən",    1),
+                item("SAFETY_EQUIPMENT", "Apteçka",           2),
+                item("SAFETY_EQUIPMENT", "Xəbərdarlıq konusu", 3),
+                item("SAFETY_EQUIPMENT", "Əks-işıq (reflektor)", 4)
         );
 
         configRepository.saveAll(items);
         log.info("{} konfiqurasiya elementi əlavə edildi.", items.size());
     }
 
-    private void seedSafetyEquipment() {
-        List<String> names = List.of("Sayrışan işıqlar", "Yanğınsöndürən", "Apteçka");
-        for (int i = 0; i < names.size(); i++) {
-            String name = names.get(i);
-            if (!configRepository.existsByCategoryAndKeyAndDeletedFalse("SAFETY_EQUIPMENT", name)) {
-                configRepository.save(item("SAFETY_EQUIPMENT", name, name, i));
-                log.info("SAFETY_EQUIPMENT seeded: {}", name);
-            }
-        }
-    }
-
-    private ConfigItem item(String category, String key, String value, int order) {
+    private ConfigItem item(String category, String key, int order) {
         return ConfigItem.builder()
-                .category(category)
-                .key(key)
-                .value(value)
-                .sortOrder(order)
-                .active(true)
+                .category(category).key(key).value(key)
+                .sortOrder(order).active(true)
                 .build();
     }
 }

@@ -1,6 +1,7 @@
 package com.ces.erp.common.trash.service;
 
 import com.ces.erp.accounting.repository.InvoiceRepository;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.trash.dto.TrashItem;
@@ -36,6 +37,7 @@ public class TrashService {
     private final DepartmentRepository departmentRepository;
     private final RoleRepository roleRepository;
     private final InvoiceRepository invoiceRepository;
+    private final AuditService auditService;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
@@ -213,56 +215,67 @@ public class TrashService {
                 var e = customerRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("Müştəri", id));
                 e.setDeleted(false); e.setDeletedAt(null); customerRepository.save(e);
+                auditService.log("MÜŞTƏRİ", e.getId(), e.getCompanyName(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "CONTRACTOR" -> {
                 var e = contractorRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("Podratçı", id));
                 e.setDeleted(false); e.setDeletedAt(null); contractorRepository.save(e);
+                auditService.log("PODRATÇI", e.getId(), e.getCompanyName(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "INVESTOR" -> {
                 var e = investorRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("İnvestor", id));
                 e.setDeleted(false); e.setDeletedAt(null); investorRepository.save(e);
+                auditService.log("İNVESTOR", e.getId(), e.getCompanyName(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "OPERATOR" -> {
                 var e = operatorRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("Operator", id));
                 e.setDeleted(false); e.setDeletedAt(null); operatorRepository.save(e);
+                auditService.log("OPERATOR", e.getId(), e.getFirstName() + " " + e.getLastName(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "EQUIPMENT" -> {
                 var e = equipmentRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("Texnika", id));
                 e.setDeleted(false); e.setDeletedAt(null); equipmentRepository.save(e);
+                auditService.log("TEXNİKA", e.getId(), e.getName() + " (" + e.getEquipmentCode() + ")", "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "TECH_REQUEST" -> {
                 var e = techRequestRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("Sorğu", id));
                 e.setDeleted(false); e.setDeletedAt(null); techRequestRepository.save(e);
+                auditService.log("SORĞU", e.getId(), e.getRequestCode() != null ? e.getRequestCode() : "Sorğu #" + e.getId(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "PROJECT" -> {
                 var e = projectRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("Layihə", id));
                 e.setDeleted(false); e.setDeletedAt(null); projectRepository.save(e);
+                auditService.log("LAYİHƏ", e.getId(), e.getProjectCode(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "USER" -> {
                 var e = userRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", id));
                 e.setDeleted(false); e.setDeletedAt(null); userRepository.save(e);
+                auditService.log("İSTİFADƏÇİ", e.getId(), e.getFullName(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "DEPARTMENT" -> {
                 var e = departmentRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("Şöbə", id));
                 e.setDeleted(false); e.setDeletedAt(null); departmentRepository.save(e);
+                auditService.log("ŞÖBƏ", e.getId(), e.getName(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "ROLE" -> {
                 var e = roleRepository.findById(id).filter(c -> c.isDeleted())
                     .orElseThrow(() -> new ResourceNotFoundException("Rol", id));
                 e.setDeleted(false); e.setDeletedAt(null); roleRepository.save(e);
+                auditService.log("ROL", e.getId(), e.getName(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             case "INVOICE" -> {
                 var e = invoiceRepository.findById(id).filter(c -> c.isDeleted())
-                    .orElseThrow(() -> new ResourceNotFoundException("İnvoice", id));
+                    .orElseThrow(() -> new ResourceNotFoundException("Faktura", id));
                 e.setDeleted(false); e.setDeletedAt(null); invoiceRepository.save(e);
+                auditService.log("FAKTURA", e.getId(), e.getInvoiceNumber(), "BƏRPA EDİLDİ", "Silindikdən sonra bərpa edildi");
             }
             default -> throw new BusinessException("Naməlum entity tipi: " + entityType);
         }

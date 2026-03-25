@@ -4,9 +4,14 @@ import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
+import com.ces.erp.enums.CustomerStatus;
+import com.ces.erp.enums.RiskLevel;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import com.ces.erp.customer.dto.CustomerDocumentResponse;
 import com.ces.erp.customer.dto.CustomerRequest;
 import com.ces.erp.customer.dto.CustomerResponse;
@@ -59,6 +64,15 @@ public class CustomerService implements ApprovalHandler {
         return customerRepository.findAllByDeletedFalse().stream()
                 .map(CustomerResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<CustomerResponse> getAllPaged(int page, int size, String search, String status, String riskLevel) {
+        String q = (search != null && !search.isBlank()) ? search : null;
+        CustomerStatus s = (status != null && !status.isBlank()) ? CustomerStatus.valueOf(status) : null;
+        RiskLevel r = (riskLevel != null && !riskLevel.isBlank()) ? RiskLevel.valueOf(riskLevel) : null;
+        var pageable = PageRequest.of(page, size, Sort.by("companyName").ascending());
+        return PagedResponse.from(customerRepository.findAllFiltered(q, s, r, pageable), CustomerResponse::from);
     }
 
     public CustomerResponse getById(Long id) {

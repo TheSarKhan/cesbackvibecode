@@ -1,6 +1,7 @@
 package com.ces.erp.coordinator.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.security.UserPrincipal;
 import com.ces.erp.coordinator.dto.CoordinatorPlanRequest;
 import com.ces.erp.coordinator.dto.CoordinatorPlanResponse;
@@ -36,6 +37,17 @@ public class CoordinatorPlanController {
     @Operation(summary = "Koordinatora gələn sorğuları gətir")
     public ResponseEntity<ApiResponse<List<CoordinatorPlanResponse>>> getRequests() {
         return ResponseEntity.ok(ApiResponse.success(planService.getRequests()));
+    }
+
+    @GetMapping("/requests/paged")
+    @PreAuthorize("hasAuthority('COORDINATOR:GET')")
+    @Operation(summary = "Koordinator sorğularını səhifələnmiş gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<CoordinatorPlanResponse>>> getRequestsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.success(planService.getRequestsPaged(page, size, q, status)));
     }
 
     @GetMapping("/requests/{requestId}/plan")

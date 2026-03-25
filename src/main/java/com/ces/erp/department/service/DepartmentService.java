@@ -1,5 +1,6 @@
 package com.ces.erp.department.service;
 
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.department.dto.DepartmentRequest;
@@ -17,6 +18,7 @@ import java.util.List;
 public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
+    private final AuditService auditService;
 
     public List<DepartmentResponse> getAll() {
         return departmentRepository.findAllByDeletedFalse().stream()
@@ -39,7 +41,9 @@ public class DepartmentService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .build();
-        return DepartmentResponse.from(departmentRepository.save(dept));
+        Department saved = departmentRepository.save(dept);
+        auditService.log("ŞÖBƏ", saved.getId(), saved.getName(), "YARADILDI", "Yeni şöbə yaradıldı");
+        return DepartmentResponse.from(saved);
     }
 
     @Transactional
@@ -48,13 +52,16 @@ public class DepartmentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Şöbə", id));
         dept.setName(request.getName());
         dept.setDescription(request.getDescription());
-        return DepartmentResponse.from(departmentRepository.save(dept));
+        Department saved = departmentRepository.save(dept);
+        auditService.log("ŞÖBƏ", saved.getId(), saved.getName(), "YENİLƏNDİ", "Şöbə məlumatları yeniləndi");
+        return DepartmentResponse.from(saved);
     }
 
     @Transactional
     public void delete(Long id) {
         Department dept = departmentRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Şöbə", id));
+        auditService.log("ŞÖBƏ", dept.getId(), dept.getName(), "SİLİNDİ", "Şöbə silindi");
         dept.softDelete();
         departmentRepository.save(dept);
     }

@@ -1,6 +1,7 @@
 package com.ces.erp.role.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.role.dto.RoleRequest;
 import com.ces.erp.role.dto.RoleResponse;
 import com.ces.erp.role.service.RoleService;
@@ -27,6 +28,17 @@ public class RoleController {
     @Operation(summary = "Bütün rolları gətir")
     public ResponseEntity<ApiResponse<List<RoleResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(roleService.getAll()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('ROLE_PERMISSION:GET')")
+    @Operation(summary = "Rolları səhifələnmiş gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<RoleResponse>>> getAllPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long departmentId) {
+        return ResponseEntity.ok(ApiResponse.success(roleService.getAllPaged(page, size, q, departmentId)));
     }
 
     @GetMapping("/department/{departmentId}")

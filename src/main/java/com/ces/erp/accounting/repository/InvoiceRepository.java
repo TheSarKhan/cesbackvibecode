@@ -2,8 +2,11 @@ package com.ces.erp.accounting.repository;
 
 import com.ces.erp.accounting.entity.Invoice;
 import com.ces.erp.enums.InvoiceType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +38,24 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             ORDER BY i.invoiceDate DESC
             """)
     List<Invoice> findAllByType(InvoiceType type);
+
+    @Query(value = """
+            SELECT i FROM Invoice i LEFT JOIN FETCH i.project LEFT JOIN FETCH i.contractor
+            WHERE i.deleted = false
+            AND (CAST(:search AS string) IS NULL OR LOWER(COALESCE(i.invoiceNumber, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+             OR LOWER(COALESCE(i.notes, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
+            AND (CAST(:type AS string) IS NULL OR i.type = :type)
+            """,
+            countQuery = """
+            SELECT COUNT(i) FROM Invoice i
+            WHERE i.deleted = false
+            AND (CAST(:search AS string) IS NULL OR LOWER(COALESCE(i.invoiceNumber, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+             OR LOWER(COALESCE(i.notes, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
+            AND (CAST(:type AS string) IS NULL OR i.type = :type)
+            """)
+    Page<Invoice> findAllFiltered(@Param("search") String search,
+                                  @Param("type") InvoiceType type,
+                                  Pageable pageable);
 
     List<Invoice> findAllByProjectIdAndDeletedFalse(Long projectId);
 

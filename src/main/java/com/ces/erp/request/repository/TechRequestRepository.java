@@ -25,6 +25,17 @@ public interface TechRequestRepository extends JpaRepository<TechRequest, Long> 
     @Query("SELECT r FROM TechRequest r LEFT JOIN FETCH r.customer LEFT JOIN FETCH r.selectedEquipment e LEFT JOIN FETCH e.ownerContractor LEFT JOIN FETCH r.createdBy WHERE r.status IN :statuses AND r.deleted = false ORDER BY r.createdAt DESC")
     List<TechRequest> findAllByStatusInAndDeletedFalse(@Param("statuses") List<RequestStatus> statuses);
 
+    @Query("SELECT r FROM TechRequest r WHERE r.deleted = false" +
+            " AND r.status IN ('SENT_TO_COORDINATOR', 'OFFER_SENT', 'ACCEPTED', 'REJECTED')" +
+            " AND (CAST(:search AS string) IS NULL OR LOWER(r.companyName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(r.requestCode, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(r.projectName, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))" +
+            " AND (CAST(:status AS string) IS NULL OR r.status = :status)" +
+            " ORDER BY r.createdAt DESC")
+    Page<TechRequest> findAllCoordinatorFiltered(@Param("search") String search,
+                                                  @Param("status") RequestStatus status,
+                                                  Pageable pageable);
+
     List<TechRequest> findAllByDeletedTrue();
 
     @Query("SELECT COUNT(r) FROM TechRequest r WHERE r.status IN :statuses AND r.deleted = false")

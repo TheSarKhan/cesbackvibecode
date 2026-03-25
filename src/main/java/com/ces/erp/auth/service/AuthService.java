@@ -3,6 +3,7 @@ package com.ces.erp.auth.service;
 import com.ces.erp.auth.dto.LoginRequest;
 import com.ces.erp.auth.dto.LoginResponse;
 import com.ces.erp.auth.dto.RefreshTokenRequest;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.security.JwtUtil;
 import com.ces.erp.user.entity.User;
@@ -28,6 +29,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final RedisTemplate<String, String> redisTemplate;
+    private final AuditService auditService;
 
     @Value("${app.jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
@@ -47,6 +49,7 @@ public class AuthService {
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
 
+        auditService.log("SİSTEM", user.getId(), user.getFullName(), "GİRİŞ ETDİ", user.getEmail() + " sistemə daxil oldu");
         return buildLoginResponse(user);
     }
 
@@ -67,7 +70,16 @@ public class AuthService {
     }
 
     public void logout(String refreshToken) {
+        String userIdStr = redisTemplate.opsForValue().get(REFRESH_PREFIX + refreshToken);
         redisTemplate.delete(REFRESH_PREFIX + refreshToken);
+        if (userIdStr != null) {
+            try {
+                Long userId = Long.parseLong(userIdStr);
+                userRepository.findByIdAndDeletedFalse(userId).ifPresent(user ->
+                    auditService.log("SİSTEM", user.getId(), user.getFullName(), "ÇIXIŞ ETDİ", user.getEmail() + " sistemdən çıxdı")
+                );
+            } catch (NumberFormatException ignored) {}
+        }
     }
 
     private LoginResponse buildLoginResponse(User user) {

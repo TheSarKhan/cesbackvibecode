@@ -3,6 +3,9 @@ package com.ces.erp.operator.service;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
+import com.ces.erp.common.dto.PagedResponse;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
@@ -66,6 +69,19 @@ public class OperatorService implements ApprovalHandler {
                     return r;
                 })
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<OperatorResponse> getAllPaged(int page, int size, String search) {
+        String q = (search != null && !search.isBlank()) ? search : null;
+        var busyIds = operatorRepository.findBusyOperatorIds();
+        var pageable = PageRequest.of(page, size, Sort.by("lastName").ascending().and(Sort.by("firstName").ascending()));
+        var result = operatorRepository.findAllFiltered(q, pageable);
+        return PagedResponse.from(result, o -> {
+            OperatorResponse r = OperatorResponse.from(o);
+            r.setBusy(busyIds.contains(o.getId()));
+            return r;
+        });
     }
 
     public OperatorResponse getById(Long id) {

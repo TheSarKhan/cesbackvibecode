@@ -1,6 +1,7 @@
 package com.ces.erp.operator.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.enums.OperatorDocumentType;
 import com.ces.erp.operator.dto.OperatorRequest;
 import com.ces.erp.operator.dto.OperatorResponse;
@@ -32,6 +33,15 @@ public class OperatorController {
     @PreAuthorize("hasAuthority('OPERATORS:GET')")
     public ResponseEntity<ApiResponse<List<OperatorResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(operatorService.getAll()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('OPERATORS:GET')")
+    public ResponseEntity<ApiResponse<PagedResponse<OperatorResponse>>> getAllPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q) {
+        return ResponseEntity.ok(ApiResponse.success(operatorService.getAllPaged(page, size, q)));
     }
 
     @GetMapping("/{id}")

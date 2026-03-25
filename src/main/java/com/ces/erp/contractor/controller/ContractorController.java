@@ -1,6 +1,7 @@
 package com.ces.erp.contractor.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.contractor.dto.ContractorRequest;
 import com.ces.erp.contractor.dto.ContractorResponse;
 import com.ces.erp.contractor.service.ContractorService;
@@ -27,6 +28,18 @@ public class ContractorController {
     @Operation(summary = "Bütün podratçıları gətir")
     public ResponseEntity<ApiResponse<List<ContractorResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(contractorService.getAll()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('CONTRACTOR_MANAGEMENT:GET')")
+    @Operation(summary = "Podratçıları səhifələnmiş gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<ContractorResponse>>> getAllPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String risk) {
+        return ResponseEntity.ok(ApiResponse.success(contractorService.getAllPaged(page, size, q, status, risk)));
     }
 
     @GetMapping("/{id}")

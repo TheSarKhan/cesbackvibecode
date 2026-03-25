@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Component
 @Order(1)
@@ -36,160 +37,179 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        if (moduleRepository.count() > 0) return;
+        log.info("Sistem məlumatları seed edilir...");
         seedModules();
-        seedMissingModules();
-        seedAdminAccount();
-        seedMissingPermissionsForAdmin();
+        seedDepartmentsRolesUsers();
+        log.info("Sistem seed tamamlandı.");
     }
 
-    // ─── Sonradan əlavə olunan modulları seed et ──────────────────────────────
-
-    private void seedMissingModules() {
-        seedModuleIfAbsent("INVESTORS", "İnvestor İdarəetməsi", "Investor Management", 11);
-        seedModuleIfAbsent("OPERATORS", "Operator İdarəetməsi", "Operator Management", 12);
-        seedModuleIfAbsent("OPERATIONS_APPROVAL", "Əməliyyatların Təsdiqi", "Operations Approval", 13);
-        seedModuleIfAbsent("TRASH", "Silinmiş Məlumatlar", "Deleted Data", 14);
-        seedModuleIfAbsent("AUDIT_LOG", "Audit Jurnal", "Audit Log", 15);
-        seedModuleIfAbsent("CONFIG", "Konfiqurasiya Modulu", "Configuration Module", 16);
-    }
-
-    // ─── Admin roluna çatışmayan icazələri əlavə et ───────────────────────────
-
-    private void seedMissingPermissionsForAdmin() {
-        userRepository.findByEmailAndDeletedFalse("admin@ces.az").ifPresent(admin -> {
-            if (admin.getRole() == null) return;
-            Role role = admin.getRole();
-            List<Long> existingModuleIds = rolePermissionRepository.findAllByRoleId(role.getId())
-                    .stream().map(p -> p.getModule().getId()).toList();
-
-            moduleRepository.findAll().stream()
-                    .filter(m -> !existingModuleIds.contains(m.getId()))
-                    .forEach(m -> {
-                        rolePermissionRepository.save(RolePermission.builder()
-                                .role(role)
-                                .module(m)
-                                .canGet(true)
-                                .canPost(true)
-                                .canPut(true)
-                                .canDelete(true)
-                                .canSendToCoordinator("REQUESTS".equals(m.getCode()))
-                                .canSubmitOffer("COORDINATOR".equals(m.getCode()))
-                                .build());
-                        log.info("Admin roluna əlavə icazə verildi: {}", m.getCode());
-                    });
-
-            // REQUESTS modulu üçün canSendToCoordinator-u yoxla və aktivləşdir
-            rolePermissionRepository.findAllByRoleId(role.getId()).stream()
-                    .filter(p -> "REQUESTS".equals(p.getModule().getCode()) && !p.isCanSendToCoordinator())
-                    .forEach(p -> {
-                        p.setCanSendToCoordinator(true);
-                        rolePermissionRepository.save(p);
-                        log.info("Admin üçün REQUESTS:SEND_COORDINATOR aktivləşdirildi");
-                    });
-
-            // COORDINATOR modulu üçün canSubmitOffer-u yoxla və aktivləşdir
-            rolePermissionRepository.findAllByRoleId(role.getId()).stream()
-                    .filter(p -> "COORDINATOR".equals(p.getModule().getCode()) && !p.isCanSubmitOffer())
-                    .forEach(p -> {
-                        p.setCanSubmitOffer(true);
-                        rolePermissionRepository.save(p);
-                        log.info("Admin üçün COORDINATOR:SUBMIT_OFFER aktivləşdirildi");
-                    });
-        });
-    }
-
-    private void seedModuleIfAbsent(String code, String az, String en, int order) {
-        if (!moduleRepository.existsByCode(code)) {
-            moduleRepository.save(module(code, az, en, order));
-            log.info("Yeni modul əlavə edildi: {}", code);
-        }
-    }
-
-    // ─── 10 Sistem modulu (BRD-dən) ───────────────────────────────────────────
+    // ─── Sistem modulları ─────────────────────────────────────────────────────
 
     private void seedModules() {
-        if (moduleRepository.count() == 0) {
-            log.info("Sistem modulları seed edilir...");
+        List<SystemModule> modules = List.of(
+                module("CUSTOMER_MANAGEMENT",   "Müştəri İdarəetməsi",        1),
+                module("CONTRACTOR_MANAGEMENT", "Podratçı İdarəetməsi",       2),
+                module("ROLE_PERMISSION",        "Rol və İcazə İdarəetməsi",   3),
+                module("EMPLOYEE_MANAGEMENT",    "İşçi İdarəetməsi",           4),
+                module("GARAGE",                 "Qaraj Modulu",               5),
+                module("REQUESTS",               "Sorğular Modulu",            6),
+                module("COORDINATOR",            "Koordinator Modulu",         7),
+                module("PROJECTS",               "Layihələr Modulu",           8),
+                module("ACCOUNTING",             "Mühasibatlıq Modulu",        9),
+                module("SERVICE_MANAGEMENT",     "Texniki Servis Modulu",     10),
+                module("INVESTORS",              "İnvestor İdarəetməsi",      11),
+                module("OPERATORS",              "Operator İdarəetməsi",      12),
+                module("OPERATIONS_APPROVAL",    "Əməliyyatların Təsdiqi",    13),
+                module("TRASH",                  "Silinmiş Məlumatlar",       14),
+                module("AUDIT_LOG",              "Audit Jurnal",              15),
+                module("CONFIG",                 "Konfiqurasiya Modulu",      16)
+        );
+        moduleRepository.saveAll(modules);
+        log.info("{} modul əlavə edildi.", modules.size());
+    }
 
-            List<SystemModule> modules = List.of(
-                    module("CUSTOMER_MANAGEMENT",    "Müştəri İdarəetməsi",      "Customer Management",         1),
-                    module("CONTRACTOR_MANAGEMENT",  "Podratçı İdarəetməsi",     "Contractor Management",       2),
-                    module("ROLE_PERMISSION",        "Rol və İcazə İdarəetməsi", "Role & Permission Management",3),
-                    module("EMPLOYEE_MANAGEMENT",    "İşçi İdarəetməsi",         "Employee Management",         4),
-                    module("GARAGE",                 "Qaraj Modulu",             "Garage / Fleet Management",   5),
-                    module("REQUESTS",               "Sorğular Modulu",          "Requests Module",             6),
-                    module("COORDINATOR",            "Koordinator Modulu",       "Coordinator Module",          7),
-                    module("PROJECTS",               "Layihələr Modulu",         "Projects Module",             8),
-                    module("ACCOUNTING",             "Mühasibatlıq Modulu",      "Accounting Module",           9),
-                    module("SERVICE_MANAGEMENT",     "Texniki Servis Modulu",    "Service Management",         10),
-                    module("CONFIG",                 "Konfiqurasiya Modulu",     "Configuration Module",       11)
-            );
+    // ─── Şöbələr, rollar, istifadəçilər ──────────────────────────────────────
 
-            moduleRepository.saveAll(modules);
-            log.info("{} modul əlavə edildi.", modules.size());
+    private void seedDepartmentsRolesUsers() {
+        List<SystemModule> allModules = moduleRepository.findAll();
+        Map<String, SystemModule> byCode = new java.util.HashMap<>();
+        allModules.forEach(m -> byCode.put(m.getCode(), m));
+
+        // ── Şöbələr ──
+        Department rehberlik  = dept("Rəhbərlik",            "Şirkət rəhbərliyi");
+        Department satis      = dept("Satış şöbəsi",         "Müştəri və sorğu idarəetməsi");
+        Department koord      = dept("Koordinasiya şöbəsi",  "Koordinator əməliyyatları");
+        Department maliyye    = dept("Maliyyə şöbəsi",       "Mühasibatlıq və maliyyə");
+        Department texniki    = dept("Texniki Xidmət şöbəsi","Qaraj və avadanlıq idarəetməsi");
+        departmentRepository.saveAll(List.of(rehberlik, satis, koord, maliyye, texniki));
+
+        // ── Rollar ──
+
+        // 1. Super Admin — hər şeyə tam giriş
+        Role superAdmin = role("Super Admin", "Bütün modullara tam giriş", rehberlik);
+        superAdmin = roleRepository.save(superAdmin);
+        for (SystemModule m : allModules) {
+            rolePermissionRepository.save(perm(superAdmin, m, true, true, true, true,
+                    "REQUESTS".equals(m.getCode()), "COORDINATOR".equals(m.getCode())));
         }
 
-    }
+        // 2. Satış Meneceri
+        Role salesRole = role("Satış Meneceri", "Müştəri və sorğu idarəetməsi", satis);
+        salesRole = roleRepository.save(salesRole);
+        grantAll(salesRole, byCode, "CUSTOMER_MANAGEMENT");
+        grantAll(salesRole, byCode, "CONTRACTOR_MANAGEMENT");
+        grant(salesRole, byCode, "REQUESTS", true, true, true, true, true, false);
+        grant(salesRole, byCode, "PROJECTS", true, false, false, false, false, false);
+        grant(salesRole, byCode, "GARAGE", true, false, false, false, false, false);
 
-    // ─── Super Admin hesabı ────────────────────────────────────────────────────
+        // 3. Koordinator
+        Role coordRole = role("Koordinator", "Koordinasiya əməliyyatları", koord);
+        coordRole = roleRepository.save(coordRole);
+        grant(coordRole, byCode, "REQUESTS", true, false, true, false, false, false);
+        grant(coordRole, byCode, "COORDINATOR", true, true, true, true, false, true);
+        grant(coordRole, byCode, "GARAGE", true, false, false, false, false, false);
+        grant(coordRole, byCode, "CUSTOMER_MANAGEMENT", true, false, false, false, false, false);
+        grant(coordRole, byCode, "OPERATORS", true, false, false, false, false, false);
 
-    private void seedAdminAccount() {
-        if (userRepository.existsByEmailAndDeletedFalse("admin@ces.az")) return;
-        log.info("Admin hesabı seed edilir...");
+        // 4. Maliyyəçi
+        Role financeRole = role("Maliyyəçi", "Mühasibatlıq və maliyyə əməliyyatları", maliyye);
+        financeRole = roleRepository.save(financeRole);
+        grantAll(financeRole, byCode, "ACCOUNTING");
+        grant(financeRole, byCode, "PROJECTS", true, false, false, false, false, false);
+        grant(financeRole, byCode, "REQUESTS", true, false, false, false, false, false);
+        grant(financeRole, byCode, "AUDIT_LOG", true, false, false, false, false, false);
 
-        // 1. Şöbə
-        Department dept = departmentRepository.findAllByDeletedFalse().stream()
-                .filter(d -> d.getName().equals("Rəhbərlik"))
-                .findFirst()
-                .orElseGet(() -> departmentRepository.save(
-                        Department.builder().name("Rəhbərlik").description("Şirkət rəhbərliyi").build()
-                ));
+        // 5. Texnik
+        Role techRole = role("Texnik", "Qaraj və texniki xidmət", texniki);
+        techRole = roleRepository.save(techRole);
+        grantAll(techRole, byCode, "GARAGE");
+        grantAll(techRole, byCode, "SERVICE_MANAGEMENT");
+        grant(techRole, byCode, "REQUESTS", true, false, false, false, false, false);
+        grant(techRole, byCode, "OPERATORS", true, false, false, false, false, false);
 
-        // 2. Rol
-        Role adminRole = Role.builder()
-                .name("Super Admin")
-                .description("Bütün modullara tam giriş")
-                .department(dept)
-                .build();
-        adminRole = roleRepository.save(adminRole);
+        // ── İstifadəçilər ──
 
-        // 3. Bütün modullara tam icazə
-        List<SystemModule> allModules = moduleRepository.findAll();
-        final Role finalRole = adminRole;
-        List<RolePermission> permissions = allModules.stream()
-                .map(m -> RolePermission.builder()
-                        .role(finalRole)
-                        .module(m)
-                        .canGet(true)
-                        .canPost(true)
-                        .canPut(true)
-                        .canDelete(true)
-                        .canSendToCoordinator("REQUESTS".equals(m.getCode()))
-                        .build())
-                .toList();
-        rolePermissionRepository.saveAll(permissions);
-
-        // 4. İstifadəçi
-        User admin = User.builder()
-                .fullName("Super Admin")
+        // Admin
+        userRepository.save(User.builder()
+                .fullName("Fuad Quliyev")
                 .email("admin@ces.az")
                 .password(passwordEncoder.encode("Admin@123"))
-                .department(dept)
-                .role(adminRole)
+                .phone("+994501000001")
+                .department(rehberlik)
+                .role(superAdmin)
                 .hasApproval(true)
                 .active(true)
-                .build();
-        userRepository.save(admin);
+                .build());
 
-        log.info("Admin hesabı yaradıldı → admin@ces.az / Admin@123");
+        // Satış Meneceri
+        userRepository.save(User.builder()
+                .fullName("Nigar Əhmədova")
+                .email("nigar@ces.az")
+                .password(passwordEncoder.encode("Test@123"))
+                .phone("+994502000001")
+                .department(satis)
+                .role(salesRole)
+                .active(true)
+                .build());
+
+        // Koordinator
+        userRepository.save(User.builder()
+                .fullName("Bəhruz Hüseynov")
+                .email("behruz@ces.az")
+                .password(passwordEncoder.encode("Test@123"))
+                .phone("+994503000001")
+                .department(koord)
+                .role(coordRole)
+                .active(true)
+                .build());
+
+        // Maliyyəçi
+        userRepository.save(User.builder()
+                .fullName("Xədicə Babayeva")
+                .email("xedice@ces.az")
+                .password(passwordEncoder.encode("Test@123"))
+                .phone("+994504000001")
+                .department(maliyye)
+                .role(financeRole)
+                .active(true)
+                .build());
+
+        log.info("5 şöbə, 5 rol, 4 istifadəçi əlavə edildi.");
     }
 
-    private SystemModule module(String code, String az, String en, int order) {
-        return SystemModule.builder()
-                .code(code)
-                .nameAz(az)
-                .nameEn(en)
-                .orderIndex(order)
+    // ─── Köməkçi metodlar ────────────────────────────────────────────────────
+
+    private SystemModule module(String code, String az, int order) {
+        return SystemModule.builder().code(code).nameAz(az).nameEn(az).orderIndex(order).build();
+    }
+
+    private Department dept(String name, String desc) {
+        return Department.builder().name(name).description(desc).build();
+    }
+
+    private Role role(String name, String desc, Department dept) {
+        return Role.builder().name(name).description(desc).department(dept).build();
+    }
+
+    private RolePermission perm(Role role, SystemModule m,
+                                 boolean get, boolean post, boolean put, boolean del,
+                                 boolean send, boolean offer) {
+        return RolePermission.builder()
+                .role(role).module(m)
+                .canGet(get).canPost(post).canPut(put).canDelete(del)
+                .canSendToCoordinator(send).canSubmitOffer(offer)
                 .build();
+    }
+
+    private void grantAll(Role role, Map<String, SystemModule> byCode, String code) {
+        if (!byCode.containsKey(code)) return;
+        rolePermissionRepository.save(perm(role, byCode.get(code), true, true, true, true, false, false));
+    }
+
+    private void grant(Role role, Map<String, SystemModule> byCode, String code,
+                       boolean get, boolean post, boolean put, boolean del, boolean send, boolean offer) {
+        if (!byCode.containsKey(code)) return;
+        rolePermissionRepository.save(perm(role, byCode.get(code), get, post, put, del, send, offer));
     }
 }

@@ -1,6 +1,7 @@
 package com.ces.erp.user.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.user.dto.UserApprovalRequest;
 import com.ces.erp.user.dto.UserRequest;
 import com.ces.erp.user.dto.UserResponse;
@@ -28,6 +29,17 @@ public class UserController {
     @Operation(summary = "Bütün istifadəçiləri gətir")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(userService.getAll()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('ROLE_PERMISSION:GET')")
+    @Operation(summary = "İstifadəçiləri səhifələnmiş gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<UserResponse>>> getAllPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long departmentId) {
+        return ResponseEntity.ok(ApiResponse.success(userService.getAllPaged(page, size, q, departmentId)));
     }
 
     @GetMapping("/{id}")

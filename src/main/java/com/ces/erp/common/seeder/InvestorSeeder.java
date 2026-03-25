@@ -26,7 +26,7 @@ public class InvestorSeeder implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         if (investorRepository.count() > 0) return;
-        log.info("İnvestor seed edilir...");
+        log.info("İnvestorlar seed edilir...");
 
         List<Investor> investors = List.of(
 
@@ -40,7 +40,7 @@ public class InvestorSeeder implements CommandLineRunner {
                         .status(ContractorStatus.ACTIVE)
                         .riskLevel(RiskLevel.LOW)
                         .rating(new BigDecimal("4.80"))
-                        .notes("Əsas strateji investor tərəfdaşı")
+                        .notes("Əsas strateji investor tərəfdaşı. 3 texnika sahibi.")
                         .build(),
 
                 Investor.builder()
@@ -53,7 +53,7 @@ public class InvestorSeeder implements CommandLineRunner {
                         .status(ContractorStatus.ACTIVE)
                         .riskLevel(RiskLevel.LOW)
                         .rating(new BigDecimal("4.50"))
-                        .notes("Tikinti layihələrini maliyyələşdirir")
+                        .notes("Tikinti layihələrini maliyyələşdirir. 2 texnika sahibi.")
                         .build(),
 
                 Investor.builder()
@@ -66,7 +66,7 @@ public class InvestorSeeder implements CommandLineRunner {
                         .status(ContractorStatus.ACTIVE)
                         .riskLevel(RiskLevel.MEDIUM)
                         .rating(new BigDecimal("3.90"))
-                        .notes("Orta ölçülü layihələr üzrə investisiya")
+                        .notes("Orta ölçülü layihələr üzrə investisiya. Ödəniş bəzən gecikir.")
                         .build(),
 
                 Investor.builder()
@@ -79,20 +79,33 @@ public class InvestorSeeder implements CommandLineRunner {
                         .status(ContractorStatus.ACTIVE)
                         .riskLevel(RiskLevel.LOW)
                         .rating(new BigDecimal("4.20"))
-                        .notes("Xarici investor, beynəlxalq layihələr")
+                        .notes("Xarici investor, beynəlxalq layihələr üzrə əməkdaşlıq.")
+                        .build(),
+
+                Investor.builder()
+                        .companyName("AzərEnerjİnvest QSC")
+                        .voen("5566778899")
+                        .contactPerson("Kənan Nəsirov")
+                        .contactPhone("+994705556677")
+                        .address("Bakı, Xəzər küç. 41")
+                        .paymentType("Bank köçürməsi")
+                        .status(ContractorStatus.ACTIVE)
+                        .riskLevel(RiskLevel.LOW)
+                        .rating(new BigDecimal("4.60"))
+                        .notes("Enerji sektoru investoru. Uzunmüddətli müqavilə bazasında.")
                         .build(),
 
                 Investor.builder()
                         .companyName("Baku Real Estate Partners")
-                        .voen("5566778899")
+                        .voen("6677889900")
                         .contactPerson("Elnur Hüseynov")
-                        .contactPhone("+994705556677")
+                        .contactPhone("+994556667788")
                         .address("Bakı, Rəşid Behbudov küç. 7")
                         .paymentType("Nağd")
                         .status(ContractorStatus.INACTIVE)
                         .riskLevel(RiskLevel.HIGH)
                         .rating(new BigDecimal("2.50"))
-                        .notes("Müvəqqəti fəaliyyəti dayandırılıb")
+                        .notes("Fəaliyyəti müvəqqəti dayandırılıb. Borclu qalıq: 12.400 AZN.")
                         .build()
         );
 

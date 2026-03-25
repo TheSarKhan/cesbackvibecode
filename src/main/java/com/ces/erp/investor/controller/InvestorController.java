@@ -1,6 +1,7 @@
 package com.ces.erp.investor.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.investor.dto.InvestorRequest;
 import com.ces.erp.investor.dto.InvestorResponse;
 import com.ces.erp.investor.service.InvestorService;
@@ -27,6 +28,18 @@ public class InvestorController {
     @Operation(summary = "Bütün investorları gətir")
     public ResponseEntity<ApiResponse<List<InvestorResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(investorService.getAll()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('INVESTORS:GET')")
+    @Operation(summary = "İnvestorları səhifələnmiş gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<InvestorResponse>>> getAllPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String risk) {
+        return ResponseEntity.ok(ApiResponse.success(investorService.getAllPaged(page, size, q, status, risk)));
     }
 
     @GetMapping("/{id}")

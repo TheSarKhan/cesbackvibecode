@@ -1,6 +1,7 @@
 package com.ces.erp.project.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.project.dto.FinanceEntryRequest;
 import com.ces.erp.project.dto.ProjectCompleteRequest;
 import com.ces.erp.project.dto.ProjectResponse;
@@ -31,6 +32,17 @@ public class ProjectController {
     @Operation(summary = "Bütün layihələri gətir")
     public ResponseEntity<ApiResponse<List<ProjectResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(projectService.getAll()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('PROJECTS:GET')")
+    @Operation(summary = "Layihələri səhifələnmiş gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<ProjectResponse>>> getAllPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.success(projectService.getAllPaged(page, size, q, status)));
     }
 
     @GetMapping("/{id}")
@@ -129,5 +141,18 @@ public class ProjectController {
         LocalDate endDate = LocalDate.parse(body.get("endDate"));
         return ResponseEntity.ok(ApiResponse.success("Bitmə tarixi yeniləndi",
                 projectService.updateEndDate(id, endDate)));
+    }
+
+    // ─── Başlanğıc tarixi ─────────────────────────────────────────────────────
+
+    @PatchMapping("/{id}/start-date")
+    @PreAuthorize("hasAuthority('PROJECTS:PUT')")
+    @Operation(summary = "Layihənin başlanğıc tarixini yenilə")
+    public ResponseEntity<ApiResponse<ProjectResponse>> updateStartDate(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        LocalDate startDate = LocalDate.parse(body.get("startDate"));
+        return ResponseEntity.ok(ApiResponse.success("Başlanğıc tarixi yeniləndi",
+                projectService.updateStartDate(id, startDate)));
     }
 }

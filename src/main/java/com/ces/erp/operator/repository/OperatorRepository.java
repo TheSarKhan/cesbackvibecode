@@ -1,8 +1,11 @@
 package com.ces.erp.operator.repository;
 
 import com.ces.erp.operator.entity.Operator;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +15,20 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
 
     @Query("SELECT o FROM Operator o LEFT JOIN FETCH o.documents WHERE o.deleted = false ORDER BY o.lastName, o.firstName")
     List<Operator> findAllActive();
+
+    @Query(value = "SELECT o FROM Operator o WHERE o.deleted = false" +
+            " AND (CAST(:search AS string) IS NULL OR LOWER(o.firstName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(o.lastName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(o.phone, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(o.email, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(o.specialization, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))",
+            countQuery = "SELECT COUNT(o) FROM Operator o WHERE o.deleted = false" +
+            " AND (CAST(:search AS string) IS NULL OR LOWER(o.firstName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(o.lastName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(o.phone, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(o.email, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(o.specialization, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))")
+    Page<Operator> findAllFiltered(@Param("search") String search, Pageable pageable);
 
     /** Hal-hazırda PENDING və ya ACTIVE layihəyə təyin olunmuş operator ID-ləri */
     @Query("""

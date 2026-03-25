@@ -1,6 +1,7 @@
 package com.ces.erp.config.service;
 
 import com.ces.erp.common.audit.AuditService;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.config.dto.ConfigItemRequest;
@@ -8,6 +9,7 @@ import com.ces.erp.config.dto.ConfigItemResponse;
 import com.ces.erp.config.entity.ConfigItem;
 import com.ces.erp.config.repository.ConfigItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,13 @@ public class ConfigService {
         return repository.findAllByDeletedFalseOrderByCategoryAscSortOrderAsc().stream()
                 .map(ConfigItemResponse::from)
                 .collect(Collectors.groupingBy(ConfigItemResponse::getCategory, LinkedHashMap::new, Collectors.toList()));
+    }
+
+    public PagedResponse<ConfigItemResponse> getAllPaged(int page, int size, String search, String category) {
+        String q = (search != null && !search.isBlank()) ? search : null;
+        String cat = (category != null && !category.isBlank()) ? category : null;
+        var pageable = PageRequest.of(page, size);
+        return PagedResponse.from(repository.findAllFiltered(q, cat, pageable), ConfigItemResponse::from);
     }
 
     public List<ConfigItemResponse> getByCategory(String category) {

@@ -3,6 +3,7 @@ package com.ces.erp.garage.service;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
+import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
@@ -52,6 +53,7 @@ public class EquipmentService implements ApprovalHandler {
     private final ConfigItemRepository configItemRepository;
     private final ObjectMapper objectMapper;
     private final GarageNotificationService notificationService;
+    private final AuditService auditService;
 
     // Status keçid qaydaları — hansı statusdan hansına keçmək olar
     // RENTED → manual dəyişiklik yoxdur (yalnız layihə bağlandıqda avtomatik IN_TRANSIT olur)
@@ -160,9 +162,10 @@ public class EquipmentService implements ApprovalHandler {
     public EquipmentResponse create(EquipmentRequest request) {
         validateCodes(request, null);
         Equipment equipment = buildEquipment(request, new Equipment());
-        EquipmentResponse response = EquipmentResponse.from(equipmentRepository.save(equipment));
-        notificationService.notifyEquipmentChanged("CREATED", response.getId());
-        return response;
+        Equipment saved = equipmentRepository.save(equipment);
+        auditService.log("TEXNİKA", saved.getId(), saved.getName() + " (" + saved.getEquipmentCode() + ")", "YARADILDI", "Yeni texnika qeydiyyatı");
+        notificationService.notifyEquipmentChanged("CREATED", saved.getId());
+        return EquipmentResponse.from(saved);
     }
 
     @Transactional
@@ -170,15 +173,17 @@ public class EquipmentService implements ApprovalHandler {
     public EquipmentResponse update(Long id, EquipmentRequest request) {
         Equipment equipment = findOrThrow(id);
         validateCodes(request, id);
-        EquipmentResponse response = EquipmentResponse.from(equipmentRepository.save(buildEquipment(request, equipment)));
+        Equipment saved = equipmentRepository.save(buildEquipment(request, equipment));
+        auditService.log("TEXNİKA", saved.getId(), saved.getName() + " (" + saved.getEquipmentCode() + ")", "YENİLƏNDİ", "Texnika məlumatları yeniləndi");
         notificationService.notifyEquipmentChanged("UPDATED", id);
-        return response;
+        return EquipmentResponse.from(saved);
     }
 
     @Transactional
     @RequiresApproval(module = "GARAGE", entityType = "EQUIPMENT", isDelete = true)
     public void delete(Long id) {
         Equipment equipment = findOrThrow(id);
+        auditService.log("TEXNİKA", equipment.getId(), equipment.getName() + " (" + equipment.getEquipmentCode() + ")", "SİLİNDİ", "Texnika silindi");
         equipment.softDelete();
         equipmentRepository.save(equipment);
         notificationService.notifyEquipmentChanged("DELETED", id);
@@ -221,9 +226,11 @@ public class EquipmentService implements ApprovalHandler {
                 .build());
 
         equipment.setStatus(newStatus);
-        EquipmentResponse response = EquipmentResponse.from(equipmentRepository.save(equipment));
+        Equipment saved = equipmentRepository.save(equipment);
+        auditService.log("TEXNİKA", saved.getId(), saved.getName() + " (" + saved.getEquipmentCode() + ")",
+                "YENİLƏNDİ", "Status dəyişdi: " + oldStatus.name() + " → " + newStatus.name());
         notificationService.notifyEquipmentChanged("STATUS_CHANGED", id);
-        return response;
+        return EquipmentResponse.from(saved);
     }
 
     @Transactional(readOnly = true)

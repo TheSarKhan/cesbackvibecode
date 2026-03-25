@@ -5,6 +5,7 @@ import com.ces.erp.accounting.dto.InvoiceRequest;
 import com.ces.erp.accounting.dto.InvoiceResponse;
 import com.ces.erp.accounting.service.InvoiceService;
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.enums.InvoiceType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,6 +34,17 @@ public class InvoiceController {
                 ? invoiceService.getByType(type)
                 : invoiceService.getAll();
         return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('ACCOUNTING:GET')")
+    @Operation(summary = "Qaimələri səhifələnmiş gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<InvoiceResponse>>> getAllPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String type) {
+        return ResponseEntity.ok(ApiResponse.success(invoiceService.getAllPaged(page, size, q, type)));
     }
 
     @GetMapping("/summary")

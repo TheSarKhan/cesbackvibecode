@@ -1,6 +1,7 @@
 package com.ces.erp.customer.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.security.UserPrincipal;
 import com.ces.erp.customer.dto.CustomerDocumentResponse;
 import com.ces.erp.customer.dto.CustomerRequest;
@@ -36,6 +37,18 @@ public class CustomerController {
     @Operation(summary = "Bütün müştəriləri gətir")
     public ResponseEntity<ApiResponse<List<CustomerResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(customerService.getAll()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:GET')")
+    @Operation(summary = "Müştəriləri səhifələnmiş gətir")
+    public ResponseEntity<ApiResponse<PagedResponse<CustomerResponse>>> getAllPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String risk) {
+        return ResponseEntity.ok(ApiResponse.success(customerService.getAllPaged(page, size, q, status, risk)));
     }
 
     @GetMapping("/{id}")

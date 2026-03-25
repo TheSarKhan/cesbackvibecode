@@ -1,7 +1,11 @@
 package com.ces.erp.role.service;
 
+import com.ces.erp.common.audit.AuditService;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import com.ces.erp.department.entity.Department;
 import com.ces.erp.department.repository.DepartmentRepository;
 import com.ces.erp.role.dto.RoleRequest;
@@ -26,11 +30,18 @@ public class RoleService {
     private final RolePermissionRepository rolePermissionRepository;
     private final DepartmentRepository departmentRepository;
     private final SystemModuleRepository systemModuleRepository;
+    private final AuditService auditService;
 
     public List<RoleResponse> getAll() {
         return roleRepository.findAllByDeletedFalse().stream()
                 .map(RoleResponse::from)
                 .toList();
+    }
+
+    public PagedResponse<RoleResponse> getAllPaged(int page, int size, String search, Long departmentId) {
+        String q = (search != null && !search.isBlank()) ? search : null;
+        var pageable = PageRequest.of(page, size, Sort.by("name").ascending());
+        return PagedResponse.from(roleRepository.findAllFiltered(q, departmentId, pageable), RoleResponse::from);
     }
 
     public List<RoleResponse> getByDepartment(Long departmentId) {
@@ -59,6 +70,7 @@ public class RoleService {
         role = roleRepository.save(role);
         savePermissions(role, request);
         saveApprovalDepartments(role, request.getApprovalDepartmentIds());
+        auditService.log("ROL", role.getId(), role.getName(), "YARADILDI", "Yeni rol yaradıldı");
         return RoleResponse.from(roleRepository.findByIdWithPermissions(role.getId()).orElseThrow());
     }
 
@@ -80,7 +92,7 @@ public class RoleService {
         roleRepository.save(role);
         savePermissions(role, request);
         saveApprovalDepartments(role, request.getApprovalDepartmentIds());
-
+        auditService.log("ROL", role.getId(), role.getName(), "YENİLƏNDİ", "Rol məlumatları yeniləndi");
         return RoleResponse.from(roleRepository.findByIdWithPermissions(role.getId()).orElseThrow());
     }
 
@@ -88,6 +100,7 @@ public class RoleService {
     public void delete(Long id) {
         Role role = roleRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol", id));
+        auditService.log("ROL", role.getId(), role.getName(), "SİLİNDİ", "Rol silindi");
         role.softDelete();
         roleRepository.save(role);
     }

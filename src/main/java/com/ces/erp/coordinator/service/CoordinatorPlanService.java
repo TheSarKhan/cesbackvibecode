@@ -3,10 +3,13 @@ package com.ces.erp.coordinator.service;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
+import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.common.websocket.NotificationService;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import com.ces.erp.coordinator.dto.CoordinatorPlanRequest;
 import com.ces.erp.coordinator.dto.CoordinatorPlanResponse;
 import com.ces.erp.coordinator.entity.CoordinatorDocument;
@@ -90,6 +93,30 @@ public class CoordinatorPlanService implements ApprovalHandler {
                     return resp;
                 })
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<CoordinatorPlanResponse> getRequestsPaged(int page, int size, String search, String status) {
+        String q = (search != null && !search.isBlank()) ? search : null;
+        RequestStatus s = null;
+        if (status != null && !status.isBlank()) {
+            try { s = RequestStatus.valueOf(status); } catch (IllegalArgumentException ignored) { }
+        }
+        // If a specific status is requested but it's not a coordinator status, return empty
+        if (s != null && !COORDINATOR_STATUSES.contains(s)) {
+            s = null;
+        }
+        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        var result = requestRepository.findAllCoordinatorFiltered(q, s, pageable);
+        return PagedResponse.from(result, r -> {
+            CoordinatorPlanResponse resp = planRepository.findByRequestId(r.getId())
+                    .map(CoordinatorPlanResponse::from)
+                    .orElseGet(() -> CoordinatorPlanResponse.fromRequest(r));
+            resp.setHasPendingSubmit(pendingOperationRepository
+                    .existsByEntityTypeAndEntityIdAndStatusAndDeletedFalse(
+                            "COORDINATOR_SUBMIT", r.getId(), OperationStatus.PENDING));
+            return resp;
+        });
     }
 
     public CoordinatorPlanResponse getPlan(Long requestId) {
