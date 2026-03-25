@@ -1,8 +1,10 @@
 package com.ces.erp.auth.controller;
 
+import com.ces.erp.auth.dto.ForgotPasswordRequest;
 import com.ces.erp.auth.dto.LoginRequest;
 import com.ces.erp.auth.dto.LoginResponse;
 import com.ces.erp.auth.dto.RefreshTokenRequest;
+import com.ces.erp.auth.dto.ResetPasswordRequest;
 import com.ces.erp.auth.service.AuthService;
 import com.ces.erp.common.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,5 +39,19 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request) {
         authService.logout(request.getRefreshToken());
         return ResponseEntity.ok(ApiResponse.ok("Uğurla çıxış edildi"));
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Şifrəmi unutdum — email göndər")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request.getEmail());
+        return ResponseEntity.ok(ApiResponse.ok("Əgər bu email mövcuddursa, şifrə yeniləmə linki göndərildi"));
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Şifrəni yenilə")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok(ApiResponse.ok("Şifrə uğurla yeniləndi"));
     }
 }

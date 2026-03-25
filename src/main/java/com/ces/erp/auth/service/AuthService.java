@@ -11,8 +11,11 @@ import com.ces.erp.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,12 +33,18 @@ public class AuthService {
     private final UserRepository userRepository;
     private final RedisTemplate<String, String> redisTemplate;
     private final AuditService auditService;
+    private final JavaMailSender mailSender;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${app.jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
 
-    // Redis key formatı: "refresh:{token}" → userId
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
+
+    // Redis key formatları
     private static final String REFRESH_PREFIX = "refresh:";
+    private static final String RESET_PREFIX   = "pwreset:";
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
@@ -67,6 +76,45 @@ public class AuthService {
         // Köhnə tokeni sil, yeni token yarat
         redisTemplate.delete(REFRESH_PREFIX + request.getRefreshToken());
         return buildLoginResponse(user);
+    }
+
+    public void forgotPassword(String email) {
+        userRepository.findByEmailAndDeletedFalse(email).ifPresent(user -> {
+            String token = UUID.randomUUID().toString();
+            redisTemplate.opsForValue().set(RESET_PREFIX + token, String.valueOf(user.getId()), 3600, TimeUnit.SECONDS);
+
+            String resetUrl = frontendUrl + "/reset-password?token=" + token;
+
+            SimpleMailMessage msg = new SimpleMailMessage();
+            msg.setTo(email);
+            msg.setSubject("CES ERP - Şifrə yeniləmə");
+            msg.setText(
+                "Salam " + user.getFullName() + ",\n\n" +
+                "Şifrənizi yeniləmək üçün aşağıdakı linkə klikləyin:\n\n" +
+                resetUrl + "\n\n" +
+                "Bu link 1 saat ərzində etibarlıdır.\n\n" +
+                "Əgər bu sorğunu siz etməmisinizsə, bu emaili nəzərə almayın.\n\n" +
+                "CES ERP Sistemi"
+            );
+            try { mailSender.send(msg); } catch (Exception ignored) {}
+        });
+        // Email mövcud olub-olmadığını açıqlamamaq üçün həmişə uğurlu cavab
+    }
+
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        String userIdStr = redisTemplate.opsForValue().get(RESET_PREFIX + token);
+        if (userIdStr == null) {
+            throw new BusinessException("Link etibarsızdır və ya vaxtı keçib");
+        }
+        User user = userRepository.findByIdAndDeletedFalse(Long.parseLong(userIdStr))
+                .orElseThrow(() -> new BusinessException("İstifadəçi tapılmadı"));
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        redisTemplate.delete(RESET_PREFIX + token);
+
+        auditService.log("SİSTEM", user.getId(), user.getFullName(), "YENİLƏNDİ", "Şifrə yeniləndi");
     }
 
     public void logout(String refreshToken) {
