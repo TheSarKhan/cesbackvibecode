@@ -5,6 +5,8 @@ import com.ces.erp.auth.dto.LoginRequest;
 import com.ces.erp.auth.dto.LoginResponse;
 import com.ces.erp.auth.dto.RefreshTokenRequest;
 import com.ces.erp.auth.dto.ResetPasswordRequest;
+import com.ces.erp.auth.dto.VerifyOtpRequest;
+import com.ces.erp.auth.dto.VerifyOtpResponse;
 import com.ces.erp.auth.service.AuthService;
 import com.ces.erp.common.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,13 +47,32 @@ public class AuthController {
     @Operation(summary = "Şifrəmi unutdum — email göndər")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request.getEmail());
-        return ResponseEntity.ok(ApiResponse.ok("Əgər bu email mövcuddursa, şifrə yeniləmə linki göndərildi"));
+        return ResponseEntity.ok(ApiResponse.ok("Əgər bu email mövcuddursa, OTP kodu göndərildi"));
+    }
+
+    @PostMapping("/verify-otp")
+    @Operation(summary = "OTP kodu doğrula")
+    public ResponseEntity<ApiResponse<VerifyOtpResponse>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        String verificationToken = authService.verifyOtp(request.getEmail(), request.getOtp());
+        return ResponseEntity.ok(ApiResponse.success(
+            VerifyOtpResponse.builder()
+                .verificationToken(verificationToken)
+                .message("OTP doğrulandı. Yeni şifrə təyin edə bilərsiniz.")
+                .build()
+        ));
     }
 
     @PostMapping("/reset-password")
     @Operation(summary = "Şifrəni yenilə")
     public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        authService.resetPassword(request.getToken(), request.getNewPassword());
+        authService.resetPassword(request.getVerificationToken(), request.getNewPassword());
         return ResponseEntity.ok(ApiResponse.ok("Şifrə uğurla yeniləndi"));
+    }
+
+    @PostMapping("/test-email")
+    @Operation(summary = "Email göndərmə test")
+    public ResponseEntity<ApiResponse<String>> testEmail(@RequestParam String email) {
+        authService.sendTestEmail(email);
+        return ResponseEntity.ok(ApiResponse.success("Test maili göndərildi: " + email));
     }
 }

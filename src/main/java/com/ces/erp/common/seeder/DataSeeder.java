@@ -37,11 +37,15 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        if (moduleRepository.count() > 0) return;
-        log.info("Sistem məlumatları seed edilir...");
-        seedModules();
-        seedDepartmentsRolesUsers();
-        log.info("Sistem seed tamamlandı.");
+        if (moduleRepository.count() == 0) {
+            log.info("Modullar seed edilir...");
+            seedModules();
+        }
+        if (!userRepository.existsByEmailAndDeletedFalse("admin@ces.az")) {
+            log.info("Rollar və istifadəçilər seed edilir...");
+            seedDepartmentsRolesUsers();
+            log.info("Sistem seed tamamlandı.");
+        }
     }
 
     // ─── Sistem modulları ─────────────────────────────────────────────────────

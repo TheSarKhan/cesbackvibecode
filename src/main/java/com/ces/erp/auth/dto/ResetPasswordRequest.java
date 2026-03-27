@@ -7,7 +7,7 @@ import lombok.Data;
 @Data
 public class ResetPasswordRequest {
     @NotBlank
-    private String token;
+    private String verificationToken;
 
     @NotBlank
     @Size(min = 6, message = "Şifrə minimum 6 simvol olmalıdır")

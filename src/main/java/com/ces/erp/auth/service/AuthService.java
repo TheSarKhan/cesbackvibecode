@@ -22,11 +22,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
@@ -44,7 +49,8 @@ public class AuthService {
 
     // Redis key formatları
     private static final String REFRESH_PREFIX = "refresh:";
-    private static final String RESET_PREFIX   = "pwreset:";
+    private static final String OTP_PREFIX   = "otp:";
+    private static final String VERIFY_PREFIX = "verify:";
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
@@ -79,42 +85,81 @@ public class AuthService {
     }
 
     public void forgotPassword(String email) {
-        userRepository.findByEmailAndDeletedFalse(email).ifPresent(user -> {
-            String token = UUID.randomUUID().toString();
-            redisTemplate.opsForValue().set(RESET_PREFIX + token, String.valueOf(user.getId()), 3600, TimeUnit.SECONDS);
+        User user = userRepository.findByEmailAndDeletedFalse(email)
+                .orElseThrow(() -> new BusinessException("Bu email sistemdə qeydiyyatda deyil"));
 
-            String resetUrl = frontendUrl + "/reset-password?token=" + token;
+        // 6 rəqəmli OTP kod yarat
+        String otp = String.format("%06d", new Random().nextInt(999999));
+        redisTemplate.opsForValue().set(OTP_PREFIX + email, otp, 600, TimeUnit.SECONDS); // 10 dəqiqə
 
-            SimpleMailMessage msg = new SimpleMailMessage();
-            msg.setTo(email);
-            msg.setSubject("CES ERP - Şifrə yeniləmə");
-            msg.setText(
-                "Salam " + user.getFullName() + ",\n\n" +
-                "Şifrənizi yeniləmək üçün aşağıdakı linkə klikləyin:\n\n" +
-                resetUrl + "\n\n" +
-                "Bu link 1 saat ərzində etibarlıdır.\n\n" +
-                "Əgər bu sorğunu siz etməmisinizsə, bu emaili nəzərə almayın.\n\n" +
-                "CES ERP Sistemi"
-            );
-            try { mailSender.send(msg); } catch (Exception ignored) {}
-        });
-        // Email mövcud olub-olmadığını açıqlamamaq üçün həmişə uğurlu cavab
+        SimpleMailMessage msg = new SimpleMailMessage();
+        msg.setTo(email);
+        msg.setSubject("CES ERP - Şifrə Yeniləmə OTP Kodu");
+        msg.setText(
+            "Salam " + user.getFullName() + ",\n\n" +
+            "Şifrənizi yeniləmək üçün aşağıdakı 6 rəqəmli kodu istifadə edin:\n\n" +
+            otp + "\n\n" +
+            "Bu kod 10 dəqiqə ərzində etibarlıdır.\n\n" +
+            "Əgər bu sorğunu siz etməmisinizsə, bu emaili nəzərə almayın.\n\n" +
+            "CES ERP Sistemi"
+        );
+
+        try {
+            mailSender.send(msg);
+            logger.info("✓ OTP maili göndərildi: {}", email);
+        } catch (Exception e) {
+            logger.error("✗ OTP maili göndərərkən XƏTA: {} | Səbəb: {}", email, e.getMessage(), e);
+            throw new BusinessException("Email göndərməkdə xəta baş verdi. Zəhmət olmasa yenidən cəhd edin.");
+        }
+    }
+
+    public String verifyOtp(String email, String otp) {
+        String storedOtp = redisTemplate.opsForValue().get(OTP_PREFIX + email);
+        if (storedOtp == null || !storedOtp.equals(otp)) {
+            throw new BusinessException("OTP kod etibarsızdır və ya vaxtı keçib");
+        }
+
+        // Verification token yarat
+        String verificationToken = UUID.randomUUID().toString();
+        redisTemplate.opsForValue().set(VERIFY_PREFIX + verificationToken, email, 1800, TimeUnit.SECONDS); // 30 dəqiqə
+        redisTemplate.delete(OTP_PREFIX + email); // OTP-ni sil
+
+        logger.info("✓ OTP doğrulandı: {}", email);
+        return verificationToken;
     }
 
     @Transactional
-    public void resetPassword(String token, String newPassword) {
-        String userIdStr = redisTemplate.opsForValue().get(RESET_PREFIX + token);
-        if (userIdStr == null) {
-            throw new BusinessException("Link etibarsızdır və ya vaxtı keçib");
+    public void resetPassword(String verificationToken, String newPassword) {
+        String email = redisTemplate.opsForValue().get(VERIFY_PREFIX + verificationToken);
+        if (email == null) {
+            throw new BusinessException("Doğrulama token-i etibarsızdır və ya vaxtı keçib");
         }
-        User user = userRepository.findByIdAndDeletedFalse(Long.parseLong(userIdStr))
+
+        User user = userRepository.findByEmailAndDeletedFalse(email)
                 .orElseThrow(() -> new BusinessException("İstifadəçi tapılmadı"));
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        redisTemplate.delete(RESET_PREFIX + token);
+        redisTemplate.delete(VERIFY_PREFIX + verificationToken);
 
         auditService.log("SİSTEM", user.getId(), user.getFullName(), "YENİLƏNDİ", "Şifrə yeniləndi");
+        logger.info("✓ Şifrə yeniləndi: {}", email);
+    }
+
+    public void sendTestEmail(String email) {
+        SimpleMailMessage msg = new SimpleMailMessage();
+        msg.setTo(email);
+        msg.setSubject("CES ERP - Test Email");
+        msg.setText("Salam,\n\nBu bir test emailidir.\n\nCES ERP");
+
+        try {
+            mailSender.send(msg);
+            logger.info("✓ Test maili göndərildi: {}", email);
+        } catch (Exception e) {
+            logger.error("✗ Test maili göndərərkən XƏTA: {} | Səbəb: {}", email, e.getMessage(), e);
+            e.printStackTrace();
+            throw new BusinessException("Test maili göndərərkən xəta: " + e.getMessage());
+        }
     }
 
     public void logout(String refreshToken) {
