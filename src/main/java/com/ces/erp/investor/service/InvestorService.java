@@ -4,7 +4,6 @@ import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.dto.PagedResponse;
-import com.ces.erp.enums.ContractorStatus;
 import com.ces.erp.enums.RiskLevel;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -59,8 +58,8 @@ public class InvestorService implements ApprovalHandler {
     @Transactional(readOnly = true)
     public PagedResponse<InvestorResponse> getAllPaged(int page, int size, String search, String status, String riskLevel) {
         String q = (search != null && !search.isBlank()) ? search : null;
-        ContractorStatus s = (status != null && !status.isBlank()) ? ContractorStatus.valueOf(status) : null;
-        RiskLevel r = (riskLevel != null && !riskLevel.isBlank()) ? RiskLevel.valueOf(riskLevel) : null;
+        String s = (status != null && !status.isBlank()) ? status : null;
+        String r = (riskLevel != null && !riskLevel.isBlank()) ? riskLevel : null;
         var pageable = PageRequest.of(page, size, Sort.by("companyName").ascending());
         return PagedResponse.from(investorRepository.findAllFiltered(q, s, r, pageable), InvestorResponse::from);
     }

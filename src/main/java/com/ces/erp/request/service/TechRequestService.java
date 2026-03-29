@@ -77,12 +77,14 @@ public class TechRequestService implements ApprovalHandler {
         try { delete(id); } finally { ApprovalContext.clear(); }
     }
 
+    @Transactional(readOnly = true)
     public List<TechRequestResponse> getAll() {
         return requestRepository.findAllByDeletedFalse().stream()
                 .map(TechRequestResponse::from)
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public PagedResponse<TechRequestResponse> getAllPaged(String search, RequestStatus status,
                                                           String region, String projectType,
                                                           int page, int size, String sortBy, String sortDir) {

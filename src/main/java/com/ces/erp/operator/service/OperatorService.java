@@ -149,8 +149,9 @@ public class OperatorService implements ApprovalHandler {
                 .fileName(file.getOriginalFilename())
                 .build();
         documentRepository.save(doc);
+        o.getDocuments().add(doc);
 
-        return OperatorResponse.from(findOrThrow(id));
+        return OperatorResponse.from(o);
     }
 
     @Transactional

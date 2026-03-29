@@ -31,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -98,6 +99,17 @@ public class ProjectService {
         auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YARADILDI", "Yeni layihə yaradıldı");
         CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
         return ProjectResponse.from(p, plan);
+    }
+
+    // ─── Müqavilə yüklə ──────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public Path resolveContract(Long id) {
+        Project p = findOrThrow(id);
+        if (p.getContractFilePath() == null) {
+            throw new BusinessException("Bu layihənin müqavilə sənədi yoxdur");
+        }
+        return fileStorageService.resolve(p.getContractFilePath());
     }
 
     // ─── Maliyyə — Xərclər ────────────────────────────────────────────────────

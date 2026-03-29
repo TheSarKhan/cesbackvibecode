@@ -1,7 +1,5 @@
 package com.ces.erp.investor.repository;
 
-import com.ces.erp.enums.ContractorStatus;
-import com.ces.erp.enums.RiskLevel;
 import com.ces.erp.investor.entity.Investor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,11 +18,11 @@ public interface InvestorRepository extends JpaRepository<Investor, Long> {
             " AND (CAST(:search AS string) IS NULL OR LOWER(i.companyName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
             " OR LOWER(COALESCE(i.voen, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
             " OR LOWER(COALESCE(i.contactPerson, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))" +
-            " AND (:status IS NULL OR i.status = :status)" +
-            " AND (:riskLevel IS NULL OR i.riskLevel = :riskLevel)")
+            " AND (CAST(:status AS string) IS NULL OR CAST(i.status AS string) = :status)" +
+            " AND (CAST(:riskLevel AS string) IS NULL OR CAST(i.riskLevel AS string) = :riskLevel)")
     Page<Investor> findAllFiltered(@Param("search") String search,
-                                   @Param("status") ContractorStatus status,
-                                   @Param("riskLevel") RiskLevel riskLevel,
+                                   @Param("status") String status,
+                                   @Param("riskLevel") String riskLevel,
                                    Pageable pageable);
 
     Optional<Investor> findByIdAndDeletedFalse(Long id);

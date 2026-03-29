@@ -10,10 +10,17 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.net.MalformedURLException;
+import java.nio.file.Path;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -65,6 +72,19 @@ public class ProjectController {
                 ? LocalDate.parse(startDateStr) : null;
         return ResponseEntity.ok(ApiResponse.success("Müqavilə yükləndi. Layihə aktiv oldu.",
                 projectService.uploadContract(id, file, startDate)));
+    }
+
+    @GetMapping("/{id}/contract")
+    @PreAuthorize("hasAuthority('PROJECTS:GET')")
+    @Operation(summary = "Müqavilə sənədini endir")
+    public ResponseEntity<Resource> downloadContract(@PathVariable Long id) throws MalformedURLException {
+        Path filePath = projectService.resolveContract(id);
+        Resource resource = new UrlResource(filePath.toUri());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filePath.getFileName().toString() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
     }
 
     // ─── Maliyyə — Xərclər ────────────────────────────────────────────────────
