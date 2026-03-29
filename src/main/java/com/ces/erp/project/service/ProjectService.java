@@ -11,6 +11,7 @@ import com.ces.erp.coordinator.entity.CoordinatorPlan;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.ProjectStatus;
+import com.ces.erp.enums.ProjectType;
 import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.garage.entity.EquipmentProjectHistory;
 import com.ces.erp.garage.repository.EquipmentProjectHistoryRepository;
@@ -33,6 +34,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -218,25 +220,41 @@ public class ProjectService {
             throw new BusinessException("Yalnız ACTIVE statuslu layihə bağlana bilər");
         }
 
-        // Planlaşdırılan saatlar: dayCount × 9 (1 gün = 9 saat)
+        // Planlaşdırılan saatlar: effektiv gün × 9 (1 gün = 9 saat)
         CoordinatorPlan planForHours = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
         Integer planDayCount = planForHours != null && planForHours.getDayCount() != null
                 ? planForHours.getDayCount()
                 : (p.getRequest() != null ? p.getRequest().getDayCount() : null);
-        BigDecimal scheduled = planDayCount != null
-                ? BigDecimal.valueOf(planDayCount).multiply(BigDecimal.valueOf(9))
+
+        // Gap 1: Əgər layihənin faktiki start/end tarixləri varsa, onlardan effektiv gün sayını hesabla
+        int effectiveDayCount;
+        if (p.getStartDate() != null && p.getEndDate() != null) {
+            long actualDays = ChronoUnit.DAYS.between(p.getStartDate(), p.getEndDate());
+            effectiveDayCount = actualDays > 0 ? (int) actualDays : (planDayCount != null ? planDayCount : 0);
+        } else {
+            effectiveDayCount = planDayCount != null ? planDayCount : 0;
+        }
+        BigDecimal scheduled = effectiveDayCount > 0
+                ? BigDecimal.valueOf(effectiveDayCount).multiply(BigDecimal.valueOf(9))
                 : BigDecimal.ZERO;
 
         BigDecimal actual = req.getActualHours();
         BigDecimal overtimeRate = req.getOvertimeRate() != null ? req.getOvertimeRate() : BigDecimal.ONE;
         BigDecimal overtimeHours = actual.subtract(scheduled).max(BigDecimal.ZERO);
 
-        // Əlavə vaxt haqqı: overtimeHours × (günlük qiymət / 9) × overtimeRate
+        // Gap 2+3: Əlavə vaxt saatlıq dərəcəsi layihə növünə görə hesablanır
+        // DAILY  → equipmentPrice artıq gündəlik qiymətdir
+        // MONTHLY → equipmentPrice aylıq qiymətdir, 26 iş gününə bölünür
         BigDecimal equipmentPrice = planForHours != null && planForHours.getEquipmentPrice() != null
                 ? planForHours.getEquipmentPrice() : BigDecimal.ZERO;
-        BigDecimal dailyRate = planDayCount != null && planDayCount > 0
-                ? equipmentPrice.divide(BigDecimal.valueOf(planDayCount), 4, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
+        ProjectType projectType = p.getRequest() != null ? p.getRequest().getProjectType() : null;
+        BigDecimal dailyRate;
+        if (projectType == ProjectType.MONTHLY) {
+            dailyRate = equipmentPrice.divide(BigDecimal.valueOf(26), 4, RoundingMode.HALF_UP);
+        } else {
+            // DAILY və ya null → equipmentPrice gündəlik qiymətdir
+            dailyRate = equipmentPrice;
+        }
         BigDecimal hourlyRate = dailyRate.divide(BigDecimal.valueOf(9), 4, RoundingMode.HALF_UP);
         BigDecimal overtimePay = overtimeHours.multiply(hourlyRate).multiply(overtimeRate).setScale(2, RoundingMode.HALF_UP);
 
@@ -246,6 +264,19 @@ public class ProjectService {
         p.setOvertimeHours(overtimeHours);
         p.setOvertimeRate(overtimeRate);
         p.setOvertimePay(overtimePay);
+
+        // Gap 4: Əlavə vaxt haqqını gəlir kimi qeyd et
+        if (overtimePay.compareTo(BigDecimal.ZERO) > 0) {
+            String rateLabel = overtimeRate.compareTo(BigDecimal.ONE) == 0 ? "1×" : "1.5×";
+            ProjectRevenue overtimeRevenue = ProjectRevenue.builder()
+                    .project(p)
+                    .key("Əlavə vaxt haqqı (" + rateLabel + ")")
+                    .value(overtimePay)
+                    .date(LocalDate.now())
+                    .build();
+            revenueRepository.save(overtimeRevenue);
+        }
+
         p.setStatus(ProjectStatus.COMPLETED);
         if (p.getEndDate() == null) {
             p.setEndDate(LocalDate.now());
