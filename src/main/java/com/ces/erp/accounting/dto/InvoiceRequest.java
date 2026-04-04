@@ -36,4 +36,15 @@ public class InvoiceRequest {
     private Long contractorId;      // B1 məcburi
 
     private String notes;
+
+    // Aylıq iş cədvəli sahələri (INCOME növü, timesheet-əsaslı)
+    private Integer periodMonth;
+    private Integer periodYear;
+    private Integer standardDays;
+    private Integer extraDays;
+    private BigDecimal extraHours;
+    private BigDecimal monthlyRate;
+    private Integer workingDaysInMonth;
+    private Integer workingHoursPerDay;
+    private BigDecimal overtimeRate;      // əlavə saat dərəcəsi (default 1.0)
 }

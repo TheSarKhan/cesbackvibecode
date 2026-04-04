@@ -65,4 +65,33 @@ public class Invoice extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    // ─── Aylıq iş cədvəli (INCOME növü üçün) ─────────────────────────────────
+
+    @Column
+    private Integer periodMonth;          // 1–12
+
+    @Column
+    private Integer periodYear;           // 2025, 2026…
+
+    @Column
+    private Integer standardDays;         // standart iş günü sayı
+
+    @Column
+    private Integer extraDays;            // əlavə gün sayı
+
+    @Column(precision = 8, scale = 2)
+    private BigDecimal extraHours;        // əlavə saatlar (onluq: 1.5)
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal monthlyRate;       // aylıq tarif (məs. 14000)
+
+    @Column
+    private Integer workingDaysInMonth;   // aylıq iş günü norması (default 26)
+
+    @Column
+    private Integer workingHoursPerDay;   // gündəlik iş saatı (default 9)
+
+    @Column(precision = 4, scale = 2)
+    private BigDecimal overtimeRate;      // əlavə saat dərəcəsi (1.0 = adi, 1.5 = əlavə)
 }

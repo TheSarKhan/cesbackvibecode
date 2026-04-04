@@ -238,7 +238,7 @@ public class ProjectService {
                 ? BigDecimal.valueOf(effectiveDayCount).multiply(BigDecimal.valueOf(9))
                 : BigDecimal.ZERO;
 
-        BigDecimal actual = req.getActualHours();
+        BigDecimal actual = req.getActualHours() != null ? req.getActualHours() : scheduled;
         BigDecimal overtimeRate = req.getOvertimeRate() != null ? req.getOvertimeRate() : BigDecimal.ONE;
         BigDecimal overtimeHours = actual.subtract(scheduled).max(BigDecimal.ZERO);
 

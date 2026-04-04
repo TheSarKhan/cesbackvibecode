@@ -1,6 +1,7 @@
 package com.ces.erp.accounting.controller;
 
 import com.ces.erp.accounting.dto.AccountingSummaryResponse;
+import com.ces.erp.accounting.dto.InvoiceFieldsRequest;
 import com.ces.erp.accounting.dto.InvoiceRequest;
 import com.ces.erp.accounting.dto.InvoiceResponse;
 import com.ces.erp.accounting.service.InvoiceService;
@@ -61,6 +62,13 @@ public class InvoiceController {
         return ResponseEntity.ok(ApiResponse.success(invoiceService.getById(id)));
     }
 
+    @GetMapping("/by-project/{projectId}")
+    @PreAuthorize("hasAuthority('ACCOUNTING:GET')")
+    @Operation(summary = "Layihəyə aid bütün qaimələri gətir")
+    public ResponseEntity<ApiResponse<List<InvoiceResponse>>> getByProject(@PathVariable Long projectId) {
+        return ResponseEntity.ok(ApiResponse.success(invoiceService.getByProjectId(projectId)));
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('ACCOUNTING:POST')")
     @Operation(summary = "Yeni qaimə yarat")
@@ -75,6 +83,15 @@ public class InvoiceController {
             @PathVariable Long id,
             @Valid @RequestBody InvoiceRequest req) {
         return ResponseEntity.ok(ApiResponse.success("Qaimə yeniləndi", invoiceService.update(id, req)));
+    }
+
+    @PatchMapping("/{id}/fields")
+    @PreAuthorize("hasAuthority('ACCOUNTING:PUT')")
+    @Operation(summary = "Qaimənin inzibati sahələrini doldur (ETaxes ID, nömrə, tarix, qeyd)")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> patchFields(
+            @PathVariable Long id,
+            @RequestBody InvoiceFieldsRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Sahələr yeniləndi", invoiceService.patchFields(id, req)));
     }
 
     @DeleteMapping("/{id}")

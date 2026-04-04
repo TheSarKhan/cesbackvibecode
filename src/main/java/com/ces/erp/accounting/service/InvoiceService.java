@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 @Service
@@ -90,6 +91,13 @@ public class InvoiceService implements ApprovalHandler {
     }
 
     @Transactional(readOnly = true)
+    public List<InvoiceResponse> getByProjectId(Long projectId) {
+        return invoiceRepository.findAllByProjectIdAndDeletedFalse(projectId).stream()
+                .map(InvoiceResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public AccountingSummaryResponse getSummary() {
         List<Invoice> all = invoiceRepository.findAllActive();
 
@@ -128,6 +136,20 @@ public class InvoiceService implements ApprovalHandler {
                 .notes(req.getNotes())
                 .build();
 
+        inv.setPeriodMonth(req.getPeriodMonth());
+        inv.setPeriodYear(req.getPeriodYear());
+        inv.setStandardDays(req.getStandardDays());
+        inv.setExtraDays(req.getExtraDays());
+        inv.setExtraHours(req.getExtraHours());
+        inv.setMonthlyRate(req.getMonthlyRate());
+        inv.setWorkingDaysInMonth(req.getWorkingDaysInMonth());
+        inv.setWorkingHoursPerDay(req.getWorkingHoursPerDay());
+        inv.setOvertimeRate(req.getOvertimeRate());
+        if (req.getType() == InvoiceType.INCOME && req.getPeriodMonth() != null) {
+            BigDecimal calc = calculateTimesheetAmount(req);
+            if (calc != null) inv.setAmount(calc);
+        }
+
         if (req.getProjectId() != null) {
             inv.setProject(projectRepository.findById(req.getProjectId())
                     .orElseThrow(() -> new ResourceNotFoundException("Layihə", req.getProjectId())));
@@ -158,6 +180,19 @@ public class InvoiceService implements ApprovalHandler {
         inv.setCompanyName(req.getCompanyName());
         inv.setServiceDescription(req.getServiceDescription());
         inv.setNotes(req.getNotes());
+        inv.setPeriodMonth(req.getPeriodMonth());
+        inv.setPeriodYear(req.getPeriodYear());
+        inv.setStandardDays(req.getStandardDays());
+        inv.setExtraDays(req.getExtraDays());
+        inv.setExtraHours(req.getExtraHours());
+        inv.setMonthlyRate(req.getMonthlyRate());
+        inv.setWorkingDaysInMonth(req.getWorkingDaysInMonth());
+        inv.setWorkingHoursPerDay(req.getWorkingHoursPerDay());
+        inv.setOvertimeRate(req.getOvertimeRate());
+        if (req.getType() == InvoiceType.INCOME && req.getPeriodMonth() != null) {
+            BigDecimal calc = calculateTimesheetAmount(req);
+            if (calc != null) inv.setAmount(calc);
+        }
 
         inv.setProject(req.getProjectId() != null
                 ? projectRepository.findById(req.getProjectId())
@@ -174,6 +209,27 @@ public class InvoiceService implements ApprovalHandler {
     }
 
     @Transactional
+    public InvoiceResponse patchFields(Long id, com.ces.erp.accounting.dto.InvoiceFieldsRequest req) {
+        Invoice inv = findOrThrow(id);
+        if (req.getInvoiceNumber() != null) inv.setInvoiceNumber(req.getInvoiceNumber().isBlank() ? null : req.getInvoiceNumber().trim());
+        if (req.getEtaxesId() != null) {
+            String etaxesId = req.getEtaxesId().isBlank() ? null : req.getEtaxesId().trim();
+            if (etaxesId != null && inv.getType() == InvoiceType.INCOME) {
+                boolean exists = invoiceRepository.existsByEtaxesIdAndDeletedFalse(etaxesId);
+                if (exists && !etaxesId.equals(inv.getEtaxesId())) {
+                    throw new BusinessException("Bu ETaxes ID artıq mövcuddur: " + etaxesId);
+                }
+            }
+            inv.setEtaxesId(etaxesId);
+        }
+        if (req.getInvoiceDate() != null) inv.setInvoiceDate(req.getInvoiceDate());
+        if (req.getNotes() != null) inv.setNotes(req.getNotes().isBlank() ? null : req.getNotes().trim());
+        Invoice updated = invoiceRepository.save(inv);
+        auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "SAHƏ YENİLƏNDİ", "Mühasib sahələri doldurdu");
+        return InvoiceResponse.from(updated);
+    }
+
+    @Transactional
     @RequiresApproval(module = "ACCOUNTING", entityType = "INVOICE", isDelete = true)
     public void delete(Long id) {
         Invoice inv = findOrThrow(id);
@@ -185,14 +241,11 @@ public class InvoiceService implements ApprovalHandler {
     // ─── Yardımçı ─────────────────────────────────────────────────────────────
 
     private void validate(InvoiceRequest req, Long excludeId) {
-        if (req.getType() == InvoiceType.INCOME || req.getType() == InvoiceType.CONTRACTOR_EXPENSE) {
-            if (req.getProjectId() == null) {
-                throw new BusinessException("Bu qaimə növü üçün layihə seçilməlidir");
-            }
+        // Gəlir qaiməsi üçün layihə məcburidir
+        if (req.getType() == InvoiceType.INCOME && req.getProjectId() == null) {
+            throw new BusinessException("Gəlir qaiməsi üçün layihə seçilməlidir");
         }
-        if (req.getType() == InvoiceType.CONTRACTOR_EXPENSE && req.getContractorId() == null) {
-            throw new BusinessException("B1 qaiməsi üçün podratçı seçilməlidir");
-        }
+        // Ödəmə və Xərc üçün layihə isteğe bağlıdır, podratçı da məcburi deyil
         if (req.getType() == InvoiceType.INCOME && req.getEtaxesId() != null && !req.getEtaxesId().isBlank()) {
             boolean exists = invoiceRepository.existsByEtaxesIdAndDeletedFalse(req.getEtaxesId());
             if (exists && excludeId == null) {
@@ -215,5 +268,21 @@ public class InvoiceService implements ApprovalHandler {
 
     private long count(List<Invoice> list, InvoiceType type) {
         return list.stream().filter(i -> i.getType() == type).count();
+    }
+
+    private BigDecimal calculateTimesheetAmount(InvoiceRequest req) {
+        if (req.getMonthlyRate() == null || req.getWorkingDaysInMonth() == null
+                || req.getWorkingHoursPerDay() == null) return null;
+        BigDecimal daily = req.getMonthlyRate()
+                .divide(BigDecimal.valueOf(req.getWorkingDaysInMonth()), 6, RoundingMode.HALF_UP);
+        BigDecimal std  = daily.multiply(BigDecimal.valueOf(req.getStandardDays() != null ? req.getStandardDays() : 0));
+        BigDecimal extD = daily.multiply(BigDecimal.valueOf(req.getExtraDays() != null ? req.getExtraDays() : 0));
+        BigDecimal rate = req.getOvertimeRate() != null ? req.getOvertimeRate() : BigDecimal.ONE;
+        BigDecimal extH = req.getExtraHours() != null
+                ? daily.divide(BigDecimal.valueOf(req.getWorkingHoursPerDay()), 6, RoundingMode.HALF_UP)
+                       .multiply(req.getExtraHours())
+                       .multiply(rate)
+                : BigDecimal.ZERO;
+        return std.add(extD).add(extH).setScale(2, RoundingMode.HALF_UP);
     }
 }

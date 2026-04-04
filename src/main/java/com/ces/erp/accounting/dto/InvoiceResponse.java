@@ -47,11 +47,22 @@ public class InvoiceResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // Aylıq iş cədvəli
+    private Integer periodMonth;
+    private Integer periodYear;
+    private Integer standardDays;
+    private Integer extraDays;
+    private BigDecimal extraHours;
+    private BigDecimal monthlyRate;
+    private Integer workingDaysInMonth;
+    private Integer workingHoursPerDay;
+    private BigDecimal overtimeRate;
+
     public static InvoiceResponse from(Invoice inv) {
         String typeLabel = switch (inv.getType()) {
-            case INCOME             -> "A — Gəlir Qaiməsi";
-            case CONTRACTOR_EXPENSE -> "B1 — Podratçı Qaiməsi";
-            case COMPANY_EXPENSE    -> "B2 — Şirkət Xərci";
+            case INCOME             -> "Gəlir";
+            case CONTRACTOR_EXPENSE -> "Ödəmə";
+            case COMPANY_EXPENSE    -> "Xərc";
         };
 
         BigDecimal netProfit = null;
@@ -103,6 +114,15 @@ public class InvoiceResponse {
                 .notes(inv.getNotes())
                 .createdAt(inv.getCreatedAt())
                 .updatedAt(inv.getUpdatedAt())
+                .periodMonth(inv.getPeriodMonth())
+                .periodYear(inv.getPeriodYear())
+                .standardDays(inv.getStandardDays())
+                .extraDays(inv.getExtraDays())
+                .extraHours(inv.getExtraHours())
+                .monthlyRate(inv.getMonthlyRate())
+                .workingDaysInMonth(inv.getWorkingDaysInMonth())
+                .workingHoursPerDay(inv.getWorkingHoursPerDay())
+                .overtimeRate(inv.getOvertimeRate())
                 .build();
     }
 }

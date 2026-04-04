@@ -13,11 +13,9 @@ public class ProjectCompleteRequest {
     @DecimalMin(value = "0.0", message = "Evakuator xərci mənfi ola bilməz")
     private BigDecimal evacuationCost;
 
-    @NotNull(message = "Faktiki iş saatı daxil edilməlidir")
-    @DecimalMin(value = "0.01", message = "Faktiki iş saatı 0-dan böyük olmalıdır")
+    // İş saatı timesheet qaimələrindən izlənilir — optional
     private BigDecimal actualHours;
 
-    // 1.0 = adi, 1.5 = iş vaxtından kənar (fasilə ilə)
-    @NotNull(message = "Əlavə vaxt dərəcəsi seçilməlidir")
+    // 1.0 = adi, 1.5 = iş vaxtından kənar — optional (default 1.0)
     private BigDecimal overtimeRate;
 }
