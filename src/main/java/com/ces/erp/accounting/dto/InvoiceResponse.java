@@ -2,6 +2,7 @@ package com.ces.erp.accounting.dto;
 
 import com.ces.erp.accounting.entity.Invoice;
 import com.ces.erp.enums.InvoiceType;
+import com.ces.erp.enums.InvoiceStatus;
 import lombok.Builder;
 import lombok.Data;
 
@@ -16,6 +17,7 @@ public class InvoiceResponse {
     private Long id;
     private InvoiceType type;
     private String typeLabel;
+    private InvoiceStatus status;
 
     private String invoiceNumber;
     private BigDecimal amount;
@@ -96,6 +98,7 @@ public class InvoiceResponse {
                 .id(inv.getId())
                 .type(inv.getType())
                 .typeLabel(typeLabel)
+                .status(inv.getStatus())
                 .invoiceNumber(inv.getInvoiceNumber())
                 .amount(inv.getAmount())
                 .invoiceDate(inv.getInvoiceDate())

@@ -17,6 +17,7 @@ import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.enums.InvoiceType;
+import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -126,6 +127,7 @@ public class InvoiceService implements ApprovalHandler {
 
         Invoice inv = Invoice.builder()
                 .type(req.getType())
+                .status(req.getStatus() != null ? req.getStatus() : InvoiceStatus.DRAFT)
                 .invoiceNumber(req.getInvoiceNumber())
                 .amount(req.getAmount())
                 .invoiceDate(req.getInvoiceDate())
@@ -224,6 +226,7 @@ public class InvoiceService implements ApprovalHandler {
         }
         if (req.getInvoiceDate() != null) inv.setInvoiceDate(req.getInvoiceDate());
         if (req.getNotes() != null) inv.setNotes(req.getNotes().isBlank() ? null : req.getNotes().trim());
+        if (req.getStatus() != null) inv.setStatus(req.getStatus());
         Invoice updated = invoiceRepository.save(inv);
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "SAHƏ YENİLƏNDİ", "Mühasib sahələri doldurdu");
         return InvoiceResponse.from(updated);
@@ -233,6 +236,10 @@ public class InvoiceService implements ApprovalHandler {
     @RequiresApproval(module = "ACCOUNTING", entityType = "INVOICE", isDelete = true)
     public void delete(Long id) {
         Invoice inv = findOrThrow(id);
+        // Mühasibatlığa göndərilmiş qaiməni silə bilməzrik
+        if (inv.getStatus() == InvoiceStatus.SENT) {
+            throw new BusinessException("Mühasibatlığa göndərilmiş qaiməni silə bilməzsiniz. Əvvəlcə layihəyə geri göndərin.");
+        }
         auditService.log("FAKTURA", inv.getId(), inv.getInvoiceNumber(), "SİLİNDİ", "Faktura silindi");
         inv.softDelete();
         invoiceRepository.save(inv);

@@ -121,6 +121,8 @@ public class RoleService {
                             .canDelete(pr.isCanDelete())
                             .canSendToCoordinator(pr.isCanSendToCoordinator())
                             .canSubmitOffer(pr.isCanSubmitOffer())
+                            .canSendToAccounting(pr.isCanSendToAccounting())
+                            .canReturnToProject(pr.isCanReturnToProject())
                             .build();
                 })
                 .toList();

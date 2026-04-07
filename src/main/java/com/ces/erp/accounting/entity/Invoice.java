@@ -3,6 +3,7 @@ package com.ces.erp.accounting.entity;
 import com.ces.erp.common.entity.BaseEntity;
 import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.enums.InvoiceType;
+import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.project.entity.Project;
 import jakarta.persistence.*;
 import lombok.*;
@@ -24,6 +25,10 @@ public class Invoice extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private InvoiceType type;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private InvoiceStatus status = InvoiceStatus.DRAFT;   // DRAFT, SENT
 
     // ─── Əsas sahələr ─────────────────────────────────────────────────────────
 

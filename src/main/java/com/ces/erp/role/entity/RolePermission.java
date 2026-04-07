@@ -49,4 +49,12 @@ public class RolePermission {
     @Column(nullable = false, columnDefinition = "boolean default false")
     @Builder.Default
     private boolean canSubmitOffer = false;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean canSendToAccounting = false;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean canReturnToProject = false;
 }

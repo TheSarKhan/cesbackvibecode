@@ -5,6 +5,7 @@ import com.ces.erp.accounting.repository.InvoiceRepository;
 import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.enums.InvoiceType;
+import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.enums.ProjectStatus;
 import com.ces.erp.project.entity.Project;
 import com.ces.erp.project.repository.ProjectRepository;
@@ -69,7 +70,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .invoiceNumber("Q-2026-0001").amount(new BigDecimal("3750.00"))
                     .invoiceDate(LocalDate.of(2026, 1, 21))
                     .companyName("Azər İnşaat MMC").equipmentName("Hidravlik Ekskavator CAT 320D")
-                    .project(p1).notes("Binəqədi torpaq qazıma layihəsi. Texnika + operator.").build());
+                    .project(p1).notes("Binəqədi torpaq qazıma layihəsi. Texnika + operator.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         // PRJ-0002: Grand Build — Sabunçu kran
@@ -81,7 +83,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .invoiceNumber("Q-2026-0002").amount(new BigDecimal("6120.00"))
                     .invoiceDate(LocalDate.of(2026, 1, 23))
                     .companyName("Grand Build ASC").equipmentName("Mobil Yük Kranı Liebherr LTM 1070")
-                    .project(p2).notes("Sabunçu bina tikintisi. Kran + operator + daşınma.").build());
+                    .project(p2).notes("Sabunçu bina tikintisi. Kran + operator + daşınma.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         // PRJ-0003: SOCAR — Balaxanı buldozer
@@ -93,7 +96,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .invoiceNumber("Q-2026-0003").amount(new BigDecimal("4940.00"))
                     .invoiceDate(LocalDate.of(2026, 2, 4))
                     .companyName("SOCAR Tikinti ASC").equipmentName("Buldozer Komatsu D65EX")
-                    .project(p3).notes("Balaxanı emal sahəsi. Buldozer + operator + daşınma.").build());
+                    .project(p3).notes("Balaxanı emal sahəsi. Buldozer + operator + daşınma.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         // PRJ-0004: SkyLine — Sumqayıt çimərlik
@@ -105,7 +109,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .invoiceNumber("Q-2026-0004").amount(new BigDecimal("2000.00"))
                     .invoiceDate(LocalDate.of(2026, 2, 2))
                     .companyName("SkyLine Tikinti QSC").equipmentName("Ekskavator-Yükləyici JCB 3CX Pro")
-                    .project(p4).notes("Sumqayıt çimərlik kompleksi bünövrə işləri.").build());
+                    .project(p4).notes("Sumqayıt çimərlik kompleksi bünövrə işləri.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         // PRJ-0005: AzərGold — Daşkəsən teleskopik
@@ -117,7 +122,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .invoiceNumber("Q-2026-0005").amount(new BigDecimal("4400.00"))
                     .invoiceDate(LocalDate.of(2026, 2, 19))
                     .companyName("AzərGold QSC").equipmentName("Teleskopik Yükləyici JCB 535-140")
-                    .project(p5).notes("Daşkəsən mədən sahəsi. Yükləyici + operator + daşınma.").build());
+                    .project(p5).notes("Daşkəsən mədən sahəsi. Yükləyici + operator + daşınma.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         // ── Aktiv layihələrin avans qaimələri ─────────────────────────────────
@@ -131,7 +137,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .invoiceNumber("Q-2026-0006").amount(new BigDecimal("8200.00"))
                     .invoiceDate(LocalDate.of(2026, 2, 15))
                     .companyName("Bakı Metro MMC").equipmentName("Mobil Yük Kranı Liebherr LTM 1070")
-                    .project(p6).notes("8 Noyabr stansiyası — aylıq avans qaiməsi.").build());
+                    .project(p6).notes("8 Noyabr stansiyası — aylıq avans qaiməsi.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         // PRJ-0007: Kəpəz — avans
@@ -143,7 +150,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .invoiceNumber("Q-2026-0007").amount(new BigDecimal("3950.00"))
                     .invoiceDate(LocalDate.of(2026, 2, 24))
                     .companyName("Kəpəz Yol Tikintisi MMC").equipmentName("Buldozer Komatsu D65EX")
-                    .project(p7).notes("Gəncə-Samux yolu — 15 günlük avans qaiməsi.").build());
+                    .project(p7).notes("Gəncə-Samux yolu — 15 günlük avans qaiməsi.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         // PRJ-0008: Azər İnşaat (mart) — avans
@@ -155,7 +163,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .invoiceNumber("Q-2026-0008").amount(new BigDecimal("2500.00"))
                     .invoiceDate(LocalDate.of(2026, 3, 5))
                     .companyName("Azər İnşaat MMC").equipmentName("Hidravlik Ekskavator CAT 320D")
-                    .project(p8).notes("Maştağa kompleksi — 10 günlük avans qaiməsi.").build());
+                    .project(p8).notes("Maştağa kompleksi — 10 günlük avans qaiməsi.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         // ── Podratçı xərc qaimələri (B1 tipli) ───────────────────────────────
@@ -165,7 +174,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .type(InvoiceType.CONTRACTOR_EXPENSE).invoiceNumber("POD-2026-038")
                     .amount(new BigDecimal("600.00")).invoiceDate(LocalDate.of(2026, 2, 2))
                     .equipmentName("JCB 3CX Pro — icarə xidməti").contractor(c2).project(p4)
-                    .notes("SkyLine layihəsi üçün TechBuild ASC texnika icarə haqqı.").build());
+                    .notes("SkyLine layihəsi üçün TechBuild ASC texnika icarə haqqı.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         if (c1 != null && p5 != null) {
@@ -173,7 +183,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .type(InvoiceType.CONTRACTOR_EXPENSE).invoiceNumber("POD-2026-044")
                     .amount(new BigDecimal("280.00")).invoiceDate(LocalDate.of(2026, 2, 18))
                     .equipmentName("İnvestor texnika pay xidməti").contractor(c1).project(p5)
-                    .notes("AzərGold layihəsi — yüklənmə sahəsi logistika dəstəyi.").build());
+                    .notes("AzərGold layihəsi — yüklənmə sahəsi logistika dəstəyi.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         if (c4 != null && p6 != null) {
@@ -181,7 +192,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .type(InvoiceType.CONTRACTOR_EXPENSE).invoiceNumber("POD-2026-052")
                     .amount(new BigDecimal("1200.00")).invoiceDate(LocalDate.of(2026, 2, 28))
                     .equipmentName("Texniki servis + yağlama — LTM 1070").contractor(c4).project(p6)
-                    .notes("Bakı Metro layihəsi üçün NordTex Servis QSC texniki dəstəyi.").build());
+                    .notes("Bakı Metro layihəsi üçün NordTex Servis QSC texniki dəstəyi.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         if (c3 != null && p7 != null) {
@@ -189,7 +201,8 @@ public class AccountingSeeder implements CommandLineRunner {
                     .type(InvoiceType.CONTRACTOR_EXPENSE).invoiceNumber("POD-2026-059")
                     .amount(new BigDecimal("450.00")).invoiceDate(LocalDate.of(2026, 3, 5))
                     .equipmentName("Kompressor icarəsi — Gəncə sahəsi").contractor(c3).project(p7)
-                    .notes("Kəpəz layihəsi — havanın sıxılması üçün köməkçi kompressor.").build());
+                    .notes("Kəpəz layihəsi — havanın sıxılması üçün köməkçi kompressor.")
+                    .status(InvoiceStatus.DRAFT).build());
         }
 
         // ── Şirkət xərc qaimələri (B2 tipli) ─────────────────────────────────
@@ -199,7 +212,8 @@ public class AccountingSeeder implements CommandLineRunner {
                 .amount(new BigDecimal("420.00")).invoiceDate(LocalDate.of(2026, 1, 4))
                 .companyName("AutoTex Servis MMC")
                 .serviceDescription("EQ-002 Buldozer — mühərrik yağı dəyişimi, filtr dəsti")
-                .notes("Yanvar əvvəlindən əvvəl profilaktik baxış.").build());
+                .notes("Yanvar əvvəlindən əvvəl profilaktik baxış.")
+                .status(InvoiceStatus.DRAFT).build());
 
         save(Invoice.builder()
                 .type(InvoiceType.COMPANY_EXPENSE).invoiceNumber("SRV-2026-011")
@@ -207,14 +221,16 @@ public class AccountingSeeder implements CommandLineRunner {
                 .companyName("AutoTex Servis MMC")
                 .serviceDescription("EQ-001 Ekskavator — texniki baxış, hidravlik şlanq")
                 .project(p1)
-                .notes("Binəqədi layihəsi sonunda texniki baxış.").build());
+                .notes("Binəqədi layihəsi sonunda texniki baxış.")
+                .status(InvoiceStatus.DRAFT).build());
 
         save(Invoice.builder()
                 .type(InvoiceType.COMPANY_EXPENSE).invoiceNumber("SRV-2026-018")
                 .amount(new BigDecimal("890.00")).invoiceDate(LocalDate.of(2026, 2, 5))
                 .companyName("EQ Repair MMC")
                 .serviceDescription("EQ-005 Kompaktor — mühərrik bloku, diaqnostika")
-                .notes("Kompaktor mühərrik problemi. Təmir davam edir.").build());
+                .notes("Kompaktor mühərrik problemi. Təmir davam edir.")
+                .status(InvoiceStatus.DRAFT).build());
 
         save(Invoice.builder()
                 .type(InvoiceType.COMPANY_EXPENSE).invoiceNumber("SRV-2026-023")
@@ -222,28 +238,32 @@ public class AccountingSeeder implements CommandLineRunner {
                 .companyName("Loqistik ASC")
                 .serviceDescription("EQ-003 Kran — Bakıdan Metro sahəsinə daşınma")
                 .project(p6)
-                .notes("Kran mobilizasiya daşınması — Bakı Metro layihəsi.").build());
+                .notes("Kran mobilizasiya daşınması — Bakı Metro layihəsi.")
+                .status(InvoiceStatus.DRAFT).build());
 
         save(Invoice.builder()
                 .type(InvoiceType.COMPANY_EXPENSE).invoiceNumber("SRV-2026-031")
                 .amount(new BigDecimal("260.00")).invoiceDate(LocalDate.of(2026, 3, 1))
                 .companyName("Yanacaq Bazar ASC")
                 .serviceDescription("Dizel yanacaq — 280L (mart ayı qalığı doldurması)")
-                .notes("Anbar yanacaq ehtiyatı yenilənməsi.").build());
+                .notes("Anbar yanacaq ehtiyatı yenilənməsi.")
+                .status(InvoiceStatus.DRAFT).build());
 
         save(Invoice.builder()
                 .type(InvoiceType.COMPANY_EXPENSE).invoiceNumber("SRV-2026-034")
                 .amount(new BigDecimal("540.00")).invoiceDate(LocalDate.of(2026, 3, 8))
                 .companyName("EQ Repair MMC")
                 .serviceDescription("EQ-004 Beton Mikser — növbəti texniki baxış, fırlanma sistemi")
-                .notes("Planlı profilaktik baxış. İl ərzində ikinci baxış.").build());
+                .notes("Planlı profilaktik baxış. İl ərzində ikinci baxış.")
+                .status(InvoiceStatus.DRAFT).build());
 
         save(Invoice.builder()
                 .type(InvoiceType.COMPANY_EXPENSE).invoiceNumber(null)
                 .amount(new BigDecimal("95.00")).invoiceDate(LocalDate.of(2026, 3, 15))
                 .companyName("AutoTex Servis MMC")
                 .serviceDescription("EQ-006 Yük Maşını — yağ + əyləc sistemi yoxlaması")
-                .notes("Qaimə nömrəsi gözlənilir. Şifahi sifariş edilib.").build());
+                .notes("Qaimə nömrəsi gözlənilir. Şifahi sifariş edilib.")
+                .status(InvoiceStatus.DRAFT).build());
 
         log.info("Mühasibatlıq seederi tamamlandı. Cəmi {} qaimə.", invoiceRepository.count());
     }

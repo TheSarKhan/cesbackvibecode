@@ -15,5 +15,7 @@ public class PermissionRequest {
     private boolean canDelete;
     private boolean canSendToCoordinator;
     private boolean canSubmitOffer;
+    private boolean canSendToAccounting;
+    private boolean canReturnToProject;
     private boolean canGetCustomer;
 }

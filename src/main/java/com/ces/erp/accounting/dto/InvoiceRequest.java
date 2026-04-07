@@ -1,6 +1,7 @@
 package com.ces.erp.accounting.dto;
 
 import com.ces.erp.enums.InvoiceType;
+import com.ces.erp.enums.InvoiceStatus;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -13,6 +14,8 @@ public class InvoiceRequest {
 
     @NotNull(message = "Qaimə növü seçilməlidir")
     private InvoiceType type;
+
+    private InvoiceStatus status;   // DRAFT (default), SENT
 
     private String invoiceNumber;
 
