@@ -1,6 +1,8 @@
 package com.ces.erp.enums;
 
 public enum InvoiceStatus {
-    DRAFT,  // Layihə meneçeri tərəfindən yaradılan, mühasibatlığa göndərilməmiş
-    SENT    // Mühasibatlıq moduluna göndərilmiş, silinə bilməz
+    DRAFT,     // Layihə meneceri tərəfindən yaradılan, mühasibatlığa göndərilməmiş
+    SENT,      // Mühasibatlıq moduluna göndərilmiş
+    APPROVED,  // Mühasibatlıq tərəfindən təsdiqlənmiş
+    RETURNED   // Mühasibatlıq tərəfindən geri qaytarılmış
 }

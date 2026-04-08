@@ -18,7 +18,9 @@ import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.enums.InvoiceType;
 import com.ces.erp.enums.InvoiceStatus;
+import com.ces.erp.project.entity.ProjectRevenue;
 import com.ces.erp.project.repository.ProjectRepository;
+import com.ces.erp.project.repository.ProjectRevenueRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ public class InvoiceService implements ApprovalHandler {
 
     private final InvoiceRepository invoiceRepository;
     private final ProjectRepository projectRepository;
+    private final ProjectRevenueRepository projectRevenueRepository;
     private final ContractorRepository contractorRepository;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
@@ -213,6 +216,13 @@ public class InvoiceService implements ApprovalHandler {
     @Transactional
     public InvoiceResponse patchFields(Long id, com.ces.erp.accounting.dto.InvoiceFieldsRequest req) {
         Invoice inv = findOrThrow(id);
+        if (inv.getStatus() == InvoiceStatus.APPROVED) {
+            throw new BusinessException("Təsdiqlənmiş qaimədə dəyişiklik etmək olmaz");
+        }
+        // APPROVED/RETURNED statuslarına yalnız approve/return endpointləri ilə keçmək olar
+        if (req.getStatus() != null && (req.getStatus() == InvoiceStatus.APPROVED || req.getStatus() == InvoiceStatus.RETURNED)) {
+            throw new BusinessException("Bu status dəyişikliyi üçün müvafiq endpointdən istifadə edin");
+        }
         if (req.getInvoiceNumber() != null) inv.setInvoiceNumber(req.getInvoiceNumber().isBlank() ? null : req.getInvoiceNumber().trim());
         if (req.getEtaxesId() != null) {
             String etaxesId = req.getEtaxesId().isBlank() ? null : req.getEtaxesId().trim();
@@ -236,13 +246,60 @@ public class InvoiceService implements ApprovalHandler {
     @RequiresApproval(module = "ACCOUNTING", entityType = "INVOICE", isDelete = true)
     public void delete(Long id) {
         Invoice inv = findOrThrow(id);
-        // Mühasibatlığa göndərilmiş qaiməni silə bilməzrik
-        if (inv.getStatus() == InvoiceStatus.SENT) {
-            throw new BusinessException("Mühasibatlığa göndərilmiş qaiməni silə bilməzsiniz. Əvvəlcə layihəyə geri göndərin.");
+        if (inv.getStatus() == InvoiceStatus.SENT || inv.getStatus() == InvoiceStatus.APPROVED) {
+            throw new BusinessException("Mühasibatlığa göndərilmiş və ya təsdiqlənmiş qaiməni silə bilməzsiniz");
         }
         auditService.log("FAKTURA", inv.getId(), inv.getInvoiceNumber(), "SİLİNDİ", "Faktura silindi");
         inv.softDelete();
         invoiceRepository.save(inv);
+    }
+
+    // ─── Approve / Return ──────────────────────────────────────────────────────
+
+    @Transactional
+    public InvoiceResponse approve(Long id) {
+        Invoice inv = findOrThrow(id);
+        if (inv.getStatus() != InvoiceStatus.SENT) {
+            throw new BusinessException("Yalnız göndərilmiş qaimələr təsdiqlənə bilər");
+        }
+        if (inv.getInvoiceNumber() == null || inv.getInvoiceNumber().isBlank()) {
+            throw new BusinessException("Qaimə nömrəsi doldurulmalıdır");
+        }
+        if (inv.getInvoiceDate() == null) {
+            throw new BusinessException("Qaimə tarixi doldurulmalıdır");
+        }
+
+        inv.setStatus(InvoiceStatus.APPROVED);
+        Invoice updated = invoiceRepository.save(inv);
+
+        // Layihənin maliyyə hissəsinə gəlir olaraq əlavə et
+        if (inv.getProject() != null) {
+            String label = inv.getInvoiceNumber() != null
+                    ? "Qaimə: " + inv.getInvoiceNumber()
+                    : "Qaimə #" + inv.getId();
+            ProjectRevenue revenue = ProjectRevenue.builder()
+                    .project(inv.getProject())
+                    .key(label)
+                    .value(inv.getAmount())
+                    .date(inv.getInvoiceDate())
+                    .build();
+            projectRevenueRepository.save(revenue);
+        }
+
+        auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "TƏSDİQLƏNDİ", "Qaimə mühasibatlıq tərəfindən təsdiqləndi");
+        return InvoiceResponse.from(updated);
+    }
+
+    @Transactional
+    public InvoiceResponse returnToProject(Long id) {
+        Invoice inv = findOrThrow(id);
+        if (inv.getStatus() != InvoiceStatus.SENT) {
+            throw new BusinessException("Yalnız göndərilmiş qaimələr geri qaytarıla bilər");
+        }
+        inv.setStatus(InvoiceStatus.RETURNED);
+        Invoice updated = invoiceRepository.save(inv);
+        auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "GERİ QAYTARILDI", "Qaimə layihəyə geri qaytarıldı");
+        return InvoiceResponse.from(updated);
     }
 
     // ─── Yardımçı ─────────────────────────────────────────────────────────────

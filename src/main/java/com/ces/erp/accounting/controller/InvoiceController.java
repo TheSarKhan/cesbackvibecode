@@ -94,6 +94,20 @@ public class InvoiceController {
         return ResponseEntity.ok(ApiResponse.success("Sahələr yeniləndi", invoiceService.patchFields(id, req)));
     }
 
+    @PatchMapping("/{id}/approve")
+    @PreAuthorize("hasAuthority('ACCOUNTING:PUT')")
+    @Operation(summary = "Qaiməni təsdiqlə — layihənin maliyyəsinə gəlir olaraq əlavə edilir")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> approve(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Qaimə təsdiqləndi", invoiceService.approve(id)));
+    }
+
+    @PatchMapping("/{id}/return")
+    @PreAuthorize("hasAuthority('ACCOUNTING:PUT')")
+    @Operation(summary = "Qaiməni layihəyə geri qaytar")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> returnToProject(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Qaimə geri qaytarıldı", invoiceService.returnToProject(id)));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ACCOUNTING:DELETE')")
     @Operation(summary = "Qaiməni sil")
