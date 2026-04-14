@@ -108,6 +108,15 @@ public class InvoiceController {
         return ResponseEntity.ok(ApiResponse.success("Qaimə geri qaytarıldı", invoiceService.returnToProject(id)));
     }
 
+    @PostMapping("/{id}/resubmit")
+    @PreAuthorize("hasAuthority('ACCOUNTING:POST')")
+    @Operation(summary = "Geri qaytarılmış qaiməni düzəliş edib yenidən göndər")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> resubmit(
+            @PathVariable Long id,
+            @RequestBody InvoiceRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Qaimə yenidən göndərildi", invoiceService.resubmit(id, req)));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ACCOUNTING:DELETE')")
     @Operation(summary = "Qaiməni sil")

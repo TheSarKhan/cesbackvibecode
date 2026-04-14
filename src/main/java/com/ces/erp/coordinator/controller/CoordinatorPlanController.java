@@ -46,8 +46,10 @@ public class CoordinatorPlanController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size,
             @RequestParam(required = false) String q,
-            @RequestParam(required = false) String status) {
-        return ResponseEntity.ok(ApiResponse.success(planService.getRequestsPaged(page, size, q, status)));
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+        return ResponseEntity.ok(ApiResponse.success(planService.getRequestsPaged(page, size, q, status, sortBy, sortDir)));
     }
 
     @GetMapping("/requests/{requestId}/plan")

@@ -95,8 +95,12 @@ public class CoordinatorPlanService implements ApprovalHandler {
                 .toList();
     }
 
+    private static final java.util.Set<String> ALLOWED_SORT_FIELDS = java.util.Set.of(
+            "createdAt", "companyName", "requestCode", "status", "region", "projectType", "dayCount");
+
     @Transactional(readOnly = true)
-    public PagedResponse<CoordinatorPlanResponse> getRequestsPaged(int page, int size, String search, String status) {
+    public PagedResponse<CoordinatorPlanResponse> getRequestsPaged(int page, int size, String search, String status,
+                                                                     String sortBy, String sortDir) {
         String q = (search != null && !search.isBlank()) ? search : null;
         RequestStatus s = null;
         if (status != null && !status.isBlank()) {
@@ -106,7 +110,9 @@ public class CoordinatorPlanService implements ApprovalHandler {
         if (s != null && !COORDINATOR_STATUSES.contains(s)) {
             s = null;
         }
-        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        String field = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : "createdAt";
+        Sort sort = "asc".equalsIgnoreCase(sortDir) ? Sort.by(field).ascending() : Sort.by(field).descending();
+        var pageable = PageRequest.of(page, size, sort);
         var result = requestRepository.findAllCoordinatorFiltered(q, s, pageable);
         return PagedResponse.from(result, r -> {
             CoordinatorPlanResponse resp = planRepository.findByRequestId(r.getId())

@@ -304,6 +304,34 @@ public class InvoiceService implements ApprovalHandler {
         return InvoiceResponse.from(updated);
     }
 
+    @Transactional
+    public InvoiceResponse resubmit(Long id, InvoiceRequest req) {
+        Invoice inv = findOrThrow(id);
+        if (inv.getStatus() != InvoiceStatus.RETURNED) {
+            throw new BusinessException("Yalnız geri qaytarılmış qaimələr yenidən göndərilə bilər");
+        }
+        if (req.getInvoiceDate() != null)        inv.setInvoiceDate(req.getInvoiceDate());
+        if (req.getNotes() != null)              inv.setNotes(req.getNotes().isBlank() ? null : req.getNotes().trim());
+        if (req.getStandardDays() != null)       inv.setStandardDays(req.getStandardDays());
+        if (req.getExtraDays() != null)          inv.setExtraDays(req.getExtraDays());
+        if (req.getExtraHours() != null)         inv.setExtraHours(req.getExtraHours());
+        if (req.getMonthlyRate() != null)        inv.setMonthlyRate(req.getMonthlyRate());
+        if (req.getWorkingDaysInMonth() != null) inv.setWorkingDaysInMonth(req.getWorkingDaysInMonth());
+        if (req.getWorkingHoursPerDay() != null) inv.setWorkingHoursPerDay(req.getWorkingHoursPerDay());
+        if (req.getOvertimeRate() != null)       inv.setOvertimeRate(req.getOvertimeRate());
+        BigDecimal recalc = calculateTimesheetAmount(req);
+        if (recalc != null && recalc.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            inv.setAmount(recalc);
+        }
+        inv.setStatus(InvoiceStatus.SENT);
+        Invoice updated = invoiceRepository.save(inv);
+        auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "YENİDƏN GÖNDƏRİLDİ",
+                "Geri qaytarılmış qaimə düzəliş edilib yenidən göndərildi");
+        notificationService.info("Qaimə yenidən göndərildi",
+                updated.getInvoiceNumber() + " nömrəli qaimə yenidən mühasibatlığa göndərildi", "ACCOUNTING");
+        return InvoiceResponse.from(updated);
+    }
+
     // ─── Yardımçı ─────────────────────────────────────────────────────────────
 
     private void validate(InvoiceRequest req, Long excludeId) {
