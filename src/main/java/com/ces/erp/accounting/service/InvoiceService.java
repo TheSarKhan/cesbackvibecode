@@ -13,6 +13,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.DuplicateResourceException;
+import com.ces.erp.common.exception.InvalidStatusTransitionException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.contractor.repository.ContractorRepository;
@@ -221,7 +223,7 @@ public class InvoiceService implements ApprovalHandler {
         }
         // APPROVED/RETURNED statuslarına yalnız approve/return endpointləri ilə keçmək olar
         if (req.getStatus() != null && (req.getStatus() == InvoiceStatus.APPROVED || req.getStatus() == InvoiceStatus.RETURNED)) {
-            throw new BusinessException("Bu status dəyişikliyi üçün müvafiq endpointdən istifadə edin");
+            throw new InvalidStatusTransitionException("Bu status dəyişikliyi üçün müvafiq endpointdən istifadə edin");
         }
         if (req.getInvoiceNumber() != null) inv.setInvoiceNumber(req.getInvoiceNumber().isBlank() ? null : req.getInvoiceNumber().trim());
         if (req.getEtaxesId() != null) {
@@ -229,7 +231,7 @@ public class InvoiceService implements ApprovalHandler {
             if (etaxesId != null && inv.getType() == InvoiceType.INCOME) {
                 boolean exists = invoiceRepository.existsByEtaxesIdAndDeletedFalse(etaxesId);
                 if (exists && !etaxesId.equals(inv.getEtaxesId())) {
-                    throw new BusinessException("Bu ETaxes ID artıq mövcuddur: " + etaxesId);
+                    throw new DuplicateResourceException("Bu ETaxes ID artıq mövcuddur: " + etaxesId);
                 }
             }
             inv.setEtaxesId(etaxesId);
@@ -313,7 +315,7 @@ public class InvoiceService implements ApprovalHandler {
         if (req.getType() == InvoiceType.INCOME && req.getEtaxesId() != null && !req.getEtaxesId().isBlank()) {
             boolean exists = invoiceRepository.existsByEtaxesIdAndDeletedFalse(req.getEtaxesId());
             if (exists && excludeId == null) {
-                throw new BusinessException("Bu ETaxes ID artıq mövcuddur: " + req.getEtaxesId());
+                throw new DuplicateResourceException("Bu ETaxes ID artıq mövcuddur: " + req.getEtaxesId());
             }
         }
     }

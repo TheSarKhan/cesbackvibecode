@@ -9,6 +9,8 @@ import org.springframework.data.domain.Sort;
 import com.ces.erp.department.entity.Department;
 import com.ces.erp.department.repository.DepartmentRepository;
 import com.ces.erp.role.dto.RoleRequest;
+import com.ces.erp.user.entity.User;
+import com.ces.erp.user.repository.UserRepository;
 import com.ces.erp.role.dto.RoleResponse;
 import com.ces.erp.role.entity.Role;
 import com.ces.erp.role.entity.RolePermission;
@@ -30,6 +32,7 @@ public class RoleService {
     private final RolePermissionRepository rolePermissionRepository;
     private final DepartmentRepository departmentRepository;
     private final SystemModuleRepository systemModuleRepository;
+    private final UserRepository userRepository;
     private final AuditService auditService;
 
     public List<RoleResponse> getAll() {
@@ -100,7 +103,16 @@ public class RoleService {
     public void delete(Long id) {
         Role role = roleRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol", id));
-        auditService.log("ROL", role.getId(), role.getName(), "SİLİNDİ", "Rol silindi");
+
+        // Rola bağlı bütün userləri soft-delete et
+        List<User> users = userRepository.findAllByRoleIdAndDeletedFalse(id);
+        for (User user : users) {
+            user.softDelete();
+        }
+        userRepository.saveAll(users);
+
+        auditService.log("ROL", role.getId(), role.getName(), "SİLİNDİ",
+                "Rol silindi. Bağlı " + users.size() + " istifadəçi deaktiv edildi");
         role.softDelete();
         roleRepository.save(role);
     }

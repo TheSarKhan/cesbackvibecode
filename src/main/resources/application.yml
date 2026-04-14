@@ -55,7 +55,7 @@ app:
     access-token-expiry: 86400000
     refresh-token-expiry: 604800000
   upload:
-    dir: C:/Users/serxa/ces-uploads
+    dir: /opt/ces-uploads
   frontend:
     url: http://localhost:3000
 

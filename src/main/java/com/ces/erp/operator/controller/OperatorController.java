@@ -20,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/operators")
@@ -68,6 +69,13 @@ public class OperatorController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         operatorService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok("Operator silindi"));
+    }
+
+    @DeleteMapping("/bulk")
+    @PreAuthorize("hasAuthority('OPERATORS:DELETE')")
+    public ResponseEntity<ApiResponse<Void>> deleteAll(@RequestBody Map<String, List<Long>> body) {
+        operatorService.deleteAll(body.get("ids"));
+        return ResponseEntity.ok(ApiResponse.ok("Operatorlar silindi"));
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────

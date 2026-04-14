@@ -1,6 +1,7 @@
 package com.ces.erp.common.service;
 
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.FileStorageException;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,9 +24,9 @@ public class FileStorageService {
     @PostConstruct
     public void init() {
         try {
-            Files.createDirectories(Paths.get(uploadDir));
+            Files.createDirectories(Paths.get(uploadDir).toAbsolutePath());
         } catch (IOException e) {
-            throw new RuntimeException("Yükləmə qovluğu yaradıla bilmədi: " + uploadDir, e);
+            throw new FileStorageException("Yükləmə qovluğu yaradıla bilmədi: " + uploadDir, e);
         }
     }
 
@@ -42,13 +43,17 @@ public class FileStorageService {
         String storedName = UUID.randomUUID() + extension;
 
         try {
-            Path dir = Paths.get(uploadDir, subDir);
+            Path dir = Paths.get(uploadDir, subDir).toAbsolutePath();
             Files.createDirectories(dir);
             Path target = dir.resolve(storedName);
-            file.transferTo(target.toFile());
+
+            try (var inputStream = file.getInputStream()) {
+                Files.copy(inputStream, target);
+            }
+
             return subDir + "/" + storedName;
         } catch (IOException e) {
-            throw new BusinessException("Fayl saxlanıla bilmədi: " + e.getMessage());
+            throw new FileStorageException("Fayl saxlanıla bilmədi: " + e.getMessage());
         }
     }
 

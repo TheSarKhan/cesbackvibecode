@@ -9,6 +9,7 @@ import com.ces.erp.approval.repository.PendingOperationRepository;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import com.ces.erp.common.exception.UnauthorizedOperationException;
 import com.ces.erp.department.entity.Department;
 import com.ces.erp.enums.OperationStatus;
 import com.ces.erp.enums.OperationType;
@@ -75,7 +76,7 @@ public class ApprovalService {
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", userId));
 
         if (!hasApprovalAccess(approver)) {
-            throw new BusinessException("Sizin təsdiq icazəniz yoxdur");
+            throw new UnauthorizedOperationException("Sizin təsdiq icazəniz yoxdur");
         }
 
         PendingOperation op = pendingOperationRepository.findByIdActive(id)
@@ -113,7 +114,7 @@ public class ApprovalService {
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", userId));
 
         if (!hasApprovalAccess(approver)) {
-            throw new BusinessException("Sizin təsdiq icazəniz yoxdur");
+            throw new UnauthorizedOperationException("Sizin təsdiq icazəniz yoxdur");
         }
 
         PendingOperation op = pendingOperationRepository.findByIdActive(id)
@@ -138,14 +139,14 @@ public class ApprovalService {
 
     private void checkAccess(User approver, PendingOperation op) {
         if (!hasApprovalAccess(approver)) {
-            throw new BusinessException("Sizin təsdiq icazəniz yoxdur");
+            throw new UnauthorizedOperationException("Sizin təsdiq icazəniz yoxdur");
         }
 
         List<Long> allowedDepts = getApprovalDeptIds(approver);
 
         if (!allowedDepts.isEmpty() && op.getPerformerDepartment() != null) {
             if (!allowedDepts.contains(op.getPerformerDepartment().getId())) {
-                throw new BusinessException("Bu şöbənin əməliyyatını təsdiq etmək icazəniz yoxdur");
+                throw new UnauthorizedOperationException("Bu şöbənin əməliyyatını təsdiq etmək icazəniz yoxdur");
             }
         }
     }

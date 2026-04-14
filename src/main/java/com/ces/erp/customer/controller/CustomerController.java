@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/customers")
@@ -79,6 +80,14 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         customerService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok("Müştəri silindi"));
+    }
+
+    @DeleteMapping("/bulk")
+    @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:DELETE')")
+    @Operation(summary = "Seçilmiş müştəriləri sil")
+    public ResponseEntity<ApiResponse<Void>> deleteAll(@RequestBody Map<String, List<Long>> body) {
+        customerService.deleteAll(body.get("ids"));
+        return ResponseEntity.ok(ApiResponse.ok("Müştərilər silindi"));
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────

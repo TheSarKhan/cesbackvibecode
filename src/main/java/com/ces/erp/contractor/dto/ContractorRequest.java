@@ -2,10 +2,7 @@ package com.ces.erp.contractor.dto;
 
 import com.ces.erp.enums.ContractorStatus;
 import com.ces.erp.enums.RiskLevel;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -17,9 +14,14 @@ public class ContractorRequest {
     private String companyName;
 
     @NotBlank(message = "VÖEN boş ola bilməz")
+    @Pattern(regexp = "^\\d{10}$", message = "VÖEN 10 rəqəmdən ibarət olmalıdır")
     private String voen;
 
     private String contactPerson;
+    @Pattern(
+            regexp = "^(\\+994|0)?[0-9]{9}$",
+            message = "Düzgün telefon nömrəsi daxil edin"
+    )
     private String phone;
     private String address;
     private String paymentType;

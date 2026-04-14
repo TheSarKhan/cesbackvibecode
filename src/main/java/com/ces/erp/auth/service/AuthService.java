@@ -5,6 +5,8 @@ import com.ces.erp.auth.dto.LoginResponse;
 import com.ces.erp.auth.dto.RefreshTokenRequest;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.InvalidTokenException;
+import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.security.JwtUtil;
 import com.ces.erp.user.entity.User;
 import com.ces.erp.user.repository.UserRepository;
@@ -72,12 +74,12 @@ public class AuthService {
     public LoginResponse refresh(RefreshTokenRequest request) {
         String userIdStr = redisTemplate.opsForValue().get(REFRESH_PREFIX + request.getRefreshToken());
         if (userIdStr == null) {
-            throw new BusinessException("Refresh token etibarsızdır və ya vaxtı keçib");
+            throw new InvalidTokenException("Refresh token etibarsızdır və ya vaxtı keçib");
         }
 
         Long userId = Long.parseLong(userIdStr);
         User user = userRepository.findByIdAndDeletedFalse(userId)
-                .orElseThrow(() -> new BusinessException("İstifadəçi tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi tapılmadı"));
 
         // Köhnə tokeni sil, yeni token yarat
         redisTemplate.delete(REFRESH_PREFIX + request.getRefreshToken());
@@ -116,7 +118,7 @@ public class AuthService {
     public String verifyOtp(String email, String otp) {
         String storedOtp = redisTemplate.opsForValue().get(OTP_PREFIX + email);
         if (storedOtp == null || !storedOtp.equals(otp)) {
-            throw new BusinessException("OTP kod etibarsızdır və ya vaxtı keçib");
+            throw new InvalidTokenException("OTP kod etibarsızdır və ya vaxtı keçib");
         }
 
         // Verification token yarat
@@ -132,11 +134,11 @@ public class AuthService {
     public void resetPassword(String verificationToken, String newPassword) {
         String email = redisTemplate.opsForValue().get(VERIFY_PREFIX + verificationToken);
         if (email == null) {
-            throw new BusinessException("Doğrulama token-i etibarsızdır və ya vaxtı keçib");
+            throw new InvalidTokenException("Doğrulama token-i etibarsızdır və ya vaxtı keçib");
         }
 
         User user = userRepository.findByEmailAndDeletedFalse(email)
-                .orElseThrow(() -> new BusinessException("İstifadəçi tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi tapılmadı"));
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);

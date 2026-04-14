@@ -3,6 +3,7 @@ package com.ces.erp.user.service;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -59,7 +60,7 @@ public class UserService {
             throw new BusinessException("Şifrə boş ola bilməz");
         }
         if (userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
-            throw new BusinessException("Bu email artıq istifadə edilir");
+            throw new DuplicateResourceException("Bu email artıq istifadə edilir");
         }
 
         Department dept = departmentRepository.findByIdAndDeletedFalse(request.getDepartmentId())
@@ -90,7 +91,7 @@ public class UserService {
         // Email dəyişibsə unikallıq yoxla
         if (!user.getEmail().equals(request.getEmail()) &&
                 userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
-            throw new BusinessException("Bu email artıq istifadə edilir");
+            throw new DuplicateResourceException("Bu email artıq istifadə edilir");
         }
 
         Department dept = departmentRepository.findByIdAndDeletedFalse(request.getDepartmentId())

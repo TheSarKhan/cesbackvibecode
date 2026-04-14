@@ -4,6 +4,7 @@ import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.OwnershipType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -45,6 +46,7 @@ public class EquipmentRequest {
 
     // INVESTOR üçün
     private String ownerInvestorName;
+    @Pattern(regexp = "^\\d{10}$", message = "VÖEN 10 rəqəmdən ibarət olmalıdır")
     private String ownerInvestorVoen;
     private String ownerInvestorPhone;
 

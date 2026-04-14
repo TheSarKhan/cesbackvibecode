@@ -129,6 +129,16 @@ public class OperatorService implements ApprovalHandler {
         operatorRepository.save(o);
     }
 
+    @Transactional
+    public void deleteAll(List<Long> ids) {
+        for (Long id : ids) {
+            Operator o = findOrThrow(id);
+            auditService.log("OPERATOR", o.getId(), o.getFirstName() + " " + o.getLastName(), "SİLİNDİ", "Toplu silmə");
+            o.softDelete();
+            operatorRepository.save(o);
+        }
+    }
+
     // ─── Sənəd yüklə / sil ───────────────────────────────────────────────────
 
     @Transactional

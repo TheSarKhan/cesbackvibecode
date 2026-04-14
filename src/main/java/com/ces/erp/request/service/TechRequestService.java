@@ -5,6 +5,7 @@ import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.InvalidStatusTransitionException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.customer.repository.CustomerRepository;
@@ -103,7 +104,7 @@ public class TechRequestService implements ApprovalHandler {
 
         Set<RequestStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(oldStatus, Set.of());
         if (!allowed.contains(newStatus)) {
-            throw new BusinessException(oldStatus.name() + " statusundan " + newStatus.name() + " statusuna keçid mümkün deyil");
+            throw new InvalidStatusTransitionException(oldStatus.name() + " statusundan " + newStatus.name() + " statusuna keçid mümkün deyil");
         }
 
         entity.setStatus(newStatus);
@@ -187,7 +188,7 @@ public class TechRequestService implements ApprovalHandler {
         if (entity.getStatus() == RequestStatus.SENT_TO_COORDINATOR
                 || entity.getStatus() == RequestStatus.OFFER_SENT
                 || entity.getStatus() == RequestStatus.ACCEPTED) {
-            throw new BusinessException("Bu statusda olan sorğu redaktə edilə bilməz");
+            throw new InvalidStatusTransitionException("Bu statusda olan sorğu redaktə edilə bilməz");
         }
         buildEntity(req, entity);
         TechRequest updated = requestRepository.save(entity);

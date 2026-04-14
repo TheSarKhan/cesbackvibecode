@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/investors")
@@ -70,5 +71,13 @@ public class InvestorController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         investorService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok("İnvestor silindi"));
+    }
+
+    @DeleteMapping("/bulk")
+    @PreAuthorize("hasAuthority('INVESTORS:DELETE')")
+    @Operation(summary = "Seçilmiş investorları sil")
+    public ResponseEntity<ApiResponse<Void>> deleteAll(@RequestBody Map<String, List<Long>> body) {
+        investorService.deleteAll(body.get("ids"));
+        return ResponseEntity.ok(ApiResponse.ok("İnvestorlar silindi"));
     }
 }

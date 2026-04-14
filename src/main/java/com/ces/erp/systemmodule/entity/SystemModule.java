@@ -18,6 +18,7 @@ public class SystemModule extends BaseEntity {
     @Column(nullable = false, unique = true)
     private String code;
 
+
     @Column(nullable = false)
     private String nameAz;
 

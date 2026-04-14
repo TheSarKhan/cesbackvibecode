@@ -3,6 +3,7 @@ package com.ces.erp.config.service;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.config.dto.ConfigItemRequest;
 import com.ces.erp.config.dto.ConfigItemResponse;
@@ -61,7 +62,7 @@ public class ConfigService {
     @Transactional
     public ConfigItemResponse create(ConfigItemRequest req) {
         if (repository.existsByCategoryAndKeyAndDeletedFalse(req.getCategory(), req.getKey())) {
-            throw new BusinessException("Bu kateqoriyada belə bir açar artıq mövcuddur: " + req.getKey());
+            throw new DuplicateResourceException("Bu kateqoriyada belə bir açar artıq mövcuddur: " + req.getKey());
         }
 
         ConfigItem entity = ConfigItem.builder()
@@ -87,7 +88,7 @@ public class ConfigService {
         if (!entity.getCategory().equals(req.getCategory().toUpperCase().trim())
                 || !entity.getKey().equals(req.getKey().trim())) {
             if (repository.existsByCategoryAndKeyAndDeletedFalse(req.getCategory().toUpperCase().trim(), req.getKey().trim())) {
-                throw new BusinessException("Bu kateqoriyada belə bir açar artıq mövcuddur: " + req.getKey());
+                throw new DuplicateResourceException("Bu kateqoriyada belə bir açar artıq mövcuddur: " + req.getKey());
             }
         }
 

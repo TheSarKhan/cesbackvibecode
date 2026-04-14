@@ -69,10 +69,11 @@ public class ApprovalAspect {
             return pjp.proceed();
         }
 
-        // Artıq pending əməliyyat varmı?
-        if (pendingOperationRepository.existsByEntityTypeAndEntityIdAndStatusAndDeletedFalse(
+        // Silmə əməliyyatı üçün: hər hansı pending varsa blok et
+        // Edit əməliyyatı üçün: sıraya daxil olmağa icazə ver
+        if (isDelete && pendingOperationRepository.existsByEntityTypeAndEntityIdAndStatusAndDeletedFalse(
                 requiresApproval.entityType(), entityId, OperationStatus.PENDING)) {
-            throw new BusinessException("Bu entity üçün artıq gözləyən əməliyyat mövcuddur");
+            throw new BusinessException("Bu entity üçün gözləyən əməliyyat mövcuddur. Əvvəlcə onu təsdiq edin.");
         }
 
         // Handler tap

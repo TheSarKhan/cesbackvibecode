@@ -99,6 +99,16 @@ public class InvestorService implements ApprovalHandler {
         investorRepository.save(investor);
     }
 
+    @Transactional
+    public void deleteAll(List<Long> ids) {
+        for (Long id : ids) {
+            Investor investor = findOrThrow(id);
+            auditService.log("İNVESTOR", investor.getId(), investor.getCompanyName(), "SİLİNDİ", "Toplu silmə");
+            investor.softDelete();
+            investorRepository.save(investor);
+        }
+    }
+
     private Investor findOrThrow(Long id) {
         return investorRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("İnvestor", id));

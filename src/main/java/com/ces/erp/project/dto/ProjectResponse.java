@@ -17,7 +17,8 @@ import java.util.List;
 
 @Data
 @Builder
-public class ProjectResponse {
+public class
+ProjectResponse {
 
     private Long id;
     private String projectCode;

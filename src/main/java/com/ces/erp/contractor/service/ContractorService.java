@@ -10,6 +10,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.contractor.dto.ContractorRequest;
 import com.ces.erp.contractor.dto.ContractorResponse;
@@ -72,7 +73,7 @@ public class ContractorService implements ApprovalHandler {
     @Transactional
     public ContractorResponse create(ContractorRequest request) {
         if (contractorRepository.existsByVoenAndDeletedFalse(request.getVoen())) {
-            throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
+            throw new DuplicateResourceException("Bu VÖEN artıq qeydiyyatdadır");
         }
         Contractor saved = contractorRepository.save(toEntity(request, new Contractor()));
         auditService.log("PODRATÇI", saved.getId(), saved.getCompanyName(), "YARADILDI", "Yeni podratçı qeydiyyatı");
@@ -84,7 +85,7 @@ public class ContractorService implements ApprovalHandler {
     public ContractorResponse update(Long id, ContractorRequest request) {
         Contractor contractor = findOrThrow(id);
         if (contractorRepository.existsByVoenAndIdNotAndDeletedFalse(request.getVoen(), id)) {
-            throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
+            throw new DuplicateResourceException("Bu VÖEN artıq qeydiyyatdadır");
         }
         Contractor updated = contractorRepository.save(toEntity(request, contractor));
         auditService.log("PODRATÇI", updated.getId(), updated.getCompanyName(), "YENİLƏNDİ", "Podratçı məlumatları yeniləndi");

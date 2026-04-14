@@ -6,6 +6,7 @@ import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.enums.CustomerStatus;
@@ -83,7 +84,7 @@ public class CustomerService implements ApprovalHandler {
     public CustomerResponse create(CustomerRequest request) {
         if (request.getVoen() != null && !request.getVoen().isBlank()
                 && customerRepository.existsByVoenAndDeletedFalse(request.getVoen())) {
-            throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
+            throw new DuplicateResourceException("Bu VÖEN artıq qeydiyyatdadır");
         }
         Customer saved = customerRepository.save(toEntity(request, new Customer()));
         auditService.log("MÜŞTƏRİ", saved.getId(), saved.getCompanyName(), "YARADILDI", "Yeni müştəri qeydiyyatı");
@@ -96,7 +97,7 @@ public class CustomerService implements ApprovalHandler {
         Customer customer = findOrThrow(id);
         if (request.getVoen() != null && !request.getVoen().isBlank()
                 && customerRepository.existsByVoenAndIdNotAndDeletedFalse(request.getVoen(), id)) {
-            throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
+            throw new DuplicateResourceException("Bu VÖEN artıq qeydiyyatdadır");
         }
         Customer updated = customerRepository.save(toEntity(request, customer));
         auditService.log("MÜŞTƏRİ", updated.getId(), updated.getCompanyName(), "YENİLƏNDİ", "Müştəri məlumatları yeniləndi");
@@ -110,6 +111,16 @@ public class CustomerService implements ApprovalHandler {
         auditService.log("MÜŞTƏRİ", customer.getId(), customer.getCompanyName(), "SİLİNDİ", "Müştəri silindi");
         customer.softDelete();
         customerRepository.save(customer);
+    }
+
+    @Transactional
+    public void deleteAll(List<Long> ids) {
+        for (Long id : ids) {
+            Customer customer = findOrThrow(id);
+            auditService.log("MÜŞTƏRİ", customer.getId(), customer.getCompanyName(), "SİLİNDİ", "Toplu silmə");
+            customer.softDelete();
+            customerRepository.save(customer);
+        }
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────
