@@ -60,11 +60,13 @@ public class EquipmentService implements ApprovalHandler {
     // IN_TRANSIT → anbardar IN_INSPECTION statusuna keçirə bilər
     // IN_INSPECTION → baxış bitdikdə AVAILABLE, problem varsa DEFECTIVE
     private static final java.util.Map<EquipmentStatus, java.util.Set<EquipmentStatus>> ALLOWED_TRANSITIONS = java.util.Map.of(
-            EquipmentStatus.AVAILABLE,      java.util.Set.of(EquipmentStatus.RENTED, EquipmentStatus.DEFECTIVE, EquipmentStatus.OUT_OF_SERVICE),
-            EquipmentStatus.RENTED,         java.util.Set.of(),
+            EquipmentStatus.AVAILABLE,      java.util.Set.of(EquipmentStatus.RENTED, EquipmentStatus.DEFECTIVE, EquipmentStatus.OUT_OF_SERVICE, EquipmentStatus.IN_INSPECTION),
+            EquipmentStatus.RENTED,         java.util.Set.of(EquipmentStatus.IN_TRANSIT),
             EquipmentStatus.IN_TRANSIT,     java.util.Set.of(EquipmentStatus.IN_INSPECTION),
-            EquipmentStatus.IN_INSPECTION,  java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.DEFECTIVE),
-            EquipmentStatus.DEFECTIVE,      java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.OUT_OF_SERVICE),
+            EquipmentStatus.IN_INSPECTION,  java.util.Set.of(EquipmentStatus.UNDER_CHECK, EquipmentStatus.DEFECTIVE, EquipmentStatus.IN_REPAIR, EquipmentStatus.AVAILABLE),
+            EquipmentStatus.UNDER_CHECK,    java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.IN_REPAIR),
+            EquipmentStatus.IN_REPAIR,       java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.DEFECTIVE, EquipmentStatus.UNDER_CHECK),
+            EquipmentStatus.DEFECTIVE,      java.util.Set.of(EquipmentStatus.IN_REPAIR, EquipmentStatus.OUT_OF_SERVICE, EquipmentStatus.AVAILABLE),
             EquipmentStatus.OUT_OF_SERVICE, java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.DEFECTIVE)
     );
 

@@ -4,6 +4,8 @@ import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.project.dto.FinanceEntryRequest;
 import com.ces.erp.project.dto.ProjectCompleteRequest;
+import com.ces.erp.project.dto.ProjectPaymentEntryRequest;
+import com.ces.erp.project.dto.ProjectPaymentEntryResponse;
 import com.ces.erp.project.dto.ProjectResponse;
 import com.ces.erp.project.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -167,12 +169,50 @@ public class ProjectController {
 
     @PatchMapping("/{id}/start-date")
     @PreAuthorize("hasAuthority('PROJECTS:PUT')")
-    @Operation(summary = "Layihənin başlanğıc tarixini yenilə")
+    @Operation(summary = "Layihənin başlangıc tarixini yenilə")
     public ResponseEntity<ApiResponse<ProjectResponse>> updateStartDate(
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
         LocalDate startDate = LocalDate.parse(body.get("startDate"));
-        return ResponseEntity.ok(ApiResponse.success("Başlanğıc tarixi yeniləndi",
+        return ResponseEntity.ok(ApiResponse.success("Başlangıc tarixi yeniləndi",
                 projectService.updateStartDate(id, startDate)));
+    }
+
+    // ─── Ödəniş girişləri ─────────────────────────────────────────────────────
+
+    @GetMapping("/{id}/payment-entries")
+    @PreAuthorize("hasAuthority('PROJECTS:GET')")
+    @Operation(summary = "Layihənin ödəniş girişlərini gətir")
+    public ResponseEntity<ApiResponse<java.util.List<ProjectPaymentEntryResponse>>> getPaymentEntries(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(projectService.getPaymentEntries(id)));
+    }
+
+    @PostMapping("/{id}/payment-entries")
+    @PreAuthorize("hasAuthority('PROJECTS:POST')")
+    @Operation(summary = "Yeni ödəniş girişi əlavə et")
+    public ResponseEntity<ApiResponse<ProjectPaymentEntryResponse>> addPaymentEntry(
+            @PathVariable Long id,
+            @Valid @RequestBody ProjectPaymentEntryRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Ödəniş əlavə edildi",
+                projectService.addPaymentEntry(id, req)));
+    }
+
+    @DeleteMapping("/{id}/payment-entries/{entryId}")
+    @PreAuthorize("hasAuthority('PROJECTS:DELETE')")
+    @Operation(summary = "Ödəniş girişini sil")
+    public ResponseEntity<ApiResponse<Void>> deletePaymentEntry(
+            @PathVariable Long id,
+            @PathVariable Long entryId) {
+        projectService.deletePaymentEntry(id, entryId);
+        return ResponseEntity.ok(ApiResponse.ok("Ödəniş silindi"));
+    }
+
+    @PostMapping("/{id}/payment-entries/close")
+    @PreAuthorize("hasAuthority('PROJECTS:PUT')")
+    @Operation(summary = "Ödəniş seriyasını bağla")
+    public ResponseEntity<ApiResponse<Void>> closePayment(@PathVariable Long id) {
+        projectService.closePayment(id);
+        return ResponseEntity.ok(ApiResponse.ok("Ödəniş bağlandı"));
     }
 }

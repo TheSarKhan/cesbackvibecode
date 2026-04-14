@@ -108,6 +108,13 @@ public class InvoiceController {
         return ResponseEntity.ok(ApiResponse.success("Qaimə geri qaytarıldı", invoiceService.returnToProject(id)));
     }
 
+    @PatchMapping("/{id}/draft")
+    @PreAuthorize("hasAuthority('ACCOUNTING:PUT')")
+    @Operation(summary = "Geri qaytarılmış qaiməni DRAFT-a çevir (tam redaktə üçün)")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> returnToDraft(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Qaimə DRAFT-a çevrildi", invoiceService.returnToDraft(id)));
+    }
+
     @PostMapping("/{id}/resubmit")
     @PreAuthorize("hasAuthority('ACCOUNTING:POST')")
     @Operation(summary = "Geri qaytarılmış qaiməni düzəliş edib yenidən göndər")

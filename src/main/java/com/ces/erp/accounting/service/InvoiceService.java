@@ -23,6 +23,7 @@ import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.project.entity.ProjectRevenue;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.project.repository.ProjectRevenueRepository;
+import com.ces.erp.investor.repository.InvestorRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -40,9 +41,11 @@ public class InvoiceService implements ApprovalHandler {
     private final ProjectRepository projectRepository;
     private final ProjectRevenueRepository projectRevenueRepository;
     private final ContractorRepository contractorRepository;
+    private final InvestorRepository investorRepository;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final ReceivableService receivableService;
 
     @Override public String getEntityType() { return "INVOICE"; }
     @Override public String getModuleCode()  { return "ACCOUNTING"; }
@@ -165,8 +168,15 @@ public class InvoiceService implements ApprovalHandler {
             inv.setContractor(contractorRepository.findById(req.getContractorId())
                     .orElseThrow(() -> new ResourceNotFoundException("Podratçı", req.getContractorId())));
         }
+        if (req.getInvestorId() != null) {
+            inv.setInvestor(investorRepository.findById(req.getInvestorId())
+                    .orElseThrow(() -> new ResourceNotFoundException("İnvestor", req.getInvestorId())));
+        }
 
         Invoice saved = invoiceRepository.save(inv);
+        if (saved.getType() == InvoiceType.INCOME) {
+            receivableService.syncInvoiceDebt(saved);
+        }
         notificationService.success("Yeni faktura", "Faktura yaradıldı: " + saved.getInvoiceNumber(), "ACCOUNTING");
         auditService.log("FAKTURA", saved.getId(), saved.getInvoiceNumber(), "YARADILDI", "Yeni faktura qeydiyyatı");
         return InvoiceResponse.from(saved);
@@ -209,8 +219,15 @@ public class InvoiceService implements ApprovalHandler {
                 ? contractorRepository.findById(req.getContractorId())
                         .orElseThrow(() -> new ResourceNotFoundException("Podratçı", req.getContractorId()))
                 : null);
+        inv.setInvestor(req.getInvestorId() != null
+                ? investorRepository.findById(req.getInvestorId())
+                        .orElseThrow(() -> new ResourceNotFoundException("İnvestor", req.getInvestorId()))
+                : null);
 
         Invoice updated = invoiceRepository.save(inv);
+        if (updated.getType() == InvoiceType.INCOME) {
+            receivableService.syncInvoiceDebt(updated);
+        }
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "YENİLƏNDİ", "Faktura məlumatları yeniləndi");
         return InvoiceResponse.from(updated);
     }
@@ -253,7 +270,10 @@ public class InvoiceService implements ApprovalHandler {
         }
         auditService.log("FAKTURA", inv.getId(), inv.getInvoiceNumber(), "SİLİNDİ", "Faktura silindi");
         inv.softDelete();
-        invoiceRepository.save(inv);
+        Invoice deleted = invoiceRepository.save(inv);
+        if (deleted.getType() == InvoiceType.INCOME) {
+            receivableService.syncInvoiceDebt(deleted);
+        }
     }
 
     // ─── Approve / Return ──────────────────────────────────────────────────────
@@ -301,6 +321,19 @@ public class InvoiceService implements ApprovalHandler {
         inv.setStatus(InvoiceStatus.RETURNED);
         Invoice updated = invoiceRepository.save(inv);
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "GERİ QAYTARILDI", "Qaimə layihəyə geri qaytarıldı");
+        return InvoiceResponse.from(updated);
+    }
+
+    @Transactional
+    public InvoiceResponse returnToDraft(Long id) {
+        Invoice inv = findOrThrow(id);
+        if (inv.getStatus() != InvoiceStatus.RETURNED) {
+            throw new BusinessException("Yalnız geri qaytarılmış qaimələr DRAFT-a qaytarıla bilər");
+        }
+        inv.setStatus(InvoiceStatus.DRAFT);
+        Invoice updated = invoiceRepository.save(inv);
+        auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "DRAFT-A QAYTARILDI",
+                "Geri qaytarılmış qaimə redaktə üçün DRAFT-a çevrildi");
         return InvoiceResponse.from(updated);
     }
 

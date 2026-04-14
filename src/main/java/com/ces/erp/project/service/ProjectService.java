@@ -18,13 +18,20 @@ import com.ces.erp.garage.repository.EquipmentProjectHistoryRepository;
 import com.ces.erp.garage.repository.EquipmentRepository;
 import com.ces.erp.project.dto.FinanceEntryRequest;
 import com.ces.erp.project.dto.ProjectCompleteRequest;
+import com.ces.erp.project.dto.ProjectPaymentEntryRequest;
+import com.ces.erp.project.dto.ProjectPaymentEntryResponse;
 import com.ces.erp.project.dto.ProjectResponse;
 import com.ces.erp.project.entity.Project;
 import com.ces.erp.project.entity.ProjectExpense;
+import com.ces.erp.project.entity.ProjectPaymentEntry;
 import com.ces.erp.project.entity.ProjectRevenue;
 import com.ces.erp.project.repository.ProjectExpenseRepository;
+import com.ces.erp.project.repository.ProjectPaymentEntryRepository;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.project.repository.ProjectRevenueRepository;
+import com.ces.erp.accounting.repository.InvoiceRepository;
+import com.ces.erp.accounting.service.ReceivableService;
+import com.ces.erp.enums.InvoiceStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,11 +51,14 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final ProjectExpenseRepository expenseRepository;
     private final ProjectRevenueRepository revenueRepository;
+    private final ProjectPaymentEntryRepository paymentEntryRepository;
     private final CoordinatorPlanRepository planRepository;
     private final EquipmentProjectHistoryRepository equipmentHistoryRepository;
     private final EquipmentRepository equipmentRepository;
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
+    private final ReceivableService receivableService;
+    private final InvoiceRepository invoiceRepository;
 
     // ─── List ─────────────────────────────────────────────────────────────────
 
@@ -98,6 +108,7 @@ public class ProjectService {
         p.setStartDate(startDate != null ? startDate : LocalDate.now());
 
         projectRepository.save(p);
+        receivableService.createFromProject(p);
         auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YARADILDI", "Yeni layihə yaradıldı");
         CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
         return ProjectResponse.from(p, plan);
@@ -220,6 +231,13 @@ public class ProjectService {
             throw new BusinessException("Yalnız ACTIVE statuslu layihə bağlana bilər");
         }
 
+        // Layihəni bitirmədən əvvəl ən az bir təsdiqlənmiş qaimə olmalıdır
+        boolean hasApprovedInvoice = invoiceRepository
+                .existsByProjectIdAndStatusAndDeletedFalse(p.getId(), InvoiceStatus.APPROVED);
+        if (!hasApprovedInvoice) {
+            throw new BusinessException("Layihəni bitirmək üçün ən az bir təsdiqlənmiş qaimə (qəbul sənədi) olmalıdır");
+        }
+
         // Planlaşdırılan saatlar: effektiv gün × 9 (1 gün = 9 saat)
         CoordinatorPlan planForHours = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
         Integer planDayCount = planForHours != null && planForHours.getDayCount() != null
@@ -340,6 +358,64 @@ public class ProjectService {
         auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YENİLƏNDİ", "Layihə yeniləndi");
         CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
         return ProjectResponse.from(p, plan);
+    }
+
+    // ─── Ödəniş girişləri ─────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<ProjectPaymentEntryResponse> getPaymentEntries(Long id) {
+        findOrThrow(id);
+        return paymentEntryRepository
+                .findAllByProjectIdAndDeletedFalseOrderByPaymentDateAsc(id)
+                .stream()
+                .map(ProjectPaymentEntryResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public ProjectPaymentEntryResponse addPaymentEntry(Long id, ProjectPaymentEntryRequest req) {
+        Project p = findOrThrow(id);
+        if (p.getStatus() != ProjectStatus.ACTIVE) {
+            throw new BusinessException("Ödəniş yalnız aktiv layihəyə əlavə edilə bilər");
+        }
+        ProjectPaymentEntry entry = ProjectPaymentEntry.builder()
+                .project(p)
+                .amount(req.getAmount())
+                .paymentDate(req.getPaymentDate())
+                .note(req.getNote())
+                .build();
+        entry = paymentEntryRepository.save(entry);
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "ÖDƏNIŞ",
+                "Ödəniş girişi əlavə edildi: " + req.getAmount() + " ₼");
+        return ProjectPaymentEntryResponse.from(entry);
+    }
+
+    @Transactional
+    public void deletePaymentEntry(Long id, Long entryId) {
+        findOrThrow(id);
+        ProjectPaymentEntry entry = paymentEntryRepository
+                .findByIdAndProjectIdAndDeletedFalse(entryId, id)
+                .orElseThrow(() -> new ResourceNotFoundException("Ödəniş girişi", entryId));
+        entry.softDelete();
+        paymentEntryRepository.save(entry);
+    }
+
+    @Transactional
+    public void closePayment(Long id) {
+        Project p = findOrThrow(id);
+        if (p.getStatus() != ProjectStatus.ACTIVE) {
+            throw new BusinessException("Ödəniş yalnız aktiv layihədə bağlana bilər");
+        }
+        List<ProjectPaymentEntry> entries = paymentEntryRepository
+                .findAllByProjectIdAndDeletedFalseOrderByPaymentDateAsc(id);
+        if (entries.isEmpty()) {
+            throw new BusinessException("Bağlamaq üçün ən az bir ödəniş girişi olmalıdır");
+        }
+        // Bütün girişləri bağlandı kimi qeyd et
+        entries.forEach(e -> e.setClosed(true));
+        paymentEntryRepository.saveAll(entries);
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "ÖDƏNIŞ BAĞLANDI",
+                "Ödəniş seriyası bağlandı");
     }
 
     // ─── Yardımçı ─────────────────────────────────────────────────────────────

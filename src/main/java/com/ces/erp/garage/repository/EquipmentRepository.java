@@ -16,6 +16,8 @@ import java.util.Optional;
 
 public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
 
+    Optional<Equipment> findByIdAndDeletedFalse(Long id);
+
     @Query("SELECT e FROM Equipment e LEFT JOIN FETCH e.responsibleUser LEFT JOIN FETCH e.ownerContractor WHERE e.deleted = false")
     List<Equipment> findAllByDeletedFalse();
 

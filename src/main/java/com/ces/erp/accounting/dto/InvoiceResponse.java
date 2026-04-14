@@ -22,6 +22,8 @@ public class InvoiceResponse {
     private String invoiceNumber;
     private BigDecimal amount;
     private LocalDate invoiceDate;
+    private BigDecimal paidAmount;
+    private BigDecimal remainingAmount;
 
     // Type A
     private String etaxesId;
@@ -41,6 +43,11 @@ public class InvoiceResponse {
     private Long contractorId;
     private String contractorName;
     private String contractorVoen;
+
+    // Əlaqəli investor (B1)
+    private Long investorId;
+    private String investorName;
+    private String investorVoen;
 
     // Maliyyə (Type A — layihənin xalis gəliri)
     private BigDecimal projectNetProfit;
@@ -113,6 +120,9 @@ public class InvoiceResponse {
                 .contractorId(inv.getContractor() != null ? inv.getContractor().getId() : null)
                 .contractorName(inv.getContractor() != null ? inv.getContractor().getCompanyName() : null)
                 .contractorVoen(inv.getContractor() != null ? inv.getContractor().getVoen() : null)
+                .investorId(inv.getInvestor() != null ? inv.getInvestor().getId() : null)
+                .investorName(inv.getInvestor() != null ? inv.getInvestor().getCompanyName() : null)
+                .investorVoen(inv.getInvestor() != null ? inv.getInvestor().getVoen() : null)
                 .projectNetProfit(netProfit)
                 .notes(inv.getNotes())
                 .createdAt(inv.getCreatedAt())
@@ -126,6 +136,8 @@ public class InvoiceResponse {
                 .workingDaysInMonth(inv.getWorkingDaysInMonth())
                 .workingHoursPerDay(inv.getWorkingHoursPerDay())
                 .overtimeRate(inv.getOvertimeRate())
+                .paidAmount(inv.getPaidAmount())
+                .remainingAmount(inv.getAmount() != null ? inv.getAmount().subtract(inv.getPaidAmount() != null ? inv.getPaidAmount() : BigDecimal.ZERO) : BigDecimal.ZERO)
                 .build();
     }
 }

@@ -36,7 +36,9 @@ public class InvoiceRequest {
 
     private Long projectId;         // A, B1 məcburi; B2 könüllü
 
-    private Long contractorId;      // B1 məcburi
+    private Long contractorId;      // B1 məcburi (yaxud investorId)
+
+    private Long investorId;        // B1 məcburi (yaxud contractorId)
 
     private String notes;
 

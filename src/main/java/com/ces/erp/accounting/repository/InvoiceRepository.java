@@ -43,7 +43,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query(value = """
             SELECT i FROM Invoice i LEFT JOIN FETCH i.project LEFT JOIN FETCH i.contractor
             WHERE i.deleted = false
-            AND i.status NOT IN ('DRAFT', 'RETURNED')
             AND (CAST(:search AS string) IS NULL OR LOWER(COALESCE(i.invoiceNumber, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
              OR LOWER(COALESCE(i.notes, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             AND (CAST(:type AS string) IS NULL OR i.type = :type)
@@ -51,7 +50,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             countQuery = """
             SELECT COUNT(i) FROM Invoice i
             WHERE i.deleted = false
-            AND i.status NOT IN ('DRAFT', 'RETURNED')
             AND (CAST(:search AS string) IS NULL OR LOWER(COALESCE(i.invoiceNumber, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
              OR LOWER(COALESCE(i.notes, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             AND (CAST(:type AS string) IS NULL OR i.type = :type)
@@ -64,5 +62,19 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     boolean existsByEtaxesIdAndDeletedFalse(String etaxesId);
 
+    boolean existsByProjectIdAndStatusAndDeletedFalse(Long projectId, com.ces.erp.enums.InvoiceStatus status);
+
     List<Invoice> findAllByDeletedTrue();
+
+    @Query("""
+            SELECT i FROM Invoice i
+            LEFT JOIN FETCH i.project
+            LEFT JOIN FETCH i.contractor
+            WHERE i.deleted = false
+            AND (CAST(:startDate as date) IS NULL OR i.invoiceDate >= :startDate)
+            AND (CAST(:endDate as date) IS NULL OR i.invoiceDate <= :endDate)
+            ORDER BY i.invoiceDate DESC, i.createdAt DESC
+            """)
+    List<Invoice> findAllActiveWithDateRange(@Param("startDate") java.time.LocalDate startDate,
+                                             @Param("endDate") java.time.LocalDate endDate);
 }
