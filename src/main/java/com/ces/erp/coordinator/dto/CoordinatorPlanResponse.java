@@ -56,6 +56,7 @@ public class CoordinatorPlanResponse {
     private Long operatorId;
     private String operatorName;
     private BigDecimal equipmentPrice;
+    private BigDecimal contractorDailyRate;
     private BigDecimal contractorPayment;
     private BigDecimal operatorPayment;
     private BigDecimal transportationPrice;
@@ -176,6 +177,7 @@ public class CoordinatorPlanResponse {
             base.setDayCount(plan.getDayCount());
         }
         base.setEquipmentPrice(plan.getEquipmentPrice());
+        base.setContractorDailyRate(plan.getContractorDailyRate());
         base.setContractorPayment(plan.getContractorPayment());
         base.setOperatorPayment(plan.getOperatorPayment());
         base.setTransportationPrice(plan.getTransportationPrice());

@@ -40,6 +40,11 @@ public class CoordinatorPlan extends BaseEntity {
     @Column(precision = 12, scale = 2)
     private BigDecimal equipmentPrice;
 
+    // Günlük dərəcə (input olaraq daxil edilir)
+    @Column(precision = 12, scale = 2)
+    private BigDecimal contractorDailyRate;
+
+    // Cəmi ödəniş = contractorDailyRate × dayCount (avtomatik hesablanır)
     @Column(precision = 12, scale = 2)
     private BigDecimal contractorPayment;
 

@@ -157,7 +157,16 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         plan.setDayCount(req.getDayCount());
         plan.setEquipmentPrice(req.getEquipmentPrice());
-        plan.setContractorPayment(req.getContractorPayment());
+
+        // Podratçı/İnvestor: günlük dərəcə × gün sayı = cəmi ödəniş
+        BigDecimal dailyRate = req.getContractorDailyRate() != null ? req.getContractorDailyRate() : java.math.BigDecimal.ZERO;
+        plan.setContractorDailyRate(dailyRate);
+        if (dailyRate.compareTo(java.math.BigDecimal.ZERO) > 0 && req.getDayCount() != null && req.getDayCount() > 0) {
+            plan.setContractorPayment(dailyRate.multiply(java.math.BigDecimal.valueOf(req.getDayCount())));
+        } else {
+            plan.setContractorPayment(java.math.BigDecimal.ZERO);
+        }
+
         plan.setOperatorPayment(req.getOperatorPayment());
         plan.setTransportationPrice(req.getTransportationPrice());
         plan.setStartDate(req.getStartDate());
