@@ -43,6 +43,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query(value = """
             SELECT i FROM Invoice i LEFT JOIN FETCH i.project LEFT JOIN FETCH i.contractor
             WHERE i.deleted = false
+            AND i.status <> com.ces.erp.enums.InvoiceStatus.DRAFT
             AND (CAST(:search AS string) IS NULL OR LOWER(COALESCE(i.invoiceNumber, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
              OR LOWER(COALESCE(i.notes, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             AND (CAST(:type AS string) IS NULL OR i.type = :type)
@@ -50,6 +51,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             countQuery = """
             SELECT COUNT(i) FROM Invoice i
             WHERE i.deleted = false
+            AND i.status <> com.ces.erp.enums.InvoiceStatus.DRAFT
             AND (CAST(:search AS string) IS NULL OR LOWER(COALESCE(i.invoiceNumber, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
              OR LOWER(COALESCE(i.notes, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             AND (CAST(:type AS string) IS NULL OR i.type = :type)

@@ -55,7 +55,12 @@ public class ReceivableService {
             return;
         }
 
-        Customer customer = project.getRequest().getCustomer();
+        Customer customer = project.getRequest() != null ? project.getRequest().getCustomer() : null;
+        if (customer == null) {
+            // Müştəri olmadan debitor yaradıla bilməz — sessiz çıx
+            return;
+        }
+
         LocalDate dueDate = project.getEndDate() != null ? project.getEndDate().plusDays(20) : LocalDate.now().plusDays(20);
 
         Receivable r = Receivable.builder()
@@ -78,13 +83,18 @@ public class ReceivableService {
         Receivable r = receivableRepository.findByProjectIdAndDeletedFalse(invoice.getProject().getId())
                 .orElseGet(() -> {
                    createFromProject(invoice.getProject());
-                   return receivableRepository.findByProjectIdAndDeletedFalse(invoice.getProject().getId()).get();
+                   return receivableRepository.findByProjectIdAndDeletedFalse(invoice.getProject().getId()).orElse(null);
                 });
 
-        // Recalculate total amount from all project finalized income invoices
+        if (r == null) {
+            // Müştəri olmadığı üçün debitor yaradıla bilmədi
+            return;
+        }
+
+        // Recalculate total amount from all APPROVED income invoices only
         BigDecimal totalAmount = invoiceRepository.findAllByProjectIdAndDeletedFalse(invoice.getProject().getId()).stream()
                 .filter(i -> i.getType() == com.ces.erp.enums.InvoiceType.INCOME)
-                .filter(i -> i.getInvoiceNumber() != null && !i.getInvoiceNumber().trim().isEmpty())
+                .filter(i -> i.getStatus() == com.ces.erp.enums.InvoiceStatus.APPROVED)
                 .map(i -> i.getAmount() != null ? i.getAmount() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 

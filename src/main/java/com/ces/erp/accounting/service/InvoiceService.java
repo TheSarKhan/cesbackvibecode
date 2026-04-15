@@ -308,6 +308,11 @@ public class InvoiceService implements ApprovalHandler {
             projectRevenueRepository.save(revenue);
         }
 
+        // Debitor/Kreditor cədvəlinə sync et
+        if (updated.getType() == InvoiceType.INCOME) {
+            receivableService.syncInvoiceDebt(updated);
+        }
+
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "TƏSDİQLƏNDİ", "Qaimə mühasibatlıq tərəfindən təsdiqləndi");
         return InvoiceResponse.from(updated);
     }

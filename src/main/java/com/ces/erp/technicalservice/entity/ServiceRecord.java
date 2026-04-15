@@ -61,6 +61,9 @@ public class ServiceRecord extends BaseEntity {
     @Column(name = "record_type")
     private ServiceRecordType recordType;
 
+    private String invoiceNumber;
+    private LocalDate invoiceDate;
+
     @OneToMany(mappedBy = "serviceRecord", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ServiceChecklistItem> checklistItems = new ArrayList<>();

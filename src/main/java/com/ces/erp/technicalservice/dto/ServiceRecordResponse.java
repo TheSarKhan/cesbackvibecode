@@ -30,6 +30,8 @@ public class ServiceRecordResponse {
     private EquipmentStatus statusAfter;
     private boolean completed;
     private ServiceRecordType recordType;
+    private String invoiceNumber;
+    private LocalDate invoiceDate;
     private List<ServiceChecklistItemDto> checklistItems;
 
     public static ServiceRecordResponse from(ServiceRecord s) {
@@ -51,6 +53,8 @@ public class ServiceRecordResponse {
                 .statusAfter(s.getStatusAfter())
                 .completed(s.isCompleted())
                 .recordType(s.getRecordType())
+                .invoiceNumber(s.getInvoiceNumber())
+                .invoiceDate(s.getInvoiceDate())
                 .checklistItems(s.getChecklistItems() != null ? s.getChecklistItems().stream()
                         .map(item -> ServiceChecklistItemDto.builder()
                                 .id(item.getId())
