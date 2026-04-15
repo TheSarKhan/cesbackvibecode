@@ -100,7 +100,12 @@ public class ReceivableService {
             return;
         }
 
-        Customer customer = project.getRequest().getCustomer();
+        Customer customer = project.getRequest() != null ? project.getRequest().getCustomer() : null;
+        if (customer == null) {
+            // Müştəri olmadan debitor yaradıla bilməz — sessiz çıx
+            return;
+        }
+
         LocalDate dueDate = project.getEndDate() != null ? project.getEndDate().plusDays(20) : LocalDate.now().plusDays(20);
 
         // Koordinator planından gözlənilən ümumi məbləği hesabla
@@ -139,8 +144,13 @@ public class ReceivableService {
         Receivable r = receivableRepository.findByProjectIdAndDeletedFalse(invoice.getProject().getId())
                 .orElseGet(() -> {
                    createFromProject(invoice.getProject());
-                   return receivableRepository.findByProjectIdAndDeletedFalse(invoice.getProject().getId()).get();
+                   return receivableRepository.findByProjectIdAndDeletedFalse(invoice.getProject().getId()).orElse(null);
                 });
+
+        if (r == null) {
+            // Müştəri olmadığı üçün debitor yaradıla bilmədi
+            return;
+        }
 
         // Yalnız APPROVED INCOME qaimələrinin cəmi — borc məbləği
         BigDecimal totalAmount = invoiceRepository.findAllByProjectIdAndDeletedFalse(invoice.getProject().getId()).stream()

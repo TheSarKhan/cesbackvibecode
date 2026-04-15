@@ -48,8 +48,7 @@ public class ReceivableResponse {
                 .notes(r.getNotes())
                 .invoices(invoices != null ? invoices.stream()
                         .filter(i -> !i.isDeleted() && i.getType() == com.ces.erp.enums.InvoiceType.INCOME)
-                        .filter(i -> i.getStatus() == com.ces.erp.enums.InvoiceStatus.RETURNED
-                                || (i.getInvoiceNumber() != null && !i.getInvoiceNumber().trim().isEmpty()))
+                        .filter(i -> i.getStatus() == com.ces.erp.enums.InvoiceStatus.APPROVED)
                         .map(InvoiceResponse::from)
                         .toList() : java.util.Collections.emptyList())
                 .payments(r.getPayments().stream()

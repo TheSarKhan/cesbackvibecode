@@ -68,6 +68,13 @@ public class ServiceRecordController {
         return ApiResponse.success(serviceRecordService.updateChecklistItem(id, itemId, checked, note));
     }
 
+    @PatchMapping("/{id}/invoice-fields")
+    public ApiResponse<ServiceRecordResponse> patchInvoiceFields(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        return ApiResponse.success(serviceRecordService.patchInvoiceFields(id, body));
+    }
+
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         serviceRecordService.delete(id);

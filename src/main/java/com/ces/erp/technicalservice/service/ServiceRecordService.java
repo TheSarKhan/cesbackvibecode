@@ -182,6 +182,20 @@ public class ServiceRecordService {
     }
 
     @Transactional
+    public ServiceRecordResponse patchInvoiceFields(Long id, java.util.Map<String, String> body) {
+        ServiceRecord record = findOrThrow(id);
+        if (body.containsKey("invoiceNumber")) {
+            String val = body.get("invoiceNumber");
+            record.setInvoiceNumber(val != null && !val.isBlank() ? val.trim() : null);
+        }
+        if (body.containsKey("invoiceDate")) {
+            String val = body.get("invoiceDate");
+            record.setInvoiceDate(val != null && !val.isBlank() ? java.time.LocalDate.parse(val) : null);
+        }
+        return ServiceRecordResponse.from(serviceRecordRepository.save(record));
+    }
+
+    @Transactional
     public void delete(Long id) {
         ServiceRecord record = findOrThrow(id);
         record.softDelete();

@@ -348,6 +348,11 @@ public class InvoiceService implements ApprovalHandler {
             payableService.syncPayableDebt(updated);
         }
 
+        // Debitor cədvəlinə sync et
+        if (updated.getType() == InvoiceType.INCOME) {
+            receivableService.syncInvoiceDebt(updated);
+        }
+
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "TƏSDİQLƏNDİ", "Qaimə mühasibatlıq tərəfindən təsdiqləndi");
         return InvoiceResponse.from(updated);
     }
