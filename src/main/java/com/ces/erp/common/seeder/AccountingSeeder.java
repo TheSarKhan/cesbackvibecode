@@ -36,6 +36,12 @@ public class AccountingSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        log.info("AccountingSeeder deaktiv edilib — Mühasibatlıq modulu məlumatlarından təmizlənib.");
+        return;
+    }
+
+    @Deprecated
+    public void _oldSeedInvoices() {
         if (invoiceRepository.count() > 0) return;
         log.info("Mühasibatlıq qaimələri seed edilir...");
 

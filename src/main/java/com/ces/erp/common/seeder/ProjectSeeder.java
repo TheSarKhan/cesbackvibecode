@@ -31,6 +31,12 @@ public class ProjectSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        log.info("ProjectSeeder deaktiv edilib — Layihələr modulu məlumatlarından təmizlənib.");
+        return;
+    }
+
+    @Deprecated
+    public void _oldSeedProjects() {
         if (projectRepository.count() > 0) return;
         log.info("Layihələr seed edilir...");
 

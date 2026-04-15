@@ -34,6 +34,12 @@ public class CoordinatorSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        log.info("CoordinatorSeeder deaktiv edilib — Koordinator modulu məlumatlarından təmizlənib.");
+        return;
+    }
+
+    @Deprecated
+    public void _oldSeedPlans() {
         if (planRepository.count() > 0) return;
         log.info("Koordinator planları seed edilir...");
 
