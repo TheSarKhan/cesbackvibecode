@@ -7,7 +7,13 @@ import com.ces.erp.accounting.entity.Receivable;
 import com.ces.erp.accounting.entity.ReceivablePayment;
 import com.ces.erp.accounting.repository.ReceivablePaymentRepository;
 import com.ces.erp.accounting.repository.ReceivableRepository;
+import com.ces.erp.accounting.entity.Invoice;
+import com.ces.erp.coordinator.entity.CoordinatorPlan;
+import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.customer.entity.Customer;
+import com.ces.erp.enums.InvoiceStatus;
+import com.ces.erp.enums.InvoiceType;
+import com.ces.erp.enums.ProjectType;
 import com.ces.erp.enums.ReceivableStatus;
 import com.ces.erp.project.entity.Project;
 import com.ces.erp.project.entity.ProjectRevenue;
@@ -28,24 +34,63 @@ public class ReceivableService {
 
     private final ReceivableRepository receivableRepository;
     private final ReceivablePaymentRepository receivablePaymentRepository;
-    private final com.ces.erp.accounting.repository.InvoiceRepository invoiceRepository;
+    private final com.ces.erp.accounting.repository.InvoiceRepository invoiceRepository; // NOSONAR — InvoiceRepository import conflict avoided
+    private final CoordinatorPlanRepository coordinatorPlanRepository;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<ReceivableResponse> getReceivables(ReceivableStatus status, String search, Pageable pageable) {
         String safeSearch = (search == null || search.trim().isEmpty()) ? "" : search.trim();
         return receivableRepository.findAllWithFilters(status, safeSearch, pageable)
                 .map(r -> {
-                    List<com.ces.erp.accounting.entity.Invoice> invoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
+                    syncTotalFromInvoices(r);
+                    List<Invoice> invoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
                     return ReceivableResponse.from(r, invoices);
                 });
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ReceivableResponse getReceivable(Long id) {
         Receivable r = receivableRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new RuntimeException("Receivable not found"));
-        List<com.ces.erp.accounting.entity.Invoice> invoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
+        syncTotalFromInvoices(r);
+        List<Invoice> invoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
         return ReceivableResponse.from(r, invoices);
+    }
+
+    /**
+     * totalAmount-u həmişə APPROVED INCOME qaimələrin cəminə əsasən hesabla.
+     * Əgər heç bir APPROVED qaimə yoxdursa — planın dəyərini istifadə et (fallback).
+     */
+    private void syncTotalFromInvoices(Receivable r) {
+        if (r.getProject() == null) return;
+        List<Invoice> allInvoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
+        BigDecimal invoiceTotal = allInvoices.stream()
+                .filter(i -> i.getType() == InvoiceType.INCOME && i.getStatus() == InvoiceStatus.APPROVED)
+                .map(i -> i.getAmount() != null ? i.getAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (invoiceTotal.compareTo(BigDecimal.ZERO) > 0) {
+            if (!invoiceTotal.equals(r.getTotalAmount())) {
+                r.setTotalAmount(invoiceTotal);
+                receivableRepository.save(r);
+            }
+            return;
+        }
+        // Fallback: heç bir APPROVED qaimə yoxdursa — planın dəyərini götür
+        if (r.getTotalAmount() != null && r.getTotalAmount().compareTo(BigDecimal.ZERO) > 0) return;
+        if (r.getProject().getRequest() == null) return;
+        CoordinatorPlan plan = coordinatorPlanRepository.findByRequestId(r.getProject().getRequest().getId()).orElse(null);
+        if (plan == null) return;
+        BigDecimal eqPrice = plan.getEquipmentPrice() != null ? plan.getEquipmentPrice() : BigDecimal.ZERO;
+        BigDecimal transPrice = plan.getTransportationPrice() != null ? plan.getTransportationPrice() : BigDecimal.ZERO;
+        int days = plan.getDayCount() != null ? plan.getDayCount() : 0;
+        ProjectType type = r.getProject().getRequest().getProjectType();
+        BigDecimal eqTotal = (type == ProjectType.MONTHLY || days == 0)
+                ? eqPrice : eqPrice.multiply(BigDecimal.valueOf(days));
+        BigDecimal computed = eqTotal.add(transPrice);
+        if (computed.compareTo(BigDecimal.ZERO) > 0) {
+            r.setTotalAmount(computed);
+            receivableRepository.save(r);
+        }
     }
 
     @Transactional
@@ -58,10 +103,26 @@ public class ReceivableService {
         Customer customer = project.getRequest().getCustomer();
         LocalDate dueDate = project.getEndDate() != null ? project.getEndDate().plusDays(20) : LocalDate.now().plusDays(20);
 
+        // Koordinator planından gözlənilən ümumi məbləği hesabla
+        BigDecimal initialTotal = BigDecimal.ZERO;
+        if (project.getRequest() != null) {
+            CoordinatorPlan plan = coordinatorPlanRepository.findByRequestId(project.getRequest().getId()).orElse(null);
+            if (plan != null) {
+                BigDecimal eqPrice = plan.getEquipmentPrice() != null ? plan.getEquipmentPrice() : BigDecimal.ZERO;
+                BigDecimal transPrice = plan.getTransportationPrice() != null ? plan.getTransportationPrice() : BigDecimal.ZERO;
+                int days = plan.getDayCount() != null ? plan.getDayCount() : 0;
+                ProjectType type = project.getRequest().getProjectType();
+                BigDecimal eqTotal = (type == ProjectType.MONTHLY || days == 0)
+                        ? eqPrice
+                        : eqPrice.multiply(BigDecimal.valueOf(days));
+                initialTotal = eqTotal.add(transPrice);
+            }
+        }
+
         Receivable r = Receivable.builder()
                 .project(project)
                 .customer(customer)
-                .totalAmount(BigDecimal.ZERO)
+                .totalAmount(initialTotal)
                 .paidAmount(BigDecimal.ZERO)
                 .dueDate(dueDate)
                 .status(ReceivableStatus.PENDING)
@@ -70,8 +131,8 @@ public class ReceivableService {
     }
 
     @Transactional
-    public void syncInvoiceDebt(com.ces.erp.accounting.entity.Invoice invoice) {
-        if (invoice == null || invoice.getProject() == null || invoice.getType() != com.ces.erp.enums.InvoiceType.INCOME) {
+    public void syncInvoiceDebt(Invoice invoice) {
+        if (invoice == null || invoice.getProject() == null || invoice.getType() != InvoiceType.INCOME) {
             return;
         }
 
@@ -81,14 +142,15 @@ public class ReceivableService {
                    return receivableRepository.findByProjectIdAndDeletedFalse(invoice.getProject().getId()).get();
                 });
 
-        // Recalculate total amount from all project finalized income invoices
+        // Yalnız APPROVED INCOME qaimələrinin cəmi — borc məbləği
         BigDecimal totalAmount = invoiceRepository.findAllByProjectIdAndDeletedFalse(invoice.getProject().getId()).stream()
-                .filter(i -> i.getType() == com.ces.erp.enums.InvoiceType.INCOME)
-                .filter(i -> i.getInvoiceNumber() != null && !i.getInvoiceNumber().trim().isEmpty())
+                .filter(i -> i.getType() == InvoiceType.INCOME && i.getStatus() == InvoiceStatus.APPROVED)
                 .map(i -> i.getAmount() != null ? i.getAmount() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        r.setTotalAmount(totalAmount);
+        if (totalAmount.compareTo(BigDecimal.ZERO) > 0) {
+            r.setTotalAmount(totalAmount);
+        }
         recalculateStatus(r);
     }
 
@@ -101,7 +163,7 @@ public class ReceivableService {
             throw new RuntimeException("Qaimə seçilməsi məcburidir");
         }
 
-        com.ces.erp.accounting.entity.Invoice invoice = invoiceRepository.findByIdActive(req.getInvoiceId())
+        Invoice invoice = invoiceRepository.findByIdActive(req.getInvoiceId())
                 .orElseThrow(() -> new RuntimeException("Invoice not found"));
 
         if (!invoice.getProject().getId().equals(r.getProject().getId())) {
@@ -151,17 +213,17 @@ public class ReceivableService {
 
         r.setStatus(ReceivableStatus.COMPLETED);
         receivableRepository.save(r);
-        List<com.ces.erp.accounting.entity.Invoice> invoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
+        List<Invoice> invoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
         return ReceivableResponse.from(r, invoices);
     }
 
     private void recalculateStatus(Receivable r) {
         List<ReceivablePayment> allPayments = receivablePaymentRepository.findAllByReceivableIdAndDeletedFalseOrderByPaymentDateAsc(r.getId());
-        List<com.ces.erp.accounting.entity.Invoice> projectInvoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
+        List<Invoice> projectInvoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
         
         // Update per-invoice paid amount
-        for (com.ces.erp.accounting.entity.Invoice inv : projectInvoices) {
-            if (inv.getType() != com.ces.erp.enums.InvoiceType.INCOME) continue;
+        for (Invoice inv : projectInvoices) {
+            if (inv.getType() != InvoiceType.INCOME) continue;
             
             BigDecimal invPaid = allPayments.stream()
                     .filter(p -> p.getInvoice() != null && p.getInvoice().getId().equals(inv.getId()))

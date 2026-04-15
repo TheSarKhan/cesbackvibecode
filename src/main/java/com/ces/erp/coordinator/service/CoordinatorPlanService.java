@@ -18,6 +18,7 @@ import com.ces.erp.coordinator.repository.CoordinatorDocumentRepository;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.ProjectStatus;
+import com.ces.erp.enums.ProjectType;
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.approval.repository.PendingOperationRepository;
 import com.ces.erp.enums.OperationStatus;
@@ -37,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -158,13 +160,19 @@ public class CoordinatorPlanService implements ApprovalHandler {
         plan.setDayCount(req.getDayCount());
         plan.setEquipmentPrice(req.getEquipmentPrice());
 
-        // Podratçı/İnvestor: günlük dərəcə × gün sayı = cəmi ödəniş
-        BigDecimal dailyRate = req.getContractorDailyRate() != null ? req.getContractorDailyRate() : java.math.BigDecimal.ZERO;
+        // Podratçı/İnvestor ödənişi: aylıq → sabit dərəcə, günlük → dərəcə × gün sayı
+        BigDecimal dailyRate = req.getContractorDailyRate() != null ? req.getContractorDailyRate() : BigDecimal.ZERO;
         plan.setContractorDailyRate(dailyRate);
-        if (dailyRate.compareTo(java.math.BigDecimal.ZERO) > 0 && req.getDayCount() != null && req.getDayCount() > 0) {
-            plan.setContractorPayment(dailyRate.multiply(java.math.BigDecimal.valueOf(req.getDayCount())));
+        if (dailyRate.compareTo(BigDecimal.ZERO) > 0) {
+            if (request.getProjectType() == ProjectType.MONTHLY) {
+                plan.setContractorPayment(dailyRate);
+            } else if (req.getDayCount() != null && req.getDayCount() > 0) {
+                plan.setContractorPayment(dailyRate.multiply(BigDecimal.valueOf(req.getDayCount())));
+            } else {
+                plan.setContractorPayment(BigDecimal.ZERO);
+            }
         } else {
-            plan.setContractorPayment(java.math.BigDecimal.ZERO);
+            plan.setContractorPayment(BigDecimal.ZERO);
         }
 
         plan.setOperatorPayment(req.getOperatorPayment());

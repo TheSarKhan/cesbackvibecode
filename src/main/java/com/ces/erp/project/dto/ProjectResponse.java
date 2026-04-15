@@ -54,6 +54,7 @@ ProjectResponse {
     private String contractorVoen;
     private String contractorPhone;
     private String contractorContactPerson;
+    private BigDecimal contractorDailyRate;
     private BigDecimal contractorPayment;
 
     // ─── İnvestor (INVESTOR texnikası üçün) ───────────────────────────────────
@@ -168,6 +169,7 @@ ProjectResponse {
                 .contractorVoen(contractorVoen)
                 .contractorPhone(contractorPhone)
                 .contractorContactPerson(contractorContactPerson)
+                .contractorDailyRate(plan != null ? plan.getContractorDailyRate() : null)
                 .contractorPayment(plan != null ? plan.getContractorPayment() : BigDecimal.ZERO)
                 .investorName(investorName)
                 .investorVoen(investorVoen)

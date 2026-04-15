@@ -72,6 +72,7 @@ public class InvoiceResponse {
             case INCOME             -> "Gəlir";
             case CONTRACTOR_EXPENSE -> "Ödəmə";
             case COMPANY_EXPENSE    -> "Xərc";
+            case INVESTOR_EXPENSE   -> "İnvestor Ödəməsi";
         };
 
         BigDecimal netProfit = null;
