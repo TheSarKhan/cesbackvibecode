@@ -38,6 +38,12 @@ public class RequestSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        log.info("RequestSeeder deaktiv edilib — Sorğular modulu məlumatlarından təmizlənib.");
+        return;
+    }
+
+    @Deprecated
+    public void _oldSeedRequests() {
         if (requestRepository.count() > 0) return;
         log.info("Sorğular seed edilir...");
 
