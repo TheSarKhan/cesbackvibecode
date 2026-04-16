@@ -66,6 +66,7 @@ public class InvoiceResponse {
     private Integer workingDaysInMonth;
     private Integer workingHoursPerDay;
     private BigDecimal overtimeRate;
+    private Long sourceInvoiceId;
 
     public static InvoiceResponse from(Invoice inv) {
         String typeLabel = switch (inv.getType()) {
@@ -139,6 +140,7 @@ public class InvoiceResponse {
                 .overtimeRate(inv.getOvertimeRate())
                 .paidAmount(inv.getPaidAmount())
                 .remainingAmount(inv.getAmount() != null ? inv.getAmount().subtract(inv.getPaidAmount() != null ? inv.getPaidAmount() : BigDecimal.ZERO) : BigDecimal.ZERO)
+                .sourceInvoiceId(inv.getSourceInvoiceId())
                 .build();
     }
 }

@@ -1,5 +1,6 @@
 package com.ces.erp.accounting.service;
 
+import lombok.extern.slf4j.Slf4j;
 import com.ces.erp.accounting.dto.AccountingSummaryResponse;
 import com.ces.erp.accounting.dto.InvoiceRequest;
 import com.ces.erp.accounting.dto.InvoiceResponse;
@@ -38,6 +39,7 @@ import java.math.RoundingMode;
 import java.util.List;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class InvoiceService implements ApprovalHandler {
 
@@ -94,17 +96,20 @@ public class InvoiceService implements ApprovalHandler {
     }
 
     @Transactional(readOnly = true)
-    public PagedResponse<InvoiceResponse> getAllPaged(int page, int size, String search, String type) {
+    public PagedResponse<InvoiceResponse> getAllPaged(int page, int size, String search, String type, String status) {
         String q = (search != null && !search.isBlank()) ? search : null;
+        List<InvoiceStatus> statuses = (status != null && !status.isBlank())
+                ? List.of(InvoiceStatus.valueOf(status))
+                : List.of(InvoiceStatus.DRAFT, InvoiceStatus.SENT, InvoiceStatus.APPROVED);
         var pageable = PageRequest.of(page, size, Sort.by("invoiceDate").descending().and(Sort.by("createdAt").descending()));
         if ("PAYMENT".equals(type)) {
             return PagedResponse.from(
                     invoiceRepository.findAllFilteredByTypes(q,
-                            List.of(InvoiceType.CONTRACTOR_EXPENSE, InvoiceType.INVESTOR_EXPENSE), pageable),
+                            List.of(InvoiceType.CONTRACTOR_EXPENSE, InvoiceType.INVESTOR_EXPENSE), statuses, pageable),
                     InvoiceResponse::from);
         }
         InvoiceType t = (type != null && !type.isBlank()) ? InvoiceType.valueOf(type) : null;
-        return PagedResponse.from(invoiceRepository.findAllFiltered(q, t, pageable), InvoiceResponse::from);
+        return PagedResponse.from(invoiceRepository.findAllFiltered(q, t, statuses, pageable), InvoiceResponse::from);
     }
 
     @Transactional(readOnly = true)
@@ -274,9 +279,12 @@ public class InvoiceService implements ApprovalHandler {
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "SAHƏ YENİLƏNDİ", "Mühasib sahələri doldurdu");
 
         // INCOME qaimə SENT olduqda → podratçı/investor xərc qaiməsini avtomatik yarat
+        log.info("[patchFields] id={}, type={}, status={}, prevStatus={}",
+                updated.getId(), updated.getType(), updated.getStatus(), prevStatus);
         if (updated.getType() == InvoiceType.INCOME
                 && updated.getStatus() == InvoiceStatus.SENT
                 && prevStatus != InvoiceStatus.SENT) {
+            log.info("[patchFields] triggering autoCreateExpenseInvoice for invoice={}", updated.getId());
             autoCreateExpenseInvoice(updated);
         }
 
@@ -366,6 +374,19 @@ public class InvoiceService implements ApprovalHandler {
         inv.setStatus(InvoiceStatus.RETURNED);
         Invoice updated = invoiceRepository.save(inv);
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "GERİ QAYTARILDI", "Qaimə layihəyə geri qaytarıldı");
+
+        // Bu gəlir qaiməsinə bağlı xərc qaimələrini də geri qaytar
+        if (inv.getType() == InvoiceType.INCOME) {
+            List<Invoice> linkedExpenses = invoiceRepository.findAllBySourceInvoiceIdAndDeletedFalse(inv.getId());
+            for (Invoice exp : linkedExpenses) {
+                if (exp.getStatus() == InvoiceStatus.SENT) {
+                    exp.setStatus(InvoiceStatus.RETURNED);
+                    invoiceRepository.save(exp);
+                    log.info("[returnToProject] auto-returned linked expense invoice={}", exp.getId());
+                }
+            }
+        }
+
         return InvoiceResponse.from(updated);
     }
 
@@ -419,30 +440,47 @@ public class InvoiceService implements ApprovalHandler {
     // ─── Avtomatik xərc qaiməsi ───────────────────────────────────────────────
 
     private void autoCreateExpenseInvoice(Invoice incomeInv) {
-        if (incomeInv.getProject() == null || incomeInv.getProject().getRequest() == null) return;
+        log.info("[autoCreateExpense] invoice={}, project={}", incomeInv.getId(),
+                incomeInv.getProject() != null ? incomeInv.getProject().getId() : null);
+        if (incomeInv.getProject() == null || incomeInv.getProject().getRequest() == null) {
+            log.warn("[autoCreateExpense] skip: project or request is null");
+            return;
+        }
 
         // Koordinator planını tap
         CoordinatorPlan plan = coordinatorPlanRepository
                 .findByRequestId(incomeInv.getProject().getRequest().getId())
                 .orElse(null);
-        if (plan == null) return;
+        if (plan == null) {
+            log.warn("[autoCreateExpense] skip: coordinator plan not found for requestId={}",
+                    incomeInv.getProject().getRequest().getId());
+            return;
+        }
 
         BigDecimal dailyRate = plan.getContractorDailyRate();
-        if (dailyRate == null || dailyRate.compareTo(BigDecimal.ZERO) == 0) return;
+        if (dailyRate == null || dailyRate.compareTo(BigDecimal.ZERO) == 0) {
+            log.warn("[autoCreateExpense] skip: contractorDailyRate is null or 0");
+            return;
+        }
 
         // Texnikanı tap (planda seçilmiş, yoxsa sorğudan gələn)
         Equipment eq = plan.getSelectedEquipment() != null
                 ? plan.getSelectedEquipment()
                 : incomeInv.getProject().getRequest().getSelectedEquipment();
-        if (eq == null) return;
+        if (eq == null) {
+            log.warn("[autoCreateExpense] skip: equipment is null (plan and request)");
+            return;
+        }
 
         OwnershipType ownershipType = eq.getOwnershipType();
-        if (ownershipType != OwnershipType.CONTRACTOR && ownershipType != OwnershipType.INVESTOR) return;
+        if (ownershipType != OwnershipType.CONTRACTOR && ownershipType != OwnershipType.INVESTOR) {
+            log.warn("[autoCreateExpense] skip: ownershipType={} is not CONTRACTOR/INVESTOR", ownershipType);
+            return;
+        }
 
         // Məbləğ: (standart gün + əlavə gün) × gündəlik dərəcə
         int days = (incomeInv.getStandardDays() != null ? incomeInv.getStandardDays() : 0)
                  + (incomeInv.getExtraDays() != null ? incomeInv.getExtraDays() : 0);
-        if (days == 0) return;
 
         // Layihə növünə görə gündəlik dərəcəni hesabla
         // MONTHLY: contractorDailyRate aylıq məbləğdir → gündəlik = aylıq / iş günü sayı
@@ -450,6 +488,12 @@ public class InvoiceService implements ApprovalHandler {
         com.ces.erp.enums.ProjectType projectType = incomeInv.getProject().getRequest() != null
                 ? incomeInv.getProject().getRequest().getProjectType()
                 : null;
+
+        // DAILY üçün gün məcburidir; MONTHLY üçün gün girilmədibsə contractorDailyRate-i tam məbləğ kimi götür
+        if (days == 0 && projectType != com.ces.erp.enums.ProjectType.MONTHLY) {
+            log.warn("[autoCreateExpense] skip: days=0 and projectType={}", projectType);
+            return;
+        }
 
         BigDecimal perDayRate;
         if (projectType == com.ces.erp.enums.ProjectType.MONTHLY) {
@@ -459,7 +503,10 @@ public class InvoiceService implements ApprovalHandler {
             perDayRate = dailyRate;
         }
 
-        BigDecimal daysAmount = perDayRate.multiply(BigDecimal.valueOf(days));
+        // MONTHLY + days=0: tam aylıq məbləği götür (gün daxil edilməyib)
+        BigDecimal daysAmount = (days == 0)
+                ? dailyRate
+                : perDayRate.multiply(BigDecimal.valueOf(days));
 
         // Əlavə saat hissəsi: (gündəlik / saat norması) × əlavə saat × əmsalı
         BigDecimal extraHoursAmount = BigDecimal.ZERO;
@@ -469,9 +516,8 @@ public class InvoiceService implements ApprovalHandler {
                 && incomeInv.getWorkingHoursPerDay() > 0) {
             BigDecimal hourlyRate = perDayRate.divide(
                     BigDecimal.valueOf(incomeInv.getWorkingHoursPerDay()), 6, RoundingMode.HALF_UP);
-            BigDecimal overtimeRate = incomeInv.getOvertimeRate() != null
-                    ? incomeInv.getOvertimeRate() : BigDecimal.ONE;
-            extraHoursAmount = hourlyRate.multiply(incomeInv.getExtraHours()).multiply(overtimeRate);
+            // Podratçı/investora yalnız 1x tarif — 1.5x artım şirkətin qazancıdır
+            extraHoursAmount = hourlyRate.multiply(incomeInv.getExtraHours());
         }
 
         BigDecimal amount = daysAmount.add(extraHoursAmount).setScale(2, RoundingMode.HALF_UP);
@@ -481,11 +527,8 @@ public class InvoiceService implements ApprovalHandler {
                 ? InvoiceType.CONTRACTOR_EXPENSE
                 : InvoiceType.INVESTOR_EXPENSE;
 
-        boolean alreadyExists = invoiceRepository
-                .existsByProjectIdAndTypeAndPeriodMonthAndPeriodYearAndDeletedFalse(
-                        incomeInv.getProject().getId(), expType,
-                        incomeInv.getPeriodMonth(), incomeInv.getPeriodYear());
-        if (alreadyExists) return;
+        log.info("[autoCreateExpense] creating {} invoice, amount={}, project={}, sourceInvoice={}",
+                expType, amount, incomeInv.getProject().getId(), incomeInv.getId());
 
         // Qaimə yarat (SENT — mühasibə görsənir, təsdiq gözləyir)
         Invoice.InvoiceBuilder builder = Invoice.builder()
@@ -499,6 +542,7 @@ public class InvoiceService implements ApprovalHandler {
                 .periodYear(incomeInv.getPeriodYear())
                 .standardDays(incomeInv.getStandardDays())
                 .extraDays(incomeInv.getExtraDays())
+                .sourceInvoiceId(incomeInv.getId())
                 .notes("Gəlir qaiməsinə uyğun avtomatik yaradılmış ödəniş qaiməsi");
 
         if (ownershipType == OwnershipType.CONTRACTOR) {

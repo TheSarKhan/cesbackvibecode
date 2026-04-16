@@ -330,6 +330,34 @@ public class ProjectService {
                 eq.setStatus(EquipmentStatus.IN_TRANSIT);
                 equipmentRepository.save(eq);
             }
+
+            // Podratçı/İnvestor ödəniş qaiməsini avtomatik yarat (əgər artıq yoxdursa)
+            BigDecimal contractorPayment = plan != null && plan.getContractorPayment() != null
+                    ? plan.getContractorPayment() : BigDecimal.ZERO;
+            if (contractorPayment.compareTo(BigDecimal.ZERO) > 0
+                    && (eq.getOwnershipType() == OwnershipType.CONTRACTOR || eq.getOwnershipType() == OwnershipType.INVESTOR)) {
+                boolean expenseExists = invoiceRepository.existsByProjectIdAndTypeAndPeriodMonthAndPeriodYearAndDeletedFalse(
+                        p.getId(),
+                        eq.getOwnershipType() == OwnershipType.CONTRACTOR ? InvoiceType.CONTRACTOR_EXPENSE : InvoiceType.INVESTOR_EXPENSE,
+                        null, null);
+                if (!expenseExists) {
+                    Invoice.InvoiceBuilder expBuilder = Invoice.builder()
+                            .status(InvoiceStatus.SENT)
+                            .amount(contractorPayment)
+                            .invoiceDate(LocalDate.now())
+                            .project(p)
+                            .equipmentName(eq.getName())
+                            .notes("Layihə bağlanmasında avtomatik yaradılmış ödəniş qaiməsi");
+                    if (eq.getOwnershipType() == OwnershipType.CONTRACTOR) {
+                        expBuilder.type(InvoiceType.CONTRACTOR_EXPENSE)
+                                  .contractor(eq.getOwnerContractor());
+                    } else {
+                        expBuilder.type(InvoiceType.INVESTOR_EXPENSE)
+                                  .companyName(eq.getOwnerInvestorName());
+                    }
+                    invoiceRepository.save(expBuilder.build());
+                }
+            }
         }
 
         return ProjectResponse.from(p, plan);

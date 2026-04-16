@@ -107,4 +107,7 @@ public class Invoice extends BaseEntity {
     @Column(precision = 12, scale = 2)
     @Builder.Default
     private BigDecimal paidAmount = BigDecimal.ZERO;
+
+    // Avtomatik yaradılmış xərc qaiməsinin mənbə gəlir qaiməsi
+    private Long sourceInvoiceId;
 }
