@@ -179,8 +179,12 @@ public class InvoiceService implements ApprovalHandler {
         }
 
         if (req.getProjectId() != null) {
-            inv.setProject(projectRepository.findById(req.getProjectId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Layihə", req.getProjectId())));
+            var project = projectRepository.findById(req.getProjectId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Layihə", req.getProjectId()));
+            if (project.getStatus() != com.ces.erp.enums.ProjectStatus.ACTIVE) {
+                throw new BusinessException("Layihə aktiv deyil — qaimə yaratmaq mümkün deyil");
+            }
+            inv.setProject(project);
         }
         if (req.getContractorId() != null) {
             inv.setContractor(contractorRepository.findById(req.getContractorId())

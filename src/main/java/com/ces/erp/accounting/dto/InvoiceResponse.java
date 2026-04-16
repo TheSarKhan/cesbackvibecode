@@ -38,6 +38,7 @@ public class InvoiceResponse {
     private String projectCode;
     private String projectCompanyName;
     private String projectName;
+    private Long customerId;
 
     // Əlaqəli podratçı (B1)
     private Long contractorId;
@@ -76,6 +77,8 @@ public class InvoiceResponse {
             case INVESTOR_EXPENSE   -> "İnvestor Ödəməsi";
         };
 
+        var builder = InvoiceResponse.builder();
+
         BigDecimal netProfit = null;
         String projectCode = null;
         String projectCompanyName = null;
@@ -89,6 +92,9 @@ public class InvoiceResponse {
             if (request != null) {
                 projectCompanyName = request.getCompanyName();
                 projectName = request.getProjectName();
+                if (request.getCustomer() != null) {
+                    builder.customerId(request.getCustomer().getId());
+                }
             }
             if (inv.getType() == InvoiceType.INCOME) {
                 BigDecimal totalRev = inv.getProject().getRevenues().stream()
@@ -103,7 +109,7 @@ public class InvoiceResponse {
             }
         }
 
-        return InvoiceResponse.builder()
+        return builder
                 .id(inv.getId())
                 .type(inv.getType())
                 .typeLabel(typeLabel)
