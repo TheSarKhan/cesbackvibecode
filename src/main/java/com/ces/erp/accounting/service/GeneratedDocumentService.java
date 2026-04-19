@@ -108,10 +108,14 @@ public class GeneratedDocumentService {
         int maxNum = documentRepository.findMaxDocumentNumber();
         String docNumber = String.format("%04d", maxNum + 1);
 
-        // 6. Mənbə ID-ləri JSON array
+        // 6. Mənbə ID-ləri + əlavə nömrələri JSON array
         String sourceIdsJson = null;
         if (req.getSourceInvoiceIds() != null && !req.getSourceInvoiceIds().isEmpty()) {
             sourceIdsJson = "[" + req.getSourceInvoiceIds().toString().replaceAll("[\\[\\] ]", "") + "]";
+        }
+        String addendumJson = null;
+        if (req.getAddendumNumbers() != null && !req.getAddendumNumbers().isEmpty()) {
+            addendumJson = "[" + req.getAddendumNumbers().toString().replaceAll("[\\[\\] ]", "") + "]";
         }
 
         // 7. Entity yarat
@@ -122,6 +126,7 @@ public class GeneratedDocumentService {
                 .customerName(customer.getCompanyName())
                 .customerVoen(customer.getVoen())
                 .customerAddress(customer.getAddress())
+                .customerDirectorName(customer.getDirectorName())
                 .contractDate(req.getContractDate())
                 .contractNumber(req.getContractNumber())
                 .subtotal(subtotal)
@@ -129,6 +134,13 @@ public class GeneratedDocumentService {
                 .vatAmount(vatAmount)
                 .grandTotal(grandTotal)
                 .sourceInvoiceIds(sourceIdsJson)
+                .addendumNumbers(addendumJson)
+                .bankName(req.getBankName())
+                .bankCode(req.getBankCode())
+                .bankSwift(req.getBankSwift())
+                .bankIban(req.getBankIban())
+                .bankMh(req.getBankMh())
+                .bankHh(req.getBankHh())
                 .notes(req.getNotes())
                 .build();
 

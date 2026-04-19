@@ -18,6 +18,7 @@ public class CustomerRequest {
     @Pattern(regexp = "^\\d{10}$", message = "VÖEN 10 rəqəmdən ibarət olmalıdır")
     private String voen;
     private String address;
+    private String directorName;
     private String supplierPerson;
     private String supplierPhone;
     private String officeContactPerson;

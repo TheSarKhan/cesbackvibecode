@@ -48,6 +48,9 @@ public class GeneratedDocument extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String customerAddress;
 
+    @Column(length = 150)
+    private String customerDirectorName;
+
     // ─── Müqavilə sahələri (Hesab-Faktura üçün) ───────────────────────────────
 
     private LocalDate contractDate;
@@ -73,6 +76,26 @@ public class GeneratedDocument extends BaseEntity {
     @Builder.Default
     private BigDecimal grandTotal = BigDecimal.ZERO;
 
+    // ─── Seçilmiş bank məlumatları (sənəd yaradılarkən snapshot) ─────────────
+
+    @Column(length = 200)
+    private String bankName;
+
+    @Column(length = 50)
+    private String bankCode;
+
+    @Column(length = 20)
+    private String bankSwift;
+
+    @Column(length = 50)
+    private String bankIban;
+
+    @Column(length = 50)
+    private String bankMh;
+
+    @Column(length = 50)
+    private String bankHh;
+
     // ─── PDF yolu ─────────────────────────────────────────────────────────────
 
     @Column
@@ -82,6 +105,9 @@ public class GeneratedDocument extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String sourceInvoiceIds;  // JSON array: "[1,2,3]"
+
+    @Column(columnDefinition = "TEXT")
+    private String addendumNumbers;   // JSON array: "[1,2,3]"
 
     @Column(columnDefinition = "TEXT")
     private String notes;

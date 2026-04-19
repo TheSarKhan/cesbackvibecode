@@ -25,6 +25,17 @@ public class GeneratedDocumentRequest {
     /** Traceability: hansı qaimələrdən yaradıldı */
     private List<Long> sourceInvoiceIds;
 
+    /** Əlavə nömrələri (Təhvil-Təslim Aktı üçün) */
+    private List<Integer> addendumNumbers;
+
+    /** Seçilmiş bank məlumatları */
+    private String bankName;
+    private String bankCode;
+    private String bankSwift;
+    private String bankIban;
+    private String bankMh;
+    private String bankHh;
+
     @NotNull(message = "Sətir siyahısı boş ola bilməz")
     @NotEmpty(message = "Ən azı bir sətir lazımdır")
     @Valid

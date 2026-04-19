@@ -2,6 +2,7 @@ package com.ces.erp.accounting.controller;
 
 import com.ces.erp.accounting.dto.*;
 import com.ces.erp.accounting.service.GeneratedDocumentService;
+import com.ces.erp.enums.DocumentType;
 import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,7 +69,7 @@ public class GeneratedDocumentController {
         UrlResource resource = documentService.downloadPdf(id);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + doc.getDocumentNumber() + ".pdf\"")
+                        "attachment; filename=\"" + docTypeName(doc.getDocumentType()) + "-" + doc.getDocumentNumber() + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(resource);
     }
@@ -86,5 +87,14 @@ public class GeneratedDocumentController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         documentService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok("Sənəd silindi"));
+    }
+
+    private String docTypeName(DocumentType type) {
+        if (type == null) return "Sened";
+        return switch (type) {
+            case HESAB_FAKTURA      -> "Hesab-Faktura";
+            case TEHVIL_TESLIM_AKTI -> "Tehvil-Teslim-Akti";
+            case ENGLISH_INVOICE    -> "English-Invoice";
+        };
     }
 }

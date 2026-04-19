@@ -23,29 +23,27 @@ public class DocumentConfigSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        // Mövcuddursa atlayır
-        if (configRepository.existsByCategoryAndKeyAndDeletedFalse("DOCUMENT_VAT_RATE", "DEFAULT")) return;
-
-        log.info("Sənəd konfiqurasiya elementləri seed edilir...");
+        log.info("Sənəd konfiqurasiya elementləri yoxlanır...");
 
         List<ConfigItem> items = new ArrayList<>();
 
         // ─── ƏDV dərəcəsi ─────────────────────────────────────────────────────
-        items.add(itemWithValue("DOCUMENT_VAT_RATE", "DEFAULT", "18", "ƏDV dərəcəsi (%)"));
+        addIfAbsent(items, "DOCUMENT_VAT_RATE", "DEFAULT", "18");
 
         // ─── Şirkət məlumatları ────────────────────────────────────────────────
-        addIfAbsent(items, "COMPANY_INFO", "COMPANY_NAME", "CES MMC");
-        addIfAbsent(items, "COMPANY_INFO", "VOEN", "1703130101");
-        addIfAbsent(items, "COMPANY_INFO", "ADDRESS", "Bakı şəh.");
-        addIfAbsent(items, "COMPANY_INFO", "DIRECTOR_NAME", "");
+        addIfAbsent(items, "COMPANY_INFO", "COMPANY_NAME",  "Construction Equipment Services MMC");
+        addIfAbsent(items, "COMPANY_INFO", "VOEN",          "1703130101");
+        addIfAbsent(items, "COMPANY_INFO", "ADDRESS",       "Bakı şəh., Azərbaycan");
+        addIfAbsent(items, "COMPANY_INFO", "DIRECTOR_NAME", "Elvin Seyidov");
         addIfAbsent(items, "COMPANY_INFO", "PHONE", "");
         addIfAbsent(items, "COMPANY_INFO", "EMAIL", "");
 
         // ─── Bank məlumatları ──────────────────────────────────────────────────
-        addIfAbsent(items, "COMPANY_BANK_DETAILS", "BANK_NAME", "Kapital Bank ASC");
-        addIfAbsent(items, "COMPANY_BANK_DETAILS", "IBAN", "");
-        addIfAbsent(items, "COMPANY_BANK_DETAILS", "SWIFT", "");
-        addIfAbsent(items, "COMPANY_BANK_DETAILS", "CORRESPONDENT_ACCOUNT", "");
+        addIfAbsent(items, "COMPANY_BANK_DETAILS", "BANK_NAME",             "Azər-Türk Bank");
+        addIfAbsent(items, "COMPANY_BANK_DETAILS", "BANK_CODE",             "507699");
+        addIfAbsent(items, "COMPANY_BANK_DETAILS", "SWIFT",                 "AZRTAZ22XXX");
+        addIfAbsent(items, "COMPANY_BANK_DETAILS", "IBAN",                  "AZ69AZRT40060019440587075001");
+        addIfAbsent(items, "COMPANY_BANK_DETAILS", "CORRESPONDENT_ACCOUNT", "AZ02NABZ01350100000000022944");
 
         configRepository.saveAll(items);
         log.info("{} sənəd konfiqurasiya elementi əlavə edildi.", items.size());
