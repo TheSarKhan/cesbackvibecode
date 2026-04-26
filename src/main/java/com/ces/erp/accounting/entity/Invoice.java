@@ -67,7 +67,11 @@ public class Invoice extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contractor_id")
-    private Contractor contractor;      // B1 üçün məcburi
+    private Contractor contractor;      // B1 üçün (qismən)
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "investor_id")
+    private com.ces.erp.investor.entity.Investor investor; // B1 üçün İnvestor (qismən)
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
@@ -104,4 +108,11 @@ public class Invoice extends BaseEntity {
 
     @Column(precision = 4, scale = 2)
     private BigDecimal overtimeRate;      // əlavə saat dərəcəsi (1.0 = adi, 1.5 = əlavə)
+
+    @Column(precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal paidAmount = BigDecimal.ZERO;
+
+    // Avtomatik yaradılmış xərc qaiməsinin mənbə gəlir qaiməsi
+    private Long sourceInvoiceId;
 }

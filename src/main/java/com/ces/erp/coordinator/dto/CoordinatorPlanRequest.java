@@ -13,7 +13,8 @@ public class CoordinatorPlanRequest {
 
     private Integer dayCount;
     private BigDecimal equipmentPrice;
-    private BigDecimal contractorPayment;
+    private BigDecimal contractorDailyRate;  // günlük dərəcə (frontend-dən gəlir)
+    private BigDecimal contractorPayment;    // cəmi (dayCount * dailyRate — backend hesablayır, ya da manual)
     private BigDecimal operatorPayment;
     private BigDecimal transportationPrice;
 

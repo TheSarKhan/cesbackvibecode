@@ -54,6 +54,7 @@ ProjectResponse {
     private String contractorVoen;
     private String contractorPhone;
     private String contractorContactPerson;
+    private BigDecimal contractorDailyRate;
     private BigDecimal contractorPayment;
 
     // ─── İnvestor (INVESTOR texnikası üçün) ───────────────────────────────────
@@ -62,7 +63,8 @@ ProjectResponse {
     private String investorPhone;
 
     // ─── Koordinator planı ────────────────────────────────────────────────────
-    private BigDecimal planEquipmentPrice;
+    private BigDecimal planEquipmentPrice;       // vahid qiymət (gündəlik / aylıq)
+    private BigDecimal planEquipmentTotal;       // cəmi texnika qiyməti (DAILY: price×days, MONTHLY: price)
     private BigDecimal planTransportationPrice;
     private BigDecimal planOperatorPayment;
     private Integer planDayCount;
@@ -167,12 +169,14 @@ ProjectResponse {
                 .contractorVoen(contractorVoen)
                 .contractorPhone(contractorPhone)
                 .contractorContactPerson(contractorContactPerson)
+                .contractorDailyRate(plan != null ? plan.getContractorDailyRate() : null)
                 .contractorPayment(plan != null ? plan.getContractorPayment() : BigDecimal.ZERO)
                 .investorName(investorName)
                 .investorVoen(investorVoen)
                 .investorPhone(investorPhone)
                 // Koordinator planı
                 .planEquipmentPrice(plan != null ? plan.getEquipmentPrice() : null)
+                .planEquipmentTotal(plan != null ? computeEquipmentTotal(plan, r) : null)
                 .planTransportationPrice(plan != null ? plan.getTransportationPrice() : null)
                 .planOperatorPayment(plan != null ? plan.getOperatorPayment() : null)
                 .planDayCount(plan != null ? plan.getDayCount() : null)
@@ -200,6 +204,16 @@ ProjectResponse {
                 .overtimeRate(p.getOvertimeRate())
                 .overtimePay(p.getOvertimePay())
                 .build();
+    }
+
+    private static BigDecimal computeEquipmentTotal(CoordinatorPlan plan, TechRequest r) {
+        BigDecimal unitPrice = plan.getEquipmentPrice() != null ? plan.getEquipmentPrice() : BigDecimal.ZERO;
+        int days = plan.getDayCount() != null ? plan.getDayCount() : 0;
+        ProjectType type = r != null ? r.getProjectType() : null;
+        if (type == ProjectType.MONTHLY || days == 0) {
+            return unitPrice;
+        }
+        return unitPrice.multiply(BigDecimal.valueOf(days));
     }
 
     // ─── Nested DTOs ──────────────────────────────────────────────────────────

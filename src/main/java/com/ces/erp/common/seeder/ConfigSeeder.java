@@ -88,12 +88,14 @@ public class ConfigSeeder implements CommandLineRunner {
                 item("TECH_PARAM", "İş saatları",          9),
                 item("TECH_PARAM", "Kovş həcmi (m³)",    10),
 
-                // ─── Təhlükəsizlik avadanlıqları ─────────────────────────────
-                item("SAFETY_EQUIPMENT", "Sayrışan işıqlar",  0),
-                item("SAFETY_EQUIPMENT", "Yanğınsöndürən",    1),
-                item("SAFETY_EQUIPMENT", "Apteçka",           2),
-                item("SAFETY_EQUIPMENT", "Xəbərdarlıq konusu", 3),
-                item("SAFETY_EQUIPMENT", "Əks-işıq (reflektor)", 4)
+                item("SAFETY_EQUIPMENT", "Əks-işıq (reflektor)", 4),
+
+                // ─── Servis Checklist Şablonları ──────────────────────────────
+                item("SERVICE_CHECKLIST", "Mühərrik yağ səviyyəsi",         0),
+                item("SERVICE_CHECKLIST", "Soyutma mayesinin səviyyəsi",    1),
+                item("SERVICE_CHECKLIST", "Əyləc bəndlərinin yoxlanılması", 2),
+                item("SERVICE_CHECKLIST", "Şinlərin təzyiqi və vəziyyəti",  3),
+                item("SERVICE_CHECKLIST", "Hidravlika sistemi (sızma)",     4)
         );
 
         configRepository.saveAll(items);

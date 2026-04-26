@@ -56,6 +56,7 @@ public class CoordinatorPlanResponse {
     private Long operatorId;
     private String operatorName;
     private BigDecimal equipmentPrice;
+    private BigDecimal contractorDailyRate;
     private BigDecimal contractorPayment;
     private BigDecimal operatorPayment;
     private BigDecimal transportationPrice;
@@ -147,11 +148,17 @@ public class CoordinatorPlanResponse {
             );
         }
 
-        BigDecimal eqPrice = plan.getEquipmentPrice() != null ? plan.getEquipmentPrice() : BigDecimal.ZERO;
+        BigDecimal eqUnitPrice = plan.getEquipmentPrice() != null ? plan.getEquipmentPrice() : BigDecimal.ZERO;
         BigDecimal transPrice = plan.getTransportationPrice() != null ? plan.getTransportationPrice() : BigDecimal.ZERO;
         BigDecimal contrPayment = plan.getContractorPayment() != null ? plan.getContractorPayment() : BigDecimal.ZERO;
         BigDecimal opPayment = plan.getOperatorPayment() != null ? plan.getOperatorPayment() : BigDecimal.ZERO;
-        BigDecimal total = eqPrice.add(transPrice);
+
+        // Texnika cəmi: MONTHLY üçün sabit qiymət, DAILY üçün gün × vahid qiymət
+        int days = plan.getDayCount() != null ? plan.getDayCount() : 0;
+        BigDecimal eqTotal = (r.getProjectType() == ProjectType.MONTHLY || days == 0)
+                ? eqUnitPrice
+                : eqUnitPrice.multiply(BigDecimal.valueOf(days));
+        BigDecimal total = eqTotal.add(transPrice);
         BigDecimal profit = total.subtract(contrPayment).subtract(opPayment);
 
         List<DocumentDto> docs = plan.getDocuments().stream()
@@ -176,6 +183,7 @@ public class CoordinatorPlanResponse {
             base.setDayCount(plan.getDayCount());
         }
         base.setEquipmentPrice(plan.getEquipmentPrice());
+        base.setContractorDailyRate(plan.getContractorDailyRate());
         base.setContractorPayment(plan.getContractorPayment());
         base.setOperatorPayment(plan.getOperatorPayment());
         base.setTransportationPrice(plan.getTransportationPrice());

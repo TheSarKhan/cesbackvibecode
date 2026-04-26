@@ -18,6 +18,7 @@ import com.ces.erp.coordinator.repository.CoordinatorDocumentRepository;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.ProjectStatus;
+import com.ces.erp.enums.ProjectType;
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.approval.repository.PendingOperationRepository;
 import com.ces.erp.enums.OperationStatus;
@@ -37,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -95,8 +97,12 @@ public class CoordinatorPlanService implements ApprovalHandler {
                 .toList();
     }
 
+    private static final java.util.Set<String> ALLOWED_SORT_FIELDS = java.util.Set.of(
+            "createdAt", "companyName", "requestCode", "status", "region", "projectType", "dayCount");
+
     @Transactional(readOnly = true)
-    public PagedResponse<CoordinatorPlanResponse> getRequestsPaged(int page, int size, String search, String status) {
+    public PagedResponse<CoordinatorPlanResponse> getRequestsPaged(int page, int size, String search, String status,
+                                                                     String sortBy, String sortDir) {
         String q = (search != null && !search.isBlank()) ? search : null;
         RequestStatus s = null;
         if (status != null && !status.isBlank()) {
@@ -106,7 +112,9 @@ public class CoordinatorPlanService implements ApprovalHandler {
         if (s != null && !COORDINATOR_STATUSES.contains(s)) {
             s = null;
         }
-        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        String field = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : "createdAt";
+        Sort sort = "asc".equalsIgnoreCase(sortDir) ? Sort.by(field).ascending() : Sort.by(field).descending();
+        var pageable = PageRequest.of(page, size, sort);
         var result = requestRepository.findAllCoordinatorFiltered(q, s, pageable);
         return PagedResponse.from(result, r -> {
             CoordinatorPlanResponse resp = planRepository.findByRequestId(r.getId())
@@ -151,7 +159,22 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         plan.setDayCount(req.getDayCount());
         plan.setEquipmentPrice(req.getEquipmentPrice());
-        plan.setContractorPayment(req.getContractorPayment());
+
+        // Podratçı/İnvestor ödənişi: aylıq → sabit dərəcə, günlük → dərəcə × gün sayı
+        BigDecimal dailyRate = req.getContractorDailyRate() != null ? req.getContractorDailyRate() : BigDecimal.ZERO;
+        plan.setContractorDailyRate(dailyRate);
+        if (dailyRate.compareTo(BigDecimal.ZERO) > 0) {
+            if (request.getProjectType() == ProjectType.MONTHLY) {
+                plan.setContractorPayment(dailyRate);
+            } else if (req.getDayCount() != null && req.getDayCount() > 0) {
+                plan.setContractorPayment(dailyRate.multiply(BigDecimal.valueOf(req.getDayCount())));
+            } else {
+                plan.setContractorPayment(BigDecimal.ZERO);
+            }
+        } else {
+            plan.setContractorPayment(BigDecimal.ZERO);
+        }
+
         plan.setOperatorPayment(req.getOperatorPayment());
         plan.setTransportationPrice(req.getTransportationPrice());
         plan.setStartDate(req.getStartDate());

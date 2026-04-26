@@ -18,6 +18,7 @@ public class CustomerResponse {
     private String companyName;
     private String voen;
     private String address;
+    private String directorName;
     private String supplierPerson;
     private String supplierPhone;
     private String officeContactPerson;
@@ -35,6 +36,7 @@ public class CustomerResponse {
                 .companyName(c.getCompanyName())
                 .voen(c.getVoen())
                 .address(c.getAddress())
+                .directorName(c.getDirectorName())
                 .supplierPerson(c.getSupplierPerson())
                 .supplierPhone(c.getSupplierPhone())
                 .officeContactPerson(c.getOfficeContactPerson())

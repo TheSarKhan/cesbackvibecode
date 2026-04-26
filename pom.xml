@@ -120,6 +120,13 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- OpenPDF — PDF generasiya (Azərbaycan hərfləri dəstəyi) -->
+        <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf</artifactId>
+            <version>2.0.3</version>
+        </dependency>
     </dependencies>
 
     <build>

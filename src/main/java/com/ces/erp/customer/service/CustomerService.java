@@ -180,6 +180,7 @@ public class CustomerService implements ApprovalHandler {
         c.setCompanyName(r.getCompanyName());
         c.setVoen(r.getVoen());
         c.setAddress(r.getAddress());
+        c.setDirectorName(r.getDirectorName());
         c.setSupplierPerson(r.getSupplierPerson());
         c.setSupplierPhone(r.getSupplierPhone());
         c.setOfficeContactPerson(r.getOfficeContactPerson());

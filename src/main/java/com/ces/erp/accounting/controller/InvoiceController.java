@@ -44,8 +44,9 @@ public class InvoiceController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size,
             @RequestParam(required = false) String q,
-            @RequestParam(required = false) String type) {
-        return ResponseEntity.ok(ApiResponse.success(invoiceService.getAllPaged(page, size, q, type)));
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.success(invoiceService.getAllPaged(page, size, q, type, status)));
     }
 
     @GetMapping("/summary")
@@ -106,6 +107,22 @@ public class InvoiceController {
     @Operation(summary = "Qaiməni layihəyə geri qaytar")
     public ResponseEntity<ApiResponse<InvoiceResponse>> returnToProject(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Qaimə geri qaytarıldı", invoiceService.returnToProject(id)));
+    }
+
+    @PatchMapping("/{id}/draft")
+    @PreAuthorize("hasAuthority('ACCOUNTING:PUT')")
+    @Operation(summary = "Geri qaytarılmış qaiməni DRAFT-a çevir (tam redaktə üçün)")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> returnToDraft(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Qaimə DRAFT-a çevrildi", invoiceService.returnToDraft(id)));
+    }
+
+    @PostMapping("/{id}/resubmit")
+    @PreAuthorize("hasAuthority('ACCOUNTING:POST')")
+    @Operation(summary = "Geri qaytarılmış qaiməni düzəliş edib yenidən göndər")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> resubmit(
+            @PathVariable Long id,
+            @RequestBody InvoiceRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Qaimə yenidən göndərildi", invoiceService.resubmit(id, req)));
     }
 
     @DeleteMapping("/{id}")
