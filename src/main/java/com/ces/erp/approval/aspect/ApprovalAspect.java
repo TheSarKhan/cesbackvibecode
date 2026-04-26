@@ -10,6 +10,7 @@ import com.ces.erp.approval.repository.PendingOperationRepository;
 import com.ces.erp.approval.service.ApprovalPersistenceService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.security.UserPrincipal;
+import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.department.entity.Department;
 import com.ces.erp.enums.OperationStatus;
 import com.ces.erp.enums.OperationType;
@@ -40,6 +41,7 @@ public class ApprovalAspect {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final List<ApprovalHandler> handlers;
+    private final NotificationService notificationService;
 
     private Map<String, ApprovalHandler> getRegistry() {
         return handlers.stream().collect(Collectors.toMap(ApprovalHandler::getEntityType, h -> h));
@@ -120,6 +122,8 @@ public class ApprovalAspect {
 
         // REQUIRES_NEW transaksiyada saxla — kənar rollback-dən qorunur
         PendingOperationResponse response = approvalPersistenceService.saveAndBuildResponse(op);
+        notificationService.approvalQueueUpdated(
+                (label != null ? label : requiresApproval.entityType()) + " əməliyyatı təsdiq növbəsinə əlavə edildi");
         throw new PendingApprovalException(response);
     }
 }

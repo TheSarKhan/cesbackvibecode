@@ -42,6 +42,10 @@ public class InvoiceResponse {
     private String contractorName;
     private String contractorVoen;
 
+    // Əlaqəli müştəri
+    private Long customerId;
+    private String customerName;
+
     // Maliyyə (Type A — layihənin xalis gəliri)
     private BigDecimal projectNetProfit;
 
@@ -113,6 +117,8 @@ public class InvoiceResponse {
                 .contractorId(inv.getContractor() != null ? inv.getContractor().getId() : null)
                 .contractorName(inv.getContractor() != null ? inv.getContractor().getCompanyName() : null)
                 .contractorVoen(inv.getContractor() != null ? inv.getContractor().getVoen() : null)
+                .customerId(inv.getCustomer() != null ? inv.getCustomer().getId() : null)
+                .customerName(inv.getCustomer() != null ? inv.getCustomer().getCompanyName() : null)
                 .projectNetProfit(netProfit)
                 .notes(inv.getNotes())
                 .createdAt(inv.getCreatedAt())

@@ -10,6 +10,7 @@ import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.exception.UnauthorizedOperationException;
+import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.department.entity.Department;
 import com.ces.erp.enums.OperationStatus;
 import com.ces.erp.enums.OperationType;
@@ -33,6 +34,7 @@ public class ApprovalService {
     private final UserRepository userRepository;
     private final List<ApprovalHandler> handlers;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     private Map<String, ApprovalHandler> registry() {
         return handlers.stream().collect(Collectors.toMap(ApprovalHandler::getEntityType, h -> h));
@@ -105,6 +107,7 @@ public class ApprovalService {
         PendingOperation saved = pendingOperationRepository.save(op);
         auditService.log("TƏSDİQ", saved.getId(), saved.getEntityLabel(), "TƏSDİQLƏNDİ",
                 saved.getModuleCode() + " — " + saved.getOperationType() + " əməliyyatı təsdiqləndi");
+        notificationService.approvalQueueUpdated(saved.getEntityLabel() + " əməliyyatı təsdiqləndi");
         return ApprovalSummaryResponse.from(saved);
     }
 
@@ -134,6 +137,7 @@ public class ApprovalService {
         auditService.log("TƏSDİQ", saved.getId(), saved.getEntityLabel(), "RƏDD EDİLDİ",
                 saved.getModuleCode() + " — " + saved.getOperationType() + " əməliyyatı rədd edildi"
                 + (saved.getRejectReason() != null ? ": " + saved.getRejectReason() : ""));
+        notificationService.approvalQueueUpdated(saved.getEntityLabel() + " əməliyyatı rədd edildi");
         return ApprovalSummaryResponse.from(saved);
     }
 

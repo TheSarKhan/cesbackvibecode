@@ -38,6 +38,8 @@ public class InvoiceRequest {
 
     private Long contractorId;      // B1 məcburi
 
+    private Long customerId;        // İstəyə bağlı
+
     private String notes;
 
     // Aylıq iş cədvəli sahələri (INCOME növü, timesheet-əsaslı)

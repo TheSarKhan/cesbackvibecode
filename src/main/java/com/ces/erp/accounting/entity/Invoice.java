@@ -2,6 +2,7 @@ package com.ces.erp.accounting.entity;
 
 import com.ces.erp.common.entity.BaseEntity;
 import com.ces.erp.contractor.entity.Contractor;
+import com.ces.erp.customer.entity.Customer;
 import com.ces.erp.enums.InvoiceType;
 import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.project.entity.Project;
@@ -67,6 +68,10 @@ public class Invoice extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contractor_id")
     private Contractor contractor;      // B1 üçün məcburi
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    private Customer customer;          // İstəyə bağlı
 
     @Column(columnDefinition = "TEXT")
     private String notes;

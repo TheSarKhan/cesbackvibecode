@@ -21,6 +21,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -122,11 +124,13 @@ public class CustomerController {
         try {
             Path path = customerService.resolveDocumentPath(id, documentId);
             Resource resource = new UrlResource(path.toUri());
+            String ct = Files.probeContentType(path);
+            MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName() + "\"")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .contentType(mediaType)
                     .body(resource);
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new com.ces.erp.common.exception.BusinessException("Fayl endirilə bilmədi");
         }
     }

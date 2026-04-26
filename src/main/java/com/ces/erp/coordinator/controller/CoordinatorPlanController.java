@@ -20,7 +20,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.net.MalformedURLException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -72,6 +74,7 @@ public class CoordinatorPlanController {
     @PreAuthorize("hasAuthority('COORDINATOR:SUBMIT_OFFER')")
     @Operation(summary = "Planı bitir və sorğuyu OFFER_SENT statusuna keçir")
     public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> submitPlan(@PathVariable Long requestId) {
+        planService.validateBeforeSubmit(requestId);
         return ResponseEntity.ok(ApiResponse.success("Təklif göndərildi",
                 planService.submitPlan(requestId)));
     }
@@ -130,13 +133,15 @@ public class CoordinatorPlanController {
     @Operation(summary = "Koordinator sənədini yüklə")
     public ResponseEntity<Resource> downloadDocument(
             @PathVariable Long requestId,
-            @PathVariable Long documentId) throws MalformedURLException {
+            @PathVariable Long documentId) throws MalformedURLException, IOException {
         Path filePath = planService.resolveDocument(requestId, documentId);
         Resource resource = new UrlResource(filePath.toUri());
+        String ct = Files.probeContentType(filePath);
+        MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + filePath.getFileName().toString() + "\"")
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentType(mediaType)
                 .body(resource);
     }
 }

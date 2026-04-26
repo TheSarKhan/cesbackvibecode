@@ -165,17 +165,13 @@ public class CoordinatorPlanService implements ApprovalHandler {
         return CoordinatorPlanResponse.from(planRepository.save(plan));
     }
 
-    @Transactional
-    @RequiresApproval(module = "COORDINATOR", entityType = "COORDINATOR_SUBMIT")
-    public CoordinatorPlanResponse submitPlan(Long requestId) {
+    public void validateBeforeSubmit(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
         if (request.getStatus() != RequestStatus.SENT_TO_COORDINATOR) {
             throw new BusinessException("Plan yalnız SENT_TO_COORDINATOR statusunda göndərilə bilər");
         }
         CoordinatorPlan existing = planRepository.findByRequestId(requestId)
                 .orElseThrow(() -> new BusinessException("Əvvəlcə koordinator planını doldurun"));
-
-        // Məcburi sahələrin yoxlanması
         if (existing.getSelectedEquipment() == null) {
             throw new BusinessException("Texnika seçilməlidir");
         }
@@ -188,6 +184,12 @@ public class CoordinatorPlanService implements ApprovalHandler {
         if (existing.getEndDate().isBefore(existing.getStartDate())) {
             throw new BusinessException("Bitmə tarixi başlanğıc tarixindən əvvəl ola bilməz");
         }
+    }
+
+    @Transactional
+    @RequiresApproval(module = "COORDINATOR", entityType = "COORDINATOR_SUBMIT")
+    public CoordinatorPlanResponse submitPlan(Long requestId) {
+        TechRequest request = findRequestOrThrow(requestId);
         request.setStatus(RequestStatus.OFFER_SENT);
         requestRepository.save(request);
 
@@ -235,22 +237,25 @@ public class CoordinatorPlanService implements ApprovalHandler {
     @Transactional
     public void rejectOffer(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
-        if (request.getStatus() != RequestStatus.OFFER_SENT) {
-            throw new BusinessException("Təklif yalnız OFFER_SENT statusunda rədd edilə bilər");
+        RequestStatus currentStatus = request.getStatus();
+        if (currentStatus != RequestStatus.OFFER_SENT && currentStatus != RequestStatus.SENT_TO_COORDINATOR) {
+            throw new BusinessException("Sorğu yalnız OFFER_SENT və ya SENT_TO_COORDINATOR statusunda rədd edilə bilər");
         }
         request.setStatus(RequestStatus.REJECTED);
         requestRepository.save(request);
 
-        // Texnikanı yenidən Mövcud et
-        planRepository.findByRequestId(requestId).ifPresent(plan -> {
-            Equipment eq = plan.getSelectedEquipment() != null
-                    ? plan.getSelectedEquipment()
-                    : request.getSelectedEquipment();
-            if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
-                eq.setStatus(EquipmentStatus.AVAILABLE);
-                equipmentRepository.save(eq);
-            }
-        });
+        // Texnikanı yenidən Mövcud et — yalnız OFFER_SENT statusunda texnika İcarədə sayılırdı
+        if (currentStatus == RequestStatus.OFFER_SENT) {
+            planRepository.findByRequestId(requestId).ifPresent(plan -> {
+                Equipment eq = plan.getSelectedEquipment() != null
+                        ? plan.getSelectedEquipment()
+                        : request.getSelectedEquipment();
+                if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
+                    eq.setStatus(EquipmentStatus.AVAILABLE);
+                    equipmentRepository.save(eq);
+                }
+            });
+        }
     }
 
     // ─── Texnika seçimi ───────────────────────────────────────────────────────

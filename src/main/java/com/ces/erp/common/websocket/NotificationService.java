@@ -30,4 +30,8 @@ public class NotificationService {
     public void success(String title, String message, String module) {
         send(title, message, module, "SUCCESS");
     }
+
+    public void approvalQueueUpdated(String message) {
+        send("Təsdiq növbəsi", message, "APPROVAL", "APPROVAL_QUEUE_UPDATED");
+    }
 }

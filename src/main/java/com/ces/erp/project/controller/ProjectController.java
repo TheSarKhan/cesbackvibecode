@@ -19,9 +19,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.net.MalformedURLException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -77,13 +78,15 @@ public class ProjectController {
     @GetMapping("/{id}/contract")
     @PreAuthorize("hasAuthority('PROJECTS:GET')")
     @Operation(summary = "Müqavilə sənədini endir")
-    public ResponseEntity<Resource> downloadContract(@PathVariable Long id) throws MalformedURLException {
+    public ResponseEntity<Resource> downloadContract(@PathVariable Long id) throws MalformedURLException, IOException {
         Path filePath = projectService.resolveContract(id);
         Resource resource = new UrlResource(filePath.toUri());
+        String ct = Files.probeContentType(filePath);
+        MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + filePath.getFileName().toString() + "\"")
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentType(mediaType)
                 .body(resource);
     }
 

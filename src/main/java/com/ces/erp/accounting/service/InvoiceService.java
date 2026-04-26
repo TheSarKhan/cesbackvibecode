@@ -18,6 +18,7 @@ import com.ces.erp.common.exception.InvalidStatusTransitionException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.contractor.repository.ContractorRepository;
+import com.ces.erp.customer.repository.CustomerRepository;
 import com.ces.erp.enums.InvoiceType;
 import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.project.entity.ProjectRevenue;
@@ -40,6 +41,7 @@ public class InvoiceService implements ApprovalHandler {
     private final ProjectRepository projectRepository;
     private final ProjectRevenueRepository projectRevenueRepository;
     private final ContractorRepository contractorRepository;
+    private final CustomerRepository customerRepository;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final AuditService auditService;
@@ -165,6 +167,10 @@ public class InvoiceService implements ApprovalHandler {
             inv.setContractor(contractorRepository.findById(req.getContractorId())
                     .orElseThrow(() -> new ResourceNotFoundException("Podratçı", req.getContractorId())));
         }
+        if (req.getCustomerId() != null) {
+            inv.setCustomer(customerRepository.findByIdAndDeletedFalse(req.getCustomerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Müştəri", req.getCustomerId())));
+        }
 
         Invoice saved = invoiceRepository.save(inv);
         notificationService.success("Yeni faktura", "Faktura yaradıldı: " + saved.getInvoiceNumber(), "ACCOUNTING");
@@ -208,6 +214,10 @@ public class InvoiceService implements ApprovalHandler {
         inv.setContractor(req.getContractorId() != null
                 ? contractorRepository.findById(req.getContractorId())
                         .orElseThrow(() -> new ResourceNotFoundException("Podratçı", req.getContractorId()))
+                : null);
+        inv.setCustomer(req.getCustomerId() != null
+                ? customerRepository.findByIdAndDeletedFalse(req.getCustomerId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Müştəri", req.getCustomerId()))
                 : null);
 
         Invoice updated = invoiceRepository.save(inv);
