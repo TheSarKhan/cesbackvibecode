@@ -11,6 +11,8 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "invoices")
@@ -33,8 +35,11 @@ public class Invoice extends BaseEntity {
 
     // ─── Əsas sahələr ─────────────────────────────────────────────────────────
 
+    @Column(unique = true, length = 20)
+    private String accountingId;        // Avtomatik ID: INV-2026-00001 (mühasibatlığa göndərildikdə)
+
     @Column(length = 50)
-    private String invoiceNumber;       // Qaimə nömrəsi (sonradan verilə bilər)
+    private String invoiceNumber;       // Əsl qaimə nömrəsi (könüllü, məs: MT20250419)
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;          // Qaimə məbləği
@@ -115,4 +120,14 @@ public class Invoice extends BaseEntity {
 
     // Avtomatik yaradılmış xərc qaiməsinin mənbə gəlir qaiməsi
     private Long sourceInvoiceId;
+
+    // ─── Texnika daşınması ────────────────────────────────────────────────────
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean hasTransport = false;
+
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<InvoiceTransport> transports = new ArrayList<>();
 }

@@ -121,6 +121,14 @@ public class PayableService {
         if (p.getProject() == null || !invoice.getProject().getId().equals(p.getProject().getId())) {
             throw new RuntimeException("Bu qaimə başqa bir layihəyə aiddir");
         }
+        // Validation: Ödəniş tarixi qaimə tarixindən əvvəl ola bilməz
+        if (req.getPaymentDate() != null && invoice.getInvoiceDate() != null
+                && req.getPaymentDate().isBefore(invoice.getInvoiceDate())) {
+            throw new RuntimeException(
+                    "Ödəniş tarixi (" + req.getPaymentDate() + ") qaimə tarixindən ("
+                    + invoice.getInvoiceDate() + ") əvvəl ola bilməz");
+        }
+
         // Qaimə üzrə ödəniş limitini yoxla
         BigDecimal invPaid = invoice.getPaidAmount() != null ? invoice.getPaidAmount() : BigDecimal.ZERO;
         if (invPaid.add(req.getAmount()).compareTo(invoice.getAmount()) > 0) {

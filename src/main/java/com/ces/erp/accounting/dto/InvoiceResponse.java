@@ -9,6 +9,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -19,7 +20,8 @@ public class InvoiceResponse {
     private String typeLabel;
     private InvoiceStatus status;
 
-    private String invoiceNumber;
+    private String accountingId;        // Avtomatik: INV-2026-00001
+    private String invoiceNumber;       // Əsl qaimə nömrəsi (könüllü)
     private BigDecimal amount;
     private LocalDate invoiceDate;
 
@@ -64,11 +66,17 @@ public class InvoiceResponse {
     private Integer workingHoursPerDay;
     private BigDecimal overtimeRate;
 
+    // Texnika daşınması
+    private boolean hasTransport;
+    private List<InvoiceTransportDto> transports;
+    private BigDecimal totalTransportAmount;
+
     public static InvoiceResponse from(Invoice inv) {
         String typeLabel = switch (inv.getType()) {
             case INCOME             -> "Gəlir";
             case CONTRACTOR_EXPENSE -> "Ödəmə";
             case COMPANY_EXPENSE    -> "Xərc";
+            case INVESTOR_EXPENSE   -> "İnvestor Ödəməsi";
         };
 
         BigDecimal netProfit = null;
@@ -98,11 +106,21 @@ public class InvoiceResponse {
             }
         }
 
+        List<InvoiceTransportDto> transportDtos = inv.getTransports().stream()
+                .filter(t -> !t.isDeleted())
+                .map(InvoiceTransportDto::from)
+                .toList();
+
+        BigDecimal totalTransport = transportDtos.stream()
+                .map(InvoiceTransportDto::getTransportAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         return InvoiceResponse.builder()
                 .id(inv.getId())
                 .type(inv.getType())
                 .typeLabel(typeLabel)
                 .status(inv.getStatus())
+                .accountingId(inv.getAccountingId())
                 .invoiceNumber(inv.getInvoiceNumber())
                 .amount(inv.getAmount())
                 .invoiceDate(inv.getInvoiceDate())
@@ -132,6 +150,9 @@ public class InvoiceResponse {
                 .workingDaysInMonth(inv.getWorkingDaysInMonth())
                 .workingHoursPerDay(inv.getWorkingHoursPerDay())
                 .overtimeRate(inv.getOvertimeRate())
+                .hasTransport(inv.isHasTransport())
+                .transports(transportDtos)
+                .totalTransportAmount(totalTransport)
                 .build();
     }
 }

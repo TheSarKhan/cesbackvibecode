@@ -180,6 +180,14 @@ public class ReceivableService {
              throw new RuntimeException("Bu qaimə başqa bir layihəyə aiddir");
         }
 
+        // Validation: Ödəniş tarixi qaimə tarixindən əvvəl ola bilməz
+        if (req.getPaymentDate() != null && invoice.getInvoiceDate() != null
+                && req.getPaymentDate().isBefore(invoice.getInvoiceDate())) {
+            throw new RuntimeException(
+                    "Ödəniş tarixi (" + req.getPaymentDate() + ") qaimə tarixindən ("
+                    + invoice.getInvoiceDate() + ") əvvəl ola bilməz");
+        }
+
         // Validation: Cannot pay more than invoice amount
         BigDecimal currentPaid = invoice.getPaidAmount() != null ? invoice.getPaidAmount() : BigDecimal.ZERO;
         BigDecimal newAmount = req.getAmount();

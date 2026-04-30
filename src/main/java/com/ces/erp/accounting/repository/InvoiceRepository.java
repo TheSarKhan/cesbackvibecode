@@ -45,6 +45,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             WHERE i.deleted = false
             AND i.status IN :statuses
             AND (CAST(:search AS string) IS NULL OR LOWER(COALESCE(i.invoiceNumber, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+             OR LOWER(COALESCE(i.accountingId, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
              OR LOWER(COALESCE(i.notes, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             AND (CAST(:type AS string) IS NULL OR i.type = :type)
             """,
@@ -53,6 +54,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             WHERE i.deleted = false
             AND i.status IN :statuses
             AND (CAST(:search AS string) IS NULL OR LOWER(COALESCE(i.invoiceNumber, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+             OR LOWER(COALESCE(i.accountingId, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
              OR LOWER(COALESCE(i.notes, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             AND (CAST(:type AS string) IS NULL OR i.type = :type)
             """)
@@ -100,6 +102,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     List<Invoice> findAllBySourceInvoiceIdAndDeletedFalse(Long sourceInvoiceId);
 
     List<Invoice> findAllByDeletedTrue();
+
+    @Query("SELECT MAX(i.accountingId) FROM Invoice i WHERE i.accountingId LIKE CONCAT(:prefix, '%') AND i.deleted = false")
+    Optional<String> findMaxAccountingIdForYear(@Param("prefix") String prefix);
 
     @Query("""
             SELECT i FROM Invoice i

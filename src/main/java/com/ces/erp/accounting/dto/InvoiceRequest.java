@@ -8,9 +8,11 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 public class InvoiceRequest {
+
 
     @NotNull(message = "Qaimə növü seçilməlidir")
     private InvoiceType type;
@@ -54,4 +56,8 @@ public class InvoiceRequest {
     private Integer workingDaysInMonth;
     private Integer workingHoursPerDay;
     private BigDecimal overtimeRate;      // əlavə saat dərəcəsi (default 1.0)
+
+    // Texnika daşınması
+    private boolean hasTransport;
+    private List<InvoiceTransportDto> transports;
 }

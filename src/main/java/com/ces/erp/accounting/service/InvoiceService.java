@@ -3,8 +3,11 @@ package com.ces.erp.accounting.service;
 import com.ces.erp.accounting.dto.AccountingSummaryResponse;
 import com.ces.erp.accounting.dto.InvoiceRequest;
 import com.ces.erp.accounting.dto.InvoiceResponse;
+import com.ces.erp.accounting.dto.InvoiceTransportDto;
 import com.ces.erp.accounting.entity.Invoice;
+import com.ces.erp.accounting.entity.InvoiceTransport;
 import com.ces.erp.accounting.repository.InvoiceRepository;
+import com.ces.erp.accounting.repository.InvoiceTransportRepository;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
@@ -21,7 +24,9 @@ import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.customer.repository.CustomerRepository;
 import com.ces.erp.enums.InvoiceType;
 import com.ces.erp.enums.InvoiceStatus;
+import com.ces.erp.project.entity.ProjectExpense;
 import com.ces.erp.project.entity.ProjectRevenue;
+import com.ces.erp.project.repository.ProjectExpenseRepository;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.project.repository.ProjectRevenueRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -38,8 +44,10 @@ import java.util.List;
 public class InvoiceService implements ApprovalHandler {
 
     private final InvoiceRepository invoiceRepository;
+    private final InvoiceTransportRepository invoiceTransportRepository;
     private final ProjectRepository projectRepository;
     private final ProjectRevenueRepository projectRevenueRepository;
+    private final ProjectExpenseRepository projectExpenseRepository;
     private final ContractorRepository contractorRepository;
     private final CustomerRepository customerRepository;
     private final ObjectMapper objectMapper;
@@ -50,6 +58,7 @@ public class InvoiceService implements ApprovalHandler {
     @Override public String getModuleCode()  { return "ACCOUNTING"; }
     @Override public String getLabel(Long id) {
         Invoice inv = findOrThrow(id);
+        if (inv.getAccountingId() != null) return inv.getAccountingId();
         return inv.getInvoiceNumber() != null ? inv.getInvoiceNumber() : "Qaimə #" + id;
     }
     @Override public Object getSnapshot(Long id) { return InvoiceResponse.from(findOrThrow(id)); }
@@ -86,11 +95,14 @@ public class InvoiceService implements ApprovalHandler {
     }
 
     @Transactional(readOnly = true)
-    public PagedResponse<InvoiceResponse> getAllPaged(int page, int size, String search, String type) {
+    public PagedResponse<InvoiceResponse> getAllPaged(int page, int size, String search, String type, String status) {
         String q = (search != null && !search.isBlank()) ? search : null;
         InvoiceType t = (type != null && !type.isBlank()) ? InvoiceType.valueOf(type) : null;
+        List<InvoiceStatus> statuses = (status != null && !status.isBlank())
+                ? List.of(InvoiceStatus.valueOf(status))
+                : List.of(InvoiceStatus.values());
         var pageable = PageRequest.of(page, size, Sort.by("invoiceDate").descending().and(Sort.by("createdAt").descending()));
-        return PagedResponse.from(invoiceRepository.findAllFiltered(q, t, pageable), InvoiceResponse::from);
+        return PagedResponse.from(invoiceRepository.findAllFiltered(q, t, statuses, pageable), InvoiceResponse::from);
     }
 
     @Transactional(readOnly = true)
@@ -172,7 +184,20 @@ public class InvoiceService implements ApprovalHandler {
                     .orElseThrow(() -> new ResourceNotFoundException("Müştəri", req.getCustomerId())));
         }
 
+        inv.setHasTransport(req.isHasTransport());
+
+        // SENT statusunda mühasibatlığa göndərilirsə → avtomatik ID yarat
+        if (inv.getStatus() == InvoiceStatus.SENT && inv.getAccountingId() == null) {
+            inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear()));
+        }
+
         Invoice saved = invoiceRepository.save(inv);
+
+        if (req.isHasTransport() && req.getTransports() != null) {
+            saveTransports(saved, req.getTransports());
+            saved = invoiceRepository.save(saved);
+        }
+
         notificationService.success("Yeni faktura", "Faktura yaradıldı: " + saved.getInvoiceNumber(), "ACCOUNTING");
         auditService.log("FAKTURA", saved.getId(), saved.getInvoiceNumber(), "YARADILDI", "Yeni faktura qeydiyyatı");
         return InvoiceResponse.from(saved);
@@ -220,6 +245,13 @@ public class InvoiceService implements ApprovalHandler {
                         .orElseThrow(() -> new ResourceNotFoundException("Müştəri", req.getCustomerId()))
                 : null);
 
+        inv.setHasTransport(req.isHasTransport());
+        // Köhnə daşınmaları sil, yeniləri əlavə et
+        inv.getTransports().clear();
+        if (req.isHasTransport() && req.getTransports() != null) {
+            saveTransports(inv, req.getTransports());
+        }
+
         Invoice updated = invoiceRepository.save(inv);
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "YENİLƏNDİ", "Faktura məlumatları yeniləndi");
         return InvoiceResponse.from(updated);
@@ -228,9 +260,16 @@ public class InvoiceService implements ApprovalHandler {
     @Transactional
     public InvoiceResponse patchFields(Long id, com.ces.erp.accounting.dto.InvoiceFieldsRequest req) {
         Invoice inv = findOrThrow(id);
+
+        // Təsdiqlənmiş qaimədə yalnız qaimə nömrəsi və qeyd dəyişdirilə bilər
         if (inv.getStatus() == InvoiceStatus.APPROVED) {
-            throw new BusinessException("Təsdiqlənmiş qaimədə dəyişiklik etmək olmaz");
+            if (req.getInvoiceNumber() != null) inv.setInvoiceNumber(req.getInvoiceNumber().isBlank() ? null : req.getInvoiceNumber().trim());
+            if (req.getNotes() != null) inv.setNotes(req.getNotes().isBlank() ? null : req.getNotes().trim());
+            Invoice updated = invoiceRepository.save(inv);
+            auditService.log("FAKTURA", updated.getId(), updated.getAccountingId(), "SAHƏ YENİLƏNDİ", "Mühasib əsl qaimə nömrəsini doldurdu");
+            return InvoiceResponse.from(updated);
         }
+
         // APPROVED/RETURNED statuslarına yalnız approve/return endpointləri ilə keçmək olar
         if (req.getStatus() != null && (req.getStatus() == InvoiceStatus.APPROVED || req.getStatus() == InvoiceStatus.RETURNED)) {
             throw new InvalidStatusTransitionException("Bu status dəyişikliyi üçün müvafiq endpointdən istifadə edin");
@@ -248,9 +287,15 @@ public class InvoiceService implements ApprovalHandler {
         }
         if (req.getInvoiceDate() != null) inv.setInvoiceDate(req.getInvoiceDate());
         if (req.getNotes() != null) inv.setNotes(req.getNotes().isBlank() ? null : req.getNotes().trim());
-        if (req.getStatus() != null) inv.setStatus(req.getStatus());
+        // Status SENT-ə keçirsə → avtomatik ID yarat
+        if (req.getStatus() != null) {
+            if (req.getStatus() == InvoiceStatus.SENT && inv.getAccountingId() == null) {
+                inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear()));
+            }
+            inv.setStatus(req.getStatus());
+        }
         Invoice updated = invoiceRepository.save(inv);
-        auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "SAHƏ YENİLƏNDİ", "Mühasib sahələri doldurdu");
+        auditService.log("FAKTURA", updated.getId(), updated.getAccountingId(), "SAHƏ YENİLƏNDİ", "Mühasib sahələri doldurdu");
         return InvoiceResponse.from(updated);
     }
 
@@ -274,9 +319,6 @@ public class InvoiceService implements ApprovalHandler {
         if (inv.getStatus() != InvoiceStatus.SENT) {
             throw new BusinessException("Yalnız göndərilmiş qaimələr təsdiqlənə bilər");
         }
-        if (inv.getInvoiceNumber() == null || inv.getInvoiceNumber().isBlank()) {
-            throw new BusinessException("Qaimə nömrəsi doldurulmalıdır");
-        }
         if (inv.getInvoiceDate() == null) {
             throw new BusinessException("Qaimə tarixi doldurulmalıdır");
         }
@@ -296,6 +338,22 @@ public class InvoiceService implements ApprovalHandler {
                     .date(inv.getInvoiceDate())
                     .build();
             projectRevenueRepository.save(revenue);
+
+            // Daşınma məbləğlərini layihənin xərclərinə əlavə et
+            if (inv.isHasTransport()) {
+                inv.getTransports().stream()
+                        .filter(t -> !t.isDeleted())
+                        .forEach(t -> {
+                            String transportLabel = "Daşınma: " + t.getTransportDirection();
+                            ProjectExpense expense = ProjectExpense.builder()
+                                    .project(inv.getProject())
+                                    .key(transportLabel)
+                                    .value(t.getTransportAmount())
+                                    .date(t.getTransportDate())
+                                    .build();
+                            projectExpenseRepository.save(expense);
+                        });
+            }
         }
 
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "TƏSDİQLƏNDİ", "Qaimə mühasibatlıq tərəfindən təsdiqləndi");
@@ -311,6 +369,50 @@ public class InvoiceService implements ApprovalHandler {
         inv.setStatus(InvoiceStatus.RETURNED);
         Invoice updated = invoiceRepository.save(inv);
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "GERİ QAYTARILDI", "Qaimə layihəyə geri qaytarıldı");
+        return InvoiceResponse.from(updated);
+    }
+
+    @Transactional
+    public InvoiceResponse returnToDraft(Long id) {
+        Invoice inv = findOrThrow(id);
+        if (inv.getStatus() != InvoiceStatus.RETURNED) {
+            throw new BusinessException("Yalnız geri qaytarılmış qaimələr DRAFT-a çevrilə bilər");
+        }
+        inv.setStatus(InvoiceStatus.DRAFT);
+        Invoice updated = invoiceRepository.save(inv);
+        auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "DRAFT-A ÇEVRİLDİ", "Qaimə yenidən redaktə üçün DRAFT-a qaytarıldı");
+        return InvoiceResponse.from(updated);
+    }
+
+    @Transactional
+    public InvoiceResponse resubmit(Long id, InvoiceRequest req) {
+        Invoice inv = findOrThrow(id);
+        if (inv.getStatus() != InvoiceStatus.RETURNED) {
+            throw new BusinessException("Yalnız geri qaytarılmış qaimələr yenidən göndərilə bilər");
+        }
+        validate(req, id);
+
+        inv.setAmount(req.getAmount());
+        inv.setInvoiceDate(req.getInvoiceDate());
+        inv.setEtaxesId(req.getEtaxesId());
+        inv.setEquipmentName(req.getEquipmentName());
+        inv.setCompanyName(req.getCompanyName());
+        inv.setServiceDescription(req.getServiceDescription());
+        inv.setNotes(req.getNotes());
+
+        inv.setHasTransport(req.isHasTransport());
+        inv.getTransports().clear();
+        if (req.isHasTransport() && req.getTransports() != null) {
+            saveTransports(inv, req.getTransports());
+        }
+
+        // Əgər bu qaimənin hələ accountingId-si yoxdursa yarat (ilk dəfə resubmit olan köhnə qaimələr üçün)
+        if (inv.getAccountingId() == null) {
+            inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear()));
+        }
+        inv.setStatus(InvoiceStatus.SENT);
+        Invoice updated = invoiceRepository.save(inv);
+        auditService.log("FAKTURA", updated.getId(), updated.getAccountingId(), "YENİDƏN GÖNDƏRİLDİ", "Düzəliş edilmiş qaimə yenidən mühasibatlığa göndərildi");
         return InvoiceResponse.from(updated);
     }
 
@@ -344,6 +446,33 @@ public class InvoiceService implements ApprovalHandler {
 
     private long count(List<Invoice> list, InvoiceType type) {
         return list.stream().filter(i -> i.getType() == type).count();
+    }
+
+    private void saveTransports(Invoice invoice, List<InvoiceTransportDto> dtos) {
+        if (dtos == null) return;
+        List<InvoiceTransport> transports = new ArrayList<>();
+        for (InvoiceTransportDto dto : dtos) {
+            InvoiceTransport t = InvoiceTransport.builder()
+                    .invoice(invoice)
+                    .transportDate(dto.getTransportDate())
+                    .transportDirection(dto.getTransportDirection())
+                    .transportAmount(dto.getTransportAmount())
+                    .build();
+            transports.add(t);
+        }
+        invoice.getTransports().addAll(transports);
+    }
+
+    private synchronized String generateAccountingId(int year) {
+        String prefix = "INV-" + year + "-";
+        java.util.Optional<String> maxId = invoiceRepository.findMaxAccountingIdForYear(prefix);
+        int seq = 1;
+        if (maxId.isPresent() && maxId.get() != null) {
+            try {
+                seq = Integer.parseInt(maxId.get().substring(prefix.length())) + 1;
+            } catch (Exception ignored) {}
+        }
+        return prefix + String.format("%05d", seq);
     }
 
     private BigDecimal calculateTimesheetAmount(InvoiceRequest req) {
