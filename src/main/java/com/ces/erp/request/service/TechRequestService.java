@@ -8,7 +8,10 @@ import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.InvalidStatusTransitionException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.websocket.NotificationService;
+import com.ces.erp.customer.entity.Customer;
 import com.ces.erp.customer.repository.CustomerRepository;
+import com.ces.erp.enums.CustomerStatus;
+import com.ces.erp.enums.RiskLevel;
 import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.garage.entity.Equipment;
@@ -255,7 +258,18 @@ public class TechRequestService implements ApprovalHandler {
         if (req.getCustomerId() != null) {
             entity.setCustomer(customerRepository.findByIdAndDeletedFalse(req.getCustomerId()).orElse(null));
         } else {
-            entity.setCustomer(null);
+            Customer customer = customerRepository
+                    .findByCompanyNameIgnoreCaseAndDeletedFalse(req.getCompanyName())
+                    .orElseGet(() -> {
+                        Customer newCustomer = new Customer();
+                        newCustomer.setCompanyName(req.getCompanyName());
+                        newCustomer.setOfficeContactPerson(req.getContactPerson());
+                        newCustomer.setOfficeContactPhone(req.getContactPhone());
+                        newCustomer.setStatus(CustomerStatus.ACTIVE);
+                        newCustomer.setRiskLevel(RiskLevel.LOW);
+                        return customerRepository.save(newCustomer);
+                    });
+            entity.setCustomer(customer);
         }
         entity.setCompanyName(req.getCompanyName());
         entity.setContactPerson(req.getContactPerson());

@@ -31,6 +31,8 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     Optional<Customer> findByIdAndDeletedFalse(Long id);
 
+    Optional<Customer> findByCompanyNameIgnoreCaseAndDeletedFalse(String companyName);
+
     boolean existsByVoenAndDeletedFalse(String voen);
 
     boolean existsByVoenAndIdNotAndDeletedFalse(String voen, @Param("id") Long id);
