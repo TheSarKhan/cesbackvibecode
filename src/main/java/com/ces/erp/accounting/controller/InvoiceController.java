@@ -45,8 +45,9 @@ public class InvoiceController {
             @RequestParam(defaultValue = "15") int size,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String type,
-            @RequestParam(required = false) String status) {
-        return ResponseEntity.ok(ApiResponse.success(invoiceService.getAllPaged(page, size, q, type, status)));
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String types) {
+        return ResponseEntity.ok(ApiResponse.success(invoiceService.getAllPaged(page, size, q, type, status, types)));
     }
 
     @GetMapping("/summary")

@@ -21,7 +21,12 @@ import com.ces.erp.common.exception.InvalidStatusTransitionException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.websocket.NotificationService;
 import com.ces.erp.contractor.repository.ContractorRepository;
+import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.customer.repository.CustomerRepository;
+import com.ces.erp.investor.repository.InvestorRepository;
+import com.ces.erp.enums.OwnershipType;
+import com.ces.erp.enums.ProjectType;
+import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.enums.InvoiceType;
 import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.project.entity.ProjectExpense;
@@ -43,16 +48,22 @@ import java.util.List;
 @RequiredArgsConstructor
 public class InvoiceService implements ApprovalHandler {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(InvoiceService.class);
+
     private final InvoiceRepository invoiceRepository;
     private final InvoiceTransportRepository invoiceTransportRepository;
     private final ProjectRepository projectRepository;
     private final ProjectRevenueRepository projectRevenueRepository;
     private final ProjectExpenseRepository projectExpenseRepository;
     private final ContractorRepository contractorRepository;
+    private final InvestorRepository investorRepository;
     private final CustomerRepository customerRepository;
+    private final CoordinatorPlanRepository coordinatorPlanRepository;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final ReceivableService receivableService;
+    private final PayableService payableService;
 
     @Override public String getEntityType() { return "INVOICE"; }
     @Override public String getModuleCode()  { return "ACCOUNTING"; }
@@ -95,13 +106,23 @@ public class InvoiceService implements ApprovalHandler {
     }
 
     @Transactional(readOnly = true)
-    public PagedResponse<InvoiceResponse> getAllPaged(int page, int size, String search, String type, String status) {
+    public PagedResponse<InvoiceResponse> getAllPaged(int page, int size, String search, String type, String status, String types) {
         String q = (search != null && !search.isBlank()) ? search : null;
-        InvoiceType t = (type != null && !type.isBlank()) ? InvoiceType.valueOf(type) : null;
         List<InvoiceStatus> statuses = (status != null && !status.isBlank())
                 ? List.of(InvoiceStatus.valueOf(status))
                 : List.of(InvoiceStatus.values());
         var pageable = PageRequest.of(page, size, Sort.by("invoiceDate").descending().and(Sort.by("createdAt").descending()));
+
+        // Çoxlu növ filtri (məs: CONTRACTOR_EXPENSE,INVESTOR_EXPENSE)
+        if (types != null && !types.isBlank()) {
+            List<InvoiceType> typeList = java.util.Arrays.stream(types.split(","))
+                    .map(String::trim)
+                    .map(InvoiceType::valueOf)
+                    .toList();
+            return PagedResponse.from(invoiceRepository.findAllFilteredByTypes(q, typeList, statuses, pageable), InvoiceResponse::from);
+        }
+
+        InvoiceType t = (type != null && !type.isBlank()) ? InvoiceType.valueOf(type) : null;
         return PagedResponse.from(invoiceRepository.findAllFiltered(q, t, statuses, pageable), InvoiceResponse::from);
     }
 
@@ -198,6 +219,18 @@ public class InvoiceService implements ApprovalHandler {
             saved = invoiceRepository.save(saved);
         }
 
+        if (saved.getType() == InvoiceType.INCOME) {
+            receivableService.syncInvoiceDebt(saved);
+            // SENT statusunda yaradılıbsa (yəni layihə modulundan göndərilib) → podratçı/investor xərc qaiməsini avtomatik yarat
+            if (saved.getStatus() == InvoiceStatus.SENT) {
+                try {
+                    autoCreateExpenseInvoice(saved);
+                } catch (Exception e) {
+                    log.error("[create] autoCreateExpenseInvoice xətası: {}", e.getMessage(), e);
+                }
+            }
+        }
+
         notificationService.success("Yeni faktura", "Faktura yaradıldı: " + saved.getInvoiceNumber(), "ACCOUNTING");
         auditService.log("FAKTURA", saved.getId(), saved.getInvoiceNumber(), "YARADILDI", "Yeni faktura qeydiyyatı");
         return InvoiceResponse.from(saved);
@@ -253,6 +286,9 @@ public class InvoiceService implements ApprovalHandler {
         }
 
         Invoice updated = invoiceRepository.save(inv);
+        if (updated.getType() == InvoiceType.INCOME) {
+            receivableService.syncInvoiceDebt(updated);
+        }
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "YENİLƏNDİ", "Faktura məlumatları yeniləndi");
         return InvoiceResponse.from(updated);
     }
@@ -274,6 +310,7 @@ public class InvoiceService implements ApprovalHandler {
         if (req.getStatus() != null && (req.getStatus() == InvoiceStatus.APPROVED || req.getStatus() == InvoiceStatus.RETURNED)) {
             throw new InvalidStatusTransitionException("Bu status dəyişikliyi üçün müvafiq endpointdən istifadə edin");
         }
+        InvoiceStatus prevStatus = inv.getStatus();
         if (req.getInvoiceNumber() != null) inv.setInvoiceNumber(req.getInvoiceNumber().isBlank() ? null : req.getInvoiceNumber().trim());
         if (req.getEtaxesId() != null) {
             String etaxesId = req.getEtaxesId().isBlank() ? null : req.getEtaxesId().trim();
@@ -296,6 +333,18 @@ public class InvoiceService implements ApprovalHandler {
         }
         Invoice updated = invoiceRepository.save(inv);
         auditService.log("FAKTURA", updated.getId(), updated.getAccountingId(), "SAHƏ YENİLƏNDİ", "Mühasib sahələri doldurdu");
+
+        // INCOME qaimə SENT-ə keçəndə (yəni mühasibatlığa göndəriləndə) → podratçı/investor xərc qaiməsini avtomatik yarat
+        if (updated.getType() == InvoiceType.INCOME
+                && updated.getStatus() == InvoiceStatus.SENT
+                && prevStatus != InvoiceStatus.SENT) {
+            try {
+                autoCreateExpenseInvoice(updated);
+            } catch (Exception e) {
+                log.error("[patchFields] autoCreateExpenseInvoice xətası: {}", e.getMessage(), e);
+            }
+        }
+
         return InvoiceResponse.from(updated);
     }
 
@@ -308,7 +357,10 @@ public class InvoiceService implements ApprovalHandler {
         }
         auditService.log("FAKTURA", inv.getId(), inv.getInvoiceNumber(), "SİLİNDİ", "Faktura silindi");
         inv.softDelete();
-        invoiceRepository.save(inv);
+        Invoice deleted = invoiceRepository.save(inv);
+        if (deleted.getType() == InvoiceType.INCOME) {
+            receivableService.syncInvoiceDebt(deleted);
+        }
     }
 
     // ─── Approve / Return ──────────────────────────────────────────────────────
@@ -356,8 +408,118 @@ public class InvoiceService implements ApprovalHandler {
             }
         }
 
+        // Podratçı / İnvestor xərc qaiməsini avtomatik yarat
+        if (updated.getType() == InvoiceType.INCOME && updated.getProject() != null) {
+            try {
+                autoCreateExpenseInvoice(updated);
+            } catch (Exception e) {
+                log.error("[approve] autoCreateExpenseInvoice xətası: {}", e.getMessage(), e);
+            }
+        }
+
+        // CONTRACTOR/INVESTOR_EXPENSE təsdiqlənəndə layihə xərcinə əlavə et + Kreditor sinxronlaşdır
+        if (inv.getType() == InvoiceType.CONTRACTOR_EXPENSE || inv.getType() == InvoiceType.INVESTOR_EXPENSE) {
+            if (inv.getProject() != null) {
+                String payeeName = inv.getContractor() != null
+                        ? inv.getContractor().getCompanyName()
+                        : (inv.getCompanyName() != null ? inv.getCompanyName() : "Podratçı/İnvestor");
+                String expenseLabel = (inv.getInvoiceNumber() != null ? inv.getInvoiceNumber() + " — " : "") + payeeName;
+                ProjectExpense expense = ProjectExpense.builder()
+                        .project(inv.getProject())
+                        .key(expenseLabel)
+                        .value(inv.getAmount())
+                        .date(inv.getInvoiceDate())
+                        .build();
+                projectExpenseRepository.save(expense);
+            }
+            payableService.syncPayableDebt(updated);
+        }
+
+        // Debitor cədvəlinə sync et (gəlir qaiməsi təsdiqləndi)
+        if (updated.getType() == InvoiceType.INCOME) {
+            receivableService.syncInvoiceDebt(updated);
+        }
+
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "TƏSDİQLƏNDİ", "Qaimə mühasibatlıq tərəfindən təsdiqləndi");
         return InvoiceResponse.from(updated);
+    }
+
+    private void autoCreateExpenseInvoice(Invoice incomeInvoice) {
+        log.info("[autoCreateExpenseInvoice] Başladı: incomeInvoiceId={}, type={}, status={}",
+                incomeInvoice.getId(), incomeInvoice.getType(), incomeInvoice.getStatus());
+
+        var project = incomeInvoice.getProject();
+        if (project == null || project.getRequest() == null) {
+            log.warn("[autoCreateExpenseInvoice] Layihə və ya request boşdur — keçirik");
+            return;
+        }
+
+        // Artıq bu gəlir qaiməsinə bağlı xərc qaiməsi varsa — yenidən yaratma
+        if (invoiceRepository.existsBySourceInvoiceIdAndDeletedFalse(incomeInvoice.getId())) {
+            log.info("[autoCreateExpenseInvoice] Artıq bu gəlir qaiməsi üçün xərc qaiməsi mövcuddur — keçirik");
+            return;
+        }
+
+        var plan = coordinatorPlanRepository.findByRequestId(project.getRequest().getId()).orElse(null);
+        log.info("[autoCreateExpenseInvoice] Plan tapıldı: {}", plan != null ? "BƏLİ (id=" + plan.getId() + ")" : "XEYR");
+
+        Equipment eq = plan != null && plan.getSelectedEquipment() != null
+                ? plan.getSelectedEquipment()
+                : project.getRequest().getSelectedEquipment();
+        if (eq == null) {
+            log.warn("[autoCreateExpenseInvoice] Texnika tapılmadı (plan və request hər ikisində boş) — keçirik");
+            return;
+        }
+        log.info("[autoCreateExpenseInvoice] Texnika: {} — Sahiblik: {}", eq.getName(), eq.getOwnershipType());
+
+        if (eq.getOwnershipType() == OwnershipType.COMPANY) {
+            log.info("[autoCreateExpenseInvoice] Texnika şirkətə məxsusdur — xərc qaiməsi yaradılmır");
+            return;
+        }
+
+        // Məbləği planın ödəniş məlumatlarından götür
+        // MONTHLY: hər qaimə bir aya uyğundur → aylıq dərəcə
+        // DAILY: tam məbləğ
+        BigDecimal expenseAmount = BigDecimal.ZERO;
+        if (plan != null) {
+            boolean isMonthly = project.getRequest().getProjectType() == ProjectType.MONTHLY;
+            if (isMonthly && plan.getContractorDailyRate() != null
+                    && plan.getContractorDailyRate().compareTo(BigDecimal.ZERO) > 0) {
+                expenseAmount = plan.getContractorDailyRate();
+            } else if (plan.getContractorPayment() != null
+                    && plan.getContractorPayment().compareTo(BigDecimal.ZERO) > 0) {
+                expenseAmount = plan.getContractorPayment();
+            }
+        }
+
+        String incomeRef = incomeInvoice.getInvoiceNumber() != null
+                ? incomeInvoice.getInvoiceNumber()
+                : (incomeInvoice.getAccountingId() != null ? incomeInvoice.getAccountingId() : "#" + incomeInvoice.getId());
+
+        Invoice.InvoiceBuilder builder = Invoice.builder()
+                .status(InvoiceStatus.SENT)
+                .amount(expenseAmount)
+                .invoiceDate(incomeInvoice.getInvoiceDate())
+                .project(project)
+                .equipmentName(eq.getName())
+                .periodMonth(incomeInvoice.getPeriodMonth())
+                .periodYear(incomeInvoice.getPeriodYear())
+                .sourceInvoiceId(incomeInvoice.getId())
+                .notes("\"" + incomeRef + "\" gəlir qaiməsindən avtomatik yaradıldı");
+
+        if (eq.getOwnershipType() == OwnershipType.CONTRACTOR) {
+            builder.type(InvoiceType.CONTRACTOR_EXPENSE)
+                   .contractor(eq.getOwnerContractor());
+        } else {
+            builder.type(InvoiceType.INVESTOR_EXPENSE)
+                   .companyName(eq.getOwnerInvestorName());
+        }
+
+        Invoice expense = builder.build();
+        expense.setAccountingId(generateAccountingId(incomeInvoice.getInvoiceDate().getYear()));
+        Invoice saved = invoiceRepository.save(expense);
+        log.info("[autoCreateExpenseInvoice] Xərc qaiməsi yaradıldı: id={}, type={}, amount={}, accountingId={}",
+                saved.getId(), saved.getType(), saved.getAmount(), saved.getAccountingId());
     }
 
     @Transactional
@@ -390,20 +552,40 @@ public class InvoiceService implements ApprovalHandler {
         if (inv.getStatus() != InvoiceStatus.RETURNED) {
             throw new BusinessException("Yalnız geri qaytarılmış qaimələr yenidən göndərilə bilər");
         }
-        validate(req, id);
+        // Yalnız request-də verilən sahələri yenilə (qalanları olduğu kimi saxla)
+        if (req.getAmount() != null)              inv.setAmount(req.getAmount());
+        if (req.getInvoiceDate() != null)         inv.setInvoiceDate(req.getInvoiceDate());
+        if (req.getEtaxesId() != null)            inv.setEtaxesId(req.getEtaxesId().isBlank() ? null : req.getEtaxesId().trim());
+        if (req.getEquipmentName() != null)       inv.setEquipmentName(req.getEquipmentName());
+        if (req.getCompanyName() != null)         inv.setCompanyName(req.getCompanyName());
+        if (req.getServiceDescription() != null)  inv.setServiceDescription(req.getServiceDescription());
+        if (req.getNotes() != null)               inv.setNotes(req.getNotes().isBlank() ? null : req.getNotes().trim());
+        if (req.getStandardDays() != null)        inv.setStandardDays(req.getStandardDays());
+        if (req.getExtraDays() != null)           inv.setExtraDays(req.getExtraDays());
+        if (req.getExtraHours() != null)          inv.setExtraHours(req.getExtraHours());
+        if (req.getMonthlyRate() != null)         inv.setMonthlyRate(req.getMonthlyRate());
+        if (req.getWorkingDaysInMonth() != null)  inv.setWorkingDaysInMonth(req.getWorkingDaysInMonth());
+        if (req.getWorkingHoursPerDay() != null)  inv.setWorkingHoursPerDay(req.getWorkingHoursPerDay());
+        if (req.getOvertimeRate() != null)        inv.setOvertimeRate(req.getOvertimeRate());
 
-        inv.setAmount(req.getAmount());
-        inv.setInvoiceDate(req.getInvoiceDate());
-        inv.setEtaxesId(req.getEtaxesId());
-        inv.setEquipmentName(req.getEquipmentName());
-        inv.setCompanyName(req.getCompanyName());
-        inv.setServiceDescription(req.getServiceDescription());
-        inv.setNotes(req.getNotes());
+        // Vaxt cədvəlinə görə məbləği yenidən hesabla (məcburi sahələr varsa)
+        BigDecimal recalc = calculateTimesheetAmount(req);
+        if (recalc != null && recalc.compareTo(BigDecimal.ZERO) > 0) {
+            inv.setAmount(recalc);
+        }
 
-        inv.setHasTransport(req.isHasTransport());
-        inv.getTransports().clear();
-        if (req.isHasTransport() && req.getTransports() != null) {
-            saveTransports(inv, req.getTransports());
+        // Yalnız tam paket göndərildiyi halda daşınmaları sıfırla (yoxsa mövcud olanları qoru)
+        if (req.getTransports() != null) {
+            inv.setHasTransport(req.isHasTransport());
+            inv.getTransports().clear();
+            if (req.isHasTransport()) {
+                saveTransports(inv, req.getTransports());
+            }
+        }
+
+        // Səhv konfiqurasiyaya qarşı son qoruma — amount null-a düşməsin
+        if (inv.getAmount() == null) {
+            throw new BusinessException("Qaimə məbləği boş ola bilməz. Standart günlər və aylıq dərəcə daxil edin.");
         }
 
         // Əgər bu qaimənin hələ accountingId-si yoxdursa yarat (ilk dəfə resubmit olan köhnə qaimələr üçün)
@@ -413,6 +595,16 @@ public class InvoiceService implements ApprovalHandler {
         inv.setStatus(InvoiceStatus.SENT);
         Invoice updated = invoiceRepository.save(inv);
         auditService.log("FAKTURA", updated.getId(), updated.getAccountingId(), "YENİDƏN GÖNDƏRİLDİ", "Düzəliş edilmiş qaimə yenidən mühasibatlığa göndərildi");
+
+        // Yenidən göndərildikdə də xərc qaiməsini yoxla / yarat (əgər əvvəl yaranmayıbsa)
+        if (updated.getType() == InvoiceType.INCOME) {
+            try {
+                autoCreateExpenseInvoice(updated);
+            } catch (Exception e) {
+                log.error("[resubmit] autoCreateExpenseInvoice xətası: {}", e.getMessage(), e);
+            }
+        }
+
         return InvoiceResponse.from(updated);
     }
 

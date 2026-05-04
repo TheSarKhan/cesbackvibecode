@@ -100,6 +100,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     // Mənbə gəlir qaiməsinə bağlı xərc qaimələri
     List<Invoice> findAllBySourceInvoiceIdAndDeletedFalse(Long sourceInvoiceId);
+    boolean existsBySourceInvoiceIdAndDeletedFalse(Long sourceInvoiceId);
 
     List<Invoice> findAllByDeletedTrue();
 

@@ -31,6 +31,8 @@ import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.project.repository.ProjectRevenueRepository;
 import com.ces.erp.accounting.repository.InvoiceRepository;
 import com.ces.erp.accounting.service.ReceivableService;
+import com.ces.erp.customer.entity.CustomerDocument;
+import com.ces.erp.customer.repository.CustomerDocumentRepository;
 import com.ces.erp.accounting.entity.Invoice;
 import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.enums.InvoiceType;
@@ -62,6 +64,7 @@ public class ProjectService {
     private final AuditService auditService;
     private final ReceivableService receivableService;
     private final InvoiceRepository invoiceRepository;
+    private final CustomerDocumentRepository customerDocumentRepository;
 
     // ─── List ─────────────────────────────────────────────────────────────────
 
@@ -108,11 +111,33 @@ public class ProjectService {
         p.setContractFileName(file.getOriginalFilename());
         p.setHasContract(true);
         p.setStatus(ProjectStatus.ACTIVE);
-        p.setStartDate(startDate != null ? startDate : LocalDate.now());
+        LocalDate effectiveStart = startDate != null ? startDate : LocalDate.now();
+        p.setStartDate(effectiveStart);
 
         projectRepository.save(p);
         receivableService.createFromProject(p);
         auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YARADILDI", "Yeni layihə yaradıldı");
+
+        // Müqaviləni müştərinin sənədlər bölməsinə avtomatik əlavə et
+        var customer = p.getRequest() != null ? p.getRequest().getCustomer() : null;
+        if (customer != null) {
+            String originalName = file.getOriginalFilename();
+            String fileType = originalName != null && originalName.contains(".")
+                    ? originalName.substring(originalName.lastIndexOf('.') + 1).toUpperCase()
+                    : "FILE";
+            String projectLabel = p.getRequest().getProjectName() != null && !p.getRequest().getProjectName().isBlank()
+                    ? p.getRequest().getProjectName()
+                    : p.getProjectCode();
+            CustomerDocument doc = CustomerDocument.builder()
+                    .customer(customer)
+                    .filePath(path)
+                    .documentName(p.getProjectCode() + " – " + projectLabel + " (Müqavilə)")
+                    .fileType(fileType)
+                    .documentDate(effectiveStart)
+                    .build();
+            customerDocumentRepository.save(doc);
+        }
+
         CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
         return ProjectResponse.from(p, plan);
     }

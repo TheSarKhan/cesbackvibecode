@@ -51,6 +51,8 @@ public class InvoiceResponse {
     // Maliyyə (Type A — layihənin xalis gəliri)
     private BigDecimal projectNetProfit;
 
+    private Long sourceInvoiceId;
+
     private String notes;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -137,6 +139,7 @@ public class InvoiceResponse {
                 .contractorVoen(inv.getContractor() != null ? inv.getContractor().getVoen() : null)
                 .customerId(inv.getCustomer() != null ? inv.getCustomer().getId() : null)
                 .customerName(inv.getCustomer() != null ? inv.getCustomer().getCompanyName() : null)
+                .sourceInvoiceId(inv.getSourceInvoiceId())
                 .projectNetProfit(netProfit)
                 .notes(inv.getNotes())
                 .createdAt(inv.getCreatedAt())
