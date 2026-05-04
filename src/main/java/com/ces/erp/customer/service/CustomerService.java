@@ -9,8 +9,11 @@ import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
+import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.CustomerStatus;
 import com.ces.erp.enums.RiskLevel;
+import com.ces.erp.project.dto.ProjectResponse;
+import com.ces.erp.project.repository.ProjectRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.ces.erp.customer.dto.CustomerDocumentResponse;
@@ -40,6 +43,8 @@ public class CustomerService implements ApprovalHandler {
     private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+    private final ProjectRepository projectRepository;
+    private final CoordinatorPlanRepository coordinatorPlanRepository;
 
     @Override public String getEntityType() { return "CUSTOMER"; }
     @Override public String getModuleCode()  { return "CUSTOMER_MANAGEMENT"; }
@@ -121,6 +126,19 @@ public class CustomerService implements ApprovalHandler {
             customer.softDelete();
             customerRepository.save(customer);
         }
+    }
+
+    // ─── Layihələr ────────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<ProjectResponse> getProjectsByCustomer(Long customerId) {
+        findOrThrow(customerId);
+        return projectRepository.findAllByCustomerId(customerId).stream()
+                .map(p -> {
+                    var plan = coordinatorPlanRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+                    return ProjectResponse.from(p, plan);
+                })
+                .toList();
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────

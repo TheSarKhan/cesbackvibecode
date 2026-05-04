@@ -40,6 +40,9 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(project_code FROM 5) AS INTEGER)), 0) FROM projects WHERE project_code LIKE 'PRJ-%'", nativeQuery = true)
     int findMaxProjectCodeNumber();
 
+    @Query("SELECT p FROM Project p LEFT JOIN FETCH p.request r WHERE r.customer.id = :customerId AND p.deleted = false ORDER BY p.createdAt DESC")
+    List<Project> findAllByCustomerId(@Param("customerId") Long customerId);
+
     List<Project> findAllByDeletedTrue();
 
     long countByStatusAndDeletedFalse(ProjectStatus status);

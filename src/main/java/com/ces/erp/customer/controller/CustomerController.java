@@ -6,6 +6,7 @@ import com.ces.erp.common.security.UserPrincipal;
 import com.ces.erp.customer.dto.CustomerDocumentResponse;
 import com.ces.erp.customer.dto.CustomerRequest;
 import com.ces.erp.customer.dto.CustomerResponse;
+import com.ces.erp.project.dto.ProjectResponse;
 import com.ces.erp.customer.service.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -90,6 +91,15 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<Void>> deleteAll(@RequestBody Map<String, List<Long>> body) {
         customerService.deleteAll(body.get("ids"));
         return ResponseEntity.ok(ApiResponse.ok("Müştərilər silindi"));
+    }
+
+    // ─── Layihələr ────────────────────────────────────────────────────────────
+
+    @GetMapping("/{id}/projects")
+    @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:GET')")
+    @Operation(summary = "Müştəriyə aid layihələri gətir")
+    public ResponseEntity<ApiResponse<List<ProjectResponse>>> getProjects(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(customerService.getProjectsByCustomer(id)));
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────
