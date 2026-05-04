@@ -67,7 +67,8 @@ public class DataSeeder implements CommandLineRunner {
                 module("OPERATIONS_APPROVAL",    "Əməliyyatların Təsdiqi",    13),
                 module("TRASH",                  "Silinmiş Məlumatlar",       14),
                 module("AUDIT_LOG",              "Audit Jurnal",              15),
-                module("CONFIG",                 "Konfiqurasiya Modulu",      16)
+                module("CONFIG",                 "Konfiqurasiya Modulu",      16),
+                module("HR_MANAGEMENT",          "İnsan Resursları Modulu",   17)
         );
         moduleRepository.saveAll(modules);
         log.info("{} modul əlavə edildi.", modules.size());
