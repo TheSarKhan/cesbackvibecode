@@ -32,10 +32,11 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     @Query("""
         SELECT e FROM Employee e
         WHERE e.deleted = false
-          AND (:q IS NULL OR LOWER(e.firstName) LIKE LOWER(CONCAT('%', :q, '%'))
-                          OR LOWER(e.lastName)  LIKE LOWER(CONCAT('%', :q, '%'))
-                          OR LOWER(e.fin)       LIKE LOWER(CONCAT('%', :q, '%'))
-                          OR LOWER(e.employeeCode) LIKE LOWER(CONCAT('%', :q, '%')))
+          AND (CAST(:q AS string) IS NULL
+               OR LOWER(e.firstName)    LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+               OR LOWER(e.lastName)     LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+               OR LOWER(e.fin)          LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+               OR LOWER(e.employeeCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))
           AND (:status IS NULL OR e.status = :status)
           AND (:departmentId IS NULL OR e.department.id = :departmentId)
           AND (:positionId   IS NULL OR e.position.id   = :positionId)
