@@ -117,6 +117,13 @@ public class InvoiceResponse {
                 .map(InvoiceTransportDto::getTransportAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // customer_id FK boş ola bilər (layihə qaimələrində) — project→request→customer zəncirinə fallback
+        var effectiveCustomer = inv.getCustomer();
+        if (effectiveCustomer == null && inv.getProject() != null
+                && inv.getProject().getRequest() != null) {
+            effectiveCustomer = inv.getProject().getRequest().getCustomer();
+        }
+
         return InvoiceResponse.builder()
                 .id(inv.getId())
                 .type(inv.getType())
@@ -137,8 +144,8 @@ public class InvoiceResponse {
                 .contractorId(inv.getContractor() != null ? inv.getContractor().getId() : null)
                 .contractorName(inv.getContractor() != null ? inv.getContractor().getCompanyName() : null)
                 .contractorVoen(inv.getContractor() != null ? inv.getContractor().getVoen() : null)
-                .customerId(inv.getCustomer() != null ? inv.getCustomer().getId() : null)
-                .customerName(inv.getCustomer() != null ? inv.getCustomer().getCompanyName() : null)
+                .customerId(effectiveCustomer != null ? effectiveCustomer.getId() : null)
+                .customerName(effectiveCustomer != null ? effectiveCustomer.getCompanyName() : null)
                 .sourceInvoiceId(inv.getSourceInvoiceId())
                 .projectNetProfit(netProfit)
                 .notes(inv.getNotes())

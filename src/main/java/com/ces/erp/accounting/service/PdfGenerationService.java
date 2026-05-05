@@ -37,10 +37,11 @@ public class PdfGenerationService {
     private String uploadDir;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
-    private static final Color HEADER_BG = new Color(30, 64, 120);
-    private static final Color ACCENT    = new Color(212, 170, 50);
-    private static final Color LIGHT_GRAY = new Color(245, 245, 248);
-    private static final Color MID_GRAY   = new Color(200, 200, 210);
+    private static final Color HEADER_BG  = Color.BLACK;
+    private static final Color ACCENT     = new Color(80, 80, 80);
+    private static final Color LIGHT_GRAY = new Color(240, 240, 240);
+    private static final Color MID_GRAY   = new Color(180, 180, 180);
+    private static final Color TABLE_HDR  = Color.BLACK;
 
     private static final String[] AZ_MONTHS = {
         "yanvar", "fevral", "mart", "aprel", "may", "iyun",
@@ -189,15 +190,15 @@ public class PdfGenerationService {
         BaseFont bf     = loadBaseFont(false);
         BaseFont bfBold = loadBaseFont(true);
 
-        Font titleFont  = font(bfBold, 15, Font.BOLD,   HEADER_BG);
-        Font labelFont  = font(bfBold,  9, Font.BOLD,   Color.DARK_GRAY);
+        Font titleFont  = font(bfBold, 15, Font.BOLD,   Color.BLACK);
+        Font labelFont  = font(bfBold,  9, Font.BOLD,   Color.BLACK);
         Font bodyFont   = font(bf,       9, Font.NORMAL, Color.DARK_GRAY);
         Font thFont     = font(bfBold,   8, Font.BOLD,   Color.WHITE);
         Font cellFont   = font(bf,       8, Font.NORMAL, Color.DARK_GRAY);
-        Font boldCell   = font(bfBold,   8, Font.BOLD,   Color.DARK_GRAY);
+        Font boldCell   = font(bfBold,   8, Font.BOLD,   Color.BLACK);
         Font smallItal  = font(bf,       8, Font.ITALIC, new Color(80, 80, 80));
-        Font bankLblF   = font(bfBold,   8, Font.BOLD,   Color.DARK_GRAY);
-        Font bankValF   = font(bf,       8, Font.NORMAL, HEADER_BG);
+        Font bankLblF   = font(bfBold,   8, Font.BOLD,   Color.BLACK);
+        Font bankValF   = font(bf,       8, Font.NORMAL, Color.BLACK);
 
         String compName    = getCompanyConfig("COMPANY_NAME");
         String compVoen    = getCompanyConfig("VOEN");
@@ -302,9 +303,9 @@ public class PdfGenerationService {
         BaseFont bf     = loadBaseFont(false);
         BaseFont bfBold = loadBaseFont(true);
 
-        Font titleFont  = font(bfBold, 14, Font.BOLD,   HEADER_BG);
+        Font titleFont  = font(bfBold, 14, Font.BOLD,   Color.BLACK);
         Font bodyFont   = font(bf,      9, Font.NORMAL, Color.DARK_GRAY);
-        Font bodyBold   = font(bfBold,  9, Font.BOLD,   Color.DARK_GRAY);
+        Font bodyBold   = font(bfBold,  9, Font.BOLD,   Color.BLACK);
         Font smallFont  = font(bf,      8, Font.NORMAL, Color.GRAY);
 
         // ─── 1. Logo + Başlıq ───
@@ -336,7 +337,7 @@ public class PdfGenerationService {
         Paragraph titleP = new Paragraph("TƏHVİL – TƏSLİM AKTI", titleFont);
         titleP.setAlignment(Element.ALIGN_RIGHT);
         titleCell.addElement(titleP);
-        Paragraph docNumP = new Paragraph("№ " + doc.getDocumentNumber(), font(bf, 9, Font.NORMAL, HEADER_BG));
+        Paragraph docNumP = new Paragraph("№ " + doc.getDocumentNumber(), font(bf, 9, Font.NORMAL, Color.BLACK));
         docNumP.setAlignment(Element.ALIGN_RIGHT);
         titleCell.addElement(docNumP);
         logoRow.addCell(titleCell);
@@ -443,12 +444,12 @@ public class PdfGenerationService {
 
         Font titleFont  = font(bfBold, 16, Font.BOLD, Color.WHITE);
         Font subFont    = font(bf,      9,  Font.NORMAL, Color.WHITE);
-        Font sectionFont = font(bfBold, 9,  Font.BOLD, HEADER_BG);
+        Font sectionFont = font(bfBold, 9,  Font.BOLD, Color.BLACK);
         Font bodyFont   = font(bf,      8,  Font.NORMAL, Color.DARK_GRAY);
-        Font bodyBold   = font(bfBold,  8,  Font.BOLD, Color.DARK_GRAY);
+        Font bodyBold   = font(bfBold,  8,  Font.BOLD, Color.BLACK);
         Font smallFont  = font(bf,      7,  Font.NORMAL, Color.GRAY);
-        Font totalFont  = font(bfBold, 10,  Font.BOLD, HEADER_BG);
-        Font accentFont = font(bfBold,  8,  Font.BOLD, ACCENT);
+        Font totalFont  = font(bfBold, 10,  Font.BOLD, Color.WHITE);
+        Font accentFont = font(bfBold,  8,  Font.BOLD, Color.BLACK);
 
         // ─── Header ───
         PdfPTable header = new PdfPTable(2);
@@ -457,8 +458,9 @@ public class PdfGenerationService {
         header.setSpacingAfter(12);
 
         PdfPCell lc = new PdfPCell();
-        lc.setBackgroundColor(HEADER_BG);
-        lc.setBorder(Rectangle.NO_BORDER);
+        lc.setBackgroundColor(TABLE_HDR);
+        lc.setBorder(Rectangle.BOX);
+        lc.setBorderColor(MID_GRAY);
         lc.setPadding(14);
         Paragraph lp = new Paragraph();
         lp.add(new Chunk("INVOICE\n", titleFont));
@@ -468,16 +470,20 @@ public class PdfGenerationService {
         header.addCell(lc);
 
         PdfPCell rc = new PdfPCell();
-        rc.setBackgroundColor(ACCENT);
-        rc.setBorder(Rectangle.NO_BORDER);
-        rc.setPadding(14);
+        rc.setBackgroundColor(Color.WHITE);
+        rc.setBorder(Rectangle.BOX);
+        rc.setBorderColor(MID_GRAY);
+        rc.setPadding(10);
         rc.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        Paragraph rp = new Paragraph();
-        rp.setAlignment(Element.ALIGN_RIGHT);
-        String compName = getCompanyConfig("COMPANY_NAME");
-        rp.add(new Chunk(compName.isEmpty() ? "CES MMC" : compName,
-                font(bfBold, 11, Font.BOLD, Color.WHITE)));
-        rc.addElement(rp);
+        rc.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        try (var logoIs = PdfGenerationService.class.getResourceAsStream("/images/filelogo.png")) {
+            if (logoIs != null) {
+                Image logo = Image.getInstance(logoIs.readAllBytes());
+                logo.scaleToFit(140, 60);
+                logo.setAlignment(Image.RIGHT);
+                rc.addElement(logo);
+            }
+        } catch (Exception ignored) {}
         header.addCell(rc);
 
         pdf.add(header);
@@ -532,13 +538,13 @@ public class PdfGenerationService {
 
         Font thFont   = font(bfBold, 8, Font.BOLD,   Color.WHITE);
         Font cellFont = font(bf,     8, Font.NORMAL, Color.DARK_GRAY);
-        Font boldCell = font(bfBold, 8, Font.BOLD,   Color.DARK_GRAY);
+        Font boldCell = font(bfBold, 8, Font.BOLD,   Color.BLACK);
 
         for (String h : new String[]{"№", "Göstərilən xidmətlərin məzmunu", "Ölçü vahidi", "Sayı", "Qiyməti", "Məbləğ"}) {
             PdfPCell c = new PdfPCell(new Phrase(h, thFont));
-            c.setBackgroundColor(HEADER_BG);
+            c.setBackgroundColor(TABLE_HDR);
             c.setBorder(Rectangle.BOX);
-            c.setBorderColor(new Color(20, 50, 100));
+            c.setBorderColor(MID_GRAY);
             c.setPadding(5);
             c.setHorizontalAlignment(Element.ALIGN_CENTER);
             table.addCell(c);
@@ -560,8 +566,8 @@ public class PdfGenerationService {
     private Element buildAktTotals(GeneratedDocument doc, BaseFont bf, BaseFont bfBold)
             throws DocumentException {
         Font labelF  = font(bf,      9,  Font.NORMAL, Color.DARK_GRAY);
-        Font boldF   = font(bfBold,  9,  Font.BOLD,   Color.DARK_GRAY);
-        Font totalF  = font(bfBold, 11,  Font.BOLD,   HEADER_BG);
+        Font boldF   = font(bfBold,  9,  Font.BOLD,   Color.BLACK);
+        Font totalF  = font(bfBold, 11,  Font.BOLD,   Color.WHITE);
         Font wordsF  = font(bf,      8,  Font.ITALIC, new Color(80, 80, 80));
 
         PdfPTable outer = new PdfPTable(2);
@@ -584,12 +590,12 @@ public class PdfGenerationService {
                 fmtAz(doc.getVatAmount()), labelF, boldF, Color.WHITE);
 
         PdfPCell gLbl = new PdfPCell(new Phrase("Yekunu:", totalF));
-        gLbl.setBorderColor(HEADER_BG); gLbl.setBorder(Rectangle.BOX);
+        gLbl.setBackgroundColor(TABLE_HDR); gLbl.setBorderColor(MID_GRAY); gLbl.setBorder(Rectangle.BOX);
         gLbl.setPadding(6); gLbl.setHorizontalAlignment(Element.ALIGN_RIGHT);
         inner.addCell(gLbl);
 
         PdfPCell gAmt = new PdfPCell(new Phrase(fmtAz(doc.getGrandTotal()) + " AZN", totalF));
-        gAmt.setBorderColor(HEADER_BG); gAmt.setBorder(Rectangle.BOX);
+        gAmt.setBackgroundColor(TABLE_HDR); gAmt.setBorderColor(MID_GRAY); gAmt.setBorder(Rectangle.BOX);
         gAmt.setPadding(6); gAmt.setHorizontalAlignment(Element.ALIGN_RIGHT);
         inner.addCell(gAmt);
 
@@ -608,7 +614,7 @@ public class PdfGenerationService {
 
     private Element buildAktSignatureBlock(GeneratedDocument doc, BaseFont bf, BaseFont bfBold)
             throws DocumentException {
-        Font roleFont = font(bfBold, 9, Font.BOLD,   HEADER_BG);
+        Font roleFont = font(bfBold, 9, Font.BOLD,   Color.BLACK);
         Font nameFont = font(bfBold, 9, Font.BOLD,   Color.DARK_GRAY);
         Font infoFont = font(bf,     8, Font.NORMAL, Color.DARK_GRAY);
         Font lineFont = font(bf,     8, Font.NORMAL, new Color(100, 100, 100));
@@ -714,13 +720,14 @@ public class PdfGenerationService {
 
         Font thFont   = font(bfBold, 8, Font.BOLD, Color.WHITE);
         Font cellFont = font(bf,     8, Font.NORMAL, Color.DARK_GRAY);
-        Font boldCell = font(bfBold, 8, Font.BOLD, Color.DARK_GRAY);
+        Font boldCell = font(bfBold, 8, Font.BOLD, Color.BLACK);
 
         String[] headers = {"№", "Xidmətin adı", "Vahid", "Miqdar", "Vahid qiymət", "Məbləğ"};
         for (String h : headers) {
             PdfPCell c = new PdfPCell(new Phrase(h, thFont));
-            c.setBackgroundColor(HEADER_BG);
-            c.setBorder(Rectangle.NO_BORDER);
+            c.setBackgroundColor(TABLE_HDR);
+            c.setBorder(Rectangle.BOX);
+            c.setBorderColor(MID_GRAY);
             c.setPadding(6);
             c.setHorizontalAlignment(Element.ALIGN_CENTER);
             table.addCell(c);
@@ -748,13 +755,14 @@ public class PdfGenerationService {
 
         Font thFont   = font(bfBold, 8, Font.BOLD, Color.WHITE);
         Font cellFont = font(bf,     8, Font.NORMAL, Color.DARK_GRAY);
-        Font boldCell = font(bfBold, 8, Font.BOLD, Color.DARK_GRAY);
+        Font boldCell = font(bfBold, 8, Font.BOLD, Color.BLACK);
 
         String[] headers = {"#", "Description", "Unit", "Qty", "Unit Price", "Amount"};
         for (String h : headers) {
             PdfPCell c = new PdfPCell(new Phrase(h, thFont));
-            c.setBackgroundColor(HEADER_BG);
-            c.setBorder(Rectangle.NO_BORDER);
+            c.setBackgroundColor(TABLE_HDR);
+            c.setBorder(Rectangle.BOX);
+            c.setBorderColor(MID_GRAY);
             c.setPadding(6);
             c.setHorizontalAlignment(Element.ALIGN_CENTER);
             table.addCell(c);
@@ -802,15 +810,15 @@ public class PdfGenerationService {
 
         // Grand total — styled
         PdfPCell gLabel = new PdfPCell(new Phrase("YEKUN:", totalFont));
-        gLabel.setBackgroundColor(HEADER_BG);
-        gLabel.setBorder(Rectangle.NO_BORDER);
+        gLabel.setBackgroundColor(TABLE_HDR);
+        gLabel.setBorderColor(MID_GRAY);
         gLabel.setPadding(7);
         gLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
         table.addCell(gLabel);
 
         PdfPCell gAmount = new PdfPCell(new Phrase(fmt2(doc.getGrandTotal()) + " AZN", totalFont));
-        gAmount.setBackgroundColor(HEADER_BG);
-        gAmount.setBorder(Rectangle.NO_BORDER);
+        gAmount.setBackgroundColor(TABLE_HDR);
+        gAmount.setBorderColor(MID_GRAY);
         gAmount.setPadding(7);
         gAmount.setHorizontalAlignment(Element.ALIGN_RIGHT);
         table.addCell(gAmount);
@@ -837,15 +845,15 @@ public class PdfGenerationService {
                 fmt2(doc.getVatAmount()), labelF, amountF, LIGHT_GRAY);
 
         PdfPCell gLabel = new PdfPCell(new Phrase("TOTAL:", totalFont));
-        gLabel.setBackgroundColor(HEADER_BG);
-        gLabel.setBorder(Rectangle.NO_BORDER);
+        gLabel.setBackgroundColor(TABLE_HDR);
+        gLabel.setBorderColor(MID_GRAY);
         gLabel.setPadding(7);
         gLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
         table.addCell(gLabel);
 
         PdfPCell gAmount = new PdfPCell(new Phrase(fmt2(doc.getGrandTotal()) + " AZN", totalFont));
-        gAmount.setBackgroundColor(HEADER_BG);
-        gAmount.setBorder(Rectangle.NO_BORDER);
+        gAmount.setBackgroundColor(TABLE_HDR);
+        gAmount.setBorderColor(MID_GRAY);
         gAmount.setPadding(7);
         gAmount.setHorizontalAlignment(Element.ALIGN_RIGHT);
         table.addCell(gAmount);
@@ -885,18 +893,18 @@ public class PdfGenerationService {
 
         PdfPCell cell = new PdfPCell();
         cell.setBorder(Rectangle.BOX);
-        cell.setBorderColor(ACCENT);
+        cell.setBorderColor(MID_GRAY);
         cell.setBackgroundColor(LIGHT_GRAY);
         cell.setPadding(10);
 
         Paragraph p = new Paragraph();
-        p.add(new Chunk("BANK MƏLUMATlARI\n", font(bfBold, 9, Font.BOLD, HEADER_BG)));
+        p.add(new Chunk("BANKING DETAILS\n", font(bfBold, 9, Font.BOLD, Color.BLACK)));
         if (!bankName.isEmpty()) p.add(new Chunk("Bank: " + bankName + "\n", bodyFont));
-        if (!iban.isEmpty())    p.add(new Chunk("IBAN: " + iban + "\n", bodyFont));
-        if (!swift.isEmpty())   p.add(new Chunk("SWIFT: " + swift + "\n", bodyFont));
-        if (!corrAcc.isEmpty()) p.add(new Chunk("Müxbir hesab: " + corrAcc + "\n", bodyFont));
+        if (!iban.isEmpty())     p.add(new Chunk("IBAN: " + iban + "\n", bodyFont));
+        if (!swift.isEmpty())    p.add(new Chunk("SWIFT: " + swift + "\n", bodyFont));
+        if (!corrAcc.isEmpty())  p.add(new Chunk("Correspondent account: " + corrAcc + "\n", bodyFont));
         if (bankName.isEmpty() && iban.isEmpty() && swift.isEmpty())
-            p.add(new Chunk("Bank məlumatları hələ konfiqurasiya edilməyib.", smallFont));
+            p.add(new Chunk("Bank details not configured yet.", smallFont));
 
         cell.addElement(p);
         table.addCell(cell);
@@ -961,9 +969,9 @@ public class PdfGenerationService {
 
         for (String h : new String[]{"№", "MALLAR (İŞLƏR, XİDMƏTLƏR)", "ÖLÇÜ VAHİDİ", "MİQDARI", "QİYMƏTİ", "CƏMİ"}) {
             PdfPCell c = new PdfPCell(new Phrase(h, thFont));
-            c.setBackgroundColor(HEADER_BG);
+            c.setBackgroundColor(TABLE_HDR);
             c.setBorder(Rectangle.BOX);
-            c.setBorderColor(new Color(20, 50, 100));
+            c.setBorderColor(MID_GRAY);
             c.setPaddingTop(6); c.setPaddingBottom(6);
             c.setPaddingLeft(4); c.setPaddingRight(4);
             c.setHorizontalAlignment(Element.ALIGN_CENTER);
