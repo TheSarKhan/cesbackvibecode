@@ -1,7 +1,10 @@
 package com.ces.erp.investor.controller;
 
+import com.ces.erp.accounting.dto.InvoiceResponse;
+import com.ces.erp.accounting.dto.PayableResponse;
 import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
+import com.ces.erp.coordinator.dto.ProjectHistoryItem;
 import com.ces.erp.investor.dto.InvestorRequest;
 import com.ces.erp.investor.dto.InvestorResponse;
 import com.ces.erp.investor.service.InvestorService;
@@ -79,5 +82,26 @@ public class InvestorController {
     public ResponseEntity<ApiResponse<Void>> deleteAll(@RequestBody Map<String, List<Long>> body) {
         investorService.deleteAll(body.get("ids"));
         return ResponseEntity.ok(ApiResponse.ok("İnvestorlar silindi"));
+    }
+
+    @GetMapping("/{id}/projects")
+    @PreAuthorize("hasAuthority('INVESTORS:GET')")
+    @Operation(summary = "İnvestorun layihə tarixçəsi")
+    public ResponseEntity<ApiResponse<List<ProjectHistoryItem>>> getProjectHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(investorService.getProjectHistory(id)));
+    }
+
+    @GetMapping("/{id}/invoices")
+    @PreAuthorize("hasAuthority('INVESTORS:GET')")
+    @Operation(summary = "İnvestorun qaimələri")
+    public ResponseEntity<ApiResponse<List<InvoiceResponse>>> getInvoices(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(investorService.getInvoices(id)));
+    }
+
+    @GetMapping("/{id}/payables")
+    @PreAuthorize("hasAuthority('INVESTORS:GET')")
+    @Operation(summary = "İnvestora edilmiş ödənişlər")
+    public ResponseEntity<ApiResponse<List<PayableResponse>>> getPayables(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(investorService.getPayables(id)));
     }
 }

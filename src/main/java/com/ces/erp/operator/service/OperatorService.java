@@ -10,12 +10,15 @@ import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.enums.OperatorDocumentType;
+import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
+import com.ces.erp.operator.dto.OperatorProjectHistoryResponse;
 import com.ces.erp.operator.dto.OperatorRequest;
 import com.ces.erp.operator.dto.OperatorResponse;
 import com.ces.erp.operator.entity.Operator;
 import com.ces.erp.operator.entity.OperatorDocument;
 import com.ces.erp.operator.repository.OperatorDocumentRepository;
 import com.ces.erp.operator.repository.OperatorRepository;
+import com.ces.erp.project.repository.ProjectRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -36,6 +39,8 @@ public class OperatorService implements ApprovalHandler {
     private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+    private final CoordinatorPlanRepository coordinatorPlanRepository;
+    private final ProjectRepository projectRepository;
 
     @Override public String getEntityType() { return "OPERATOR"; }
     @Override public String getModuleCode()  { return "OPERATORS"; }
@@ -179,6 +184,18 @@ public class OperatorService implements ApprovalHandler {
         OperatorDocument doc = documentRepository.findByIdAndOperatorId(docId, id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sənəd", docId));
         return fileStorageService.resolve(doc.getFilePath());
+    }
+
+    // ─── Layihə tarixçəsi ────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<OperatorProjectHistoryResponse> getProjectHistory(Long id) {
+        findOrThrow(id);
+        return coordinatorPlanRepository.findAllByOperatorId(id).stream()
+                .flatMap(plan -> projectRepository.findByRequestIdAndDeletedFalse(plan.getRequest().getId())
+                        .map(project -> OperatorProjectHistoryResponse.from(project, plan))
+                        .stream())
+                .toList();
     }
 
     // ─── Yardımçı ────────────────────────────────────────────────────────────

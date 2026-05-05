@@ -3,6 +3,7 @@ package com.ces.erp.operator.controller;
 import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.enums.OperatorDocumentType;
+import com.ces.erp.operator.dto.OperatorProjectHistoryResponse;
 import com.ces.erp.operator.dto.OperatorRequest;
 import com.ces.erp.operator.dto.OperatorResponse;
 import com.ces.erp.operator.service.OperatorService;
@@ -78,6 +79,14 @@ public class OperatorController {
     public ResponseEntity<ApiResponse<Void>> deleteAll(@RequestBody Map<String, List<Long>> body) {
         operatorService.deleteAll(body.get("ids"));
         return ResponseEntity.ok(ApiResponse.ok("Operatorlar silindi"));
+    }
+
+    // ─── Layihə tarixçəsi ────────────────────────────────────────────────────
+
+    @GetMapping("/{id}/projects")
+    @PreAuthorize("hasAuthority('OPERATORS:GET')")
+    public ResponseEntity<ApiResponse<List<OperatorProjectHistoryResponse>>> getProjectHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(operatorService.getProjectHistory(id)));
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────

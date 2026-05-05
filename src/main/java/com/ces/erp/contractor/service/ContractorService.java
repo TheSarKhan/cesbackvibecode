@@ -1,5 +1,10 @@
 package com.ces.erp.contractor.service;
 
+import com.ces.erp.accounting.dto.InvoiceResponse;
+import com.ces.erp.accounting.dto.PayableResponse;
+import com.ces.erp.accounting.entity.Invoice;
+import com.ces.erp.accounting.repository.InvoiceRepository;
+import com.ces.erp.accounting.repository.PayableRepository;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
@@ -16,6 +21,9 @@ import com.ces.erp.contractor.dto.ContractorRequest;
 import com.ces.erp.contractor.dto.ContractorResponse;
 import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.contractor.repository.ContractorRepository;
+import com.ces.erp.coordinator.dto.ProjectHistoryItem;
+import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
+import com.ces.erp.project.repository.ProjectRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,6 +36,10 @@ import java.util.List;
 public class ContractorService implements ApprovalHandler {
 
     private final ContractorRepository contractorRepository;
+    private final CoordinatorPlanRepository coordinatorPlanRepository;
+    private final ProjectRepository projectRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final PayableRepository payableRepository;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
 
@@ -99,6 +111,37 @@ public class ContractorService implements ApprovalHandler {
         auditService.log("PODRATÇI", contractor.getId(), contractor.getCompanyName(), "SİLİNDİ", "Podratçı silindi");
         contractor.softDelete();
         contractorRepository.save(contractor);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProjectHistoryItem> getProjectHistory(Long id) {
+        findOrThrow(id);
+        return coordinatorPlanRepository.findAllByEquipmentContractorId(id).stream()
+                .flatMap(plan -> projectRepository.findByRequestIdAndDeletedFalse(plan.getRequest().getId())
+                        .map(project -> ProjectHistoryItem.from(project, plan))
+                        .stream())
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<InvoiceResponse> getInvoices(Long id) {
+        findOrThrow(id);
+        return invoiceRepository.findAllByContractorId(id).stream()
+                .map(InvoiceResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PayableResponse> getPayables(Long id) {
+        findOrThrow(id);
+        return payableRepository.findAllByContractorId(id).stream()
+                .map(p -> {
+                    List<Invoice> invoices = p.getProject() != null
+                            ? invoiceRepository.findAllByProjectIdAndDeletedFalse(p.getProject().getId())
+                            : List.of();
+                    return PayableResponse.from(p, invoices);
+                })
+                .toList();
     }
 
     private Contractor findOrThrow(Long id) {

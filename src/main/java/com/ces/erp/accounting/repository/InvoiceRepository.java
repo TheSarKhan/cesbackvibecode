@@ -104,6 +104,33 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     List<Invoice> findAllByDeletedTrue();
 
+    @Query("""
+            SELECT i FROM Invoice i
+            LEFT JOIN FETCH i.project
+            LEFT JOIN FETCH i.contractor
+            WHERE i.contractor.id = :contractorId AND i.deleted = false
+            ORDER BY i.invoiceDate DESC, i.createdAt DESC
+            """)
+    List<Invoice> findAllByContractorId(@Param("contractorId") Long contractorId);
+
+    @Query("""
+            SELECT i FROM Invoice i
+            LEFT JOIN FETCH i.project
+            WHERE i.type = 'INVESTOR_EXPENSE' AND i.companyName = :companyName AND i.deleted = false
+            ORDER BY i.invoiceDate DESC, i.createdAt DESC
+            """)
+    List<Invoice> findAllByInvestorCompanyName(@Param("companyName") String companyName);
+
+    @Query("""
+            SELECT DISTINCT i FROM Invoice i
+            LEFT JOIN i.project p
+            LEFT JOIN p.request r
+            WHERE (i.customer.id = :customerId OR r.customer.id = :customerId)
+              AND i.type = 'INCOME' AND i.deleted = false
+            ORDER BY i.invoiceDate DESC, i.createdAt DESC
+            """)
+    List<Invoice> findAllByCustomerId(@Param("customerId") Long customerId);
+
     @Query("SELECT MAX(i.accountingId) FROM Invoice i WHERE i.accountingId LIKE CONCAT(:prefix, '%') AND i.deleted = false")
     Optional<String> findMaxAccountingIdForYear(@Param("prefix") String prefix);
 

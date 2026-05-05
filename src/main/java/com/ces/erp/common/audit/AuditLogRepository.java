@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
-    @Query("SELECT a FROM AuditLog a ORDER BY a.performedAt DESC LIMIT 50")
+    @Query("SELECT a FROM AuditLog a ORDER BY a.performedAt DESC LIMIT 10")
     List<AuditLog> findRecent();
 
     @Query("SELECT a FROM AuditLog a WHERE a.entityType = :entityType AND a.entityId = :entityId ORDER BY a.performedAt DESC")

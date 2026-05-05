@@ -27,4 +27,7 @@ public interface ReceivableRepository extends JpaRepository<Receivable, Long> {
     Optional<Receivable> findByIdAndDeletedFalse(Long id);
 
     List<Receivable> findAllByDueDateBeforeAndStatusInAndDeletedFalse(LocalDate dueDate, List<ReceivableStatus> statuses);
+
+    @Query("SELECT r FROM Receivable r LEFT JOIN FETCH r.payments LEFT JOIN FETCH r.project WHERE r.customer.id = :customerId AND r.deleted = false ORDER BY r.dueDate DESC")
+    List<Receivable> findAllByCustomerId(@Param("customerId") Long customerId);
 }

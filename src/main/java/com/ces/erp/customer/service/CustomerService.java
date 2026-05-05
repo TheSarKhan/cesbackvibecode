@@ -1,5 +1,10 @@
 package com.ces.erp.customer.service;
 
+import com.ces.erp.accounting.dto.InvoiceResponse;
+import com.ces.erp.accounting.dto.ReceivableResponse;
+import com.ces.erp.accounting.entity.Invoice;
+import com.ces.erp.accounting.repository.InvoiceRepository;
+import com.ces.erp.accounting.repository.ReceivableRepository;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
@@ -45,6 +50,8 @@ public class CustomerService implements ApprovalHandler {
     private final AuditService auditService;
     private final ProjectRepository projectRepository;
     private final CoordinatorPlanRepository coordinatorPlanRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final ReceivableRepository receivableRepository;
 
     @Override public String getEntityType() { return "CUSTOMER"; }
     @Override public String getModuleCode()  { return "CUSTOMER_MANAGEMENT"; }
@@ -137,6 +144,29 @@ public class CustomerService implements ApprovalHandler {
                 .map(p -> {
                     var plan = coordinatorPlanRepository.findByRequestId(p.getRequest().getId()).orElse(null);
                     return ProjectResponse.from(p, plan);
+                })
+                .toList();
+    }
+
+    // ─── Maliyyə ──────────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<InvoiceResponse> getInvoices(Long id) {
+        findOrThrow(id);
+        return invoiceRepository.findAllByCustomerId(id).stream()
+                .map(InvoiceResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReceivableResponse> getReceivables(Long id) {
+        findOrThrow(id);
+        return receivableRepository.findAllByCustomerId(id).stream()
+                .map(r -> {
+                    List<Invoice> invoices = r.getProject() != null
+                            ? invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId())
+                            : List.of();
+                    return ReceivableResponse.from(r, invoices);
                 })
                 .toList();
     }

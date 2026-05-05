@@ -1,5 +1,10 @@
 package com.ces.erp.investor.service;
 
+import com.ces.erp.accounting.dto.InvoiceResponse;
+import com.ces.erp.accounting.dto.PayableResponse;
+import com.ces.erp.accounting.entity.Invoice;
+import com.ces.erp.accounting.repository.InvoiceRepository;
+import com.ces.erp.accounting.repository.PayableRepository;
 import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
@@ -10,10 +15,13 @@ import org.springframework.data.domain.Sort;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import com.ces.erp.coordinator.dto.ProjectHistoryItem;
+import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.investor.dto.InvestorRequest;
 import com.ces.erp.investor.dto.InvestorResponse;
 import com.ces.erp.investor.entity.Investor;
 import com.ces.erp.investor.repository.InvestorRepository;
+import com.ces.erp.project.repository.ProjectRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +34,10 @@ import java.util.List;
 public class InvestorService implements ApprovalHandler {
 
     private final InvestorRepository investorRepository;
+    private final CoordinatorPlanRepository coordinatorPlanRepository;
+    private final ProjectRepository projectRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final PayableRepository payableRepository;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
 
@@ -107,6 +119,37 @@ public class InvestorService implements ApprovalHandler {
             investor.softDelete();
             investorRepository.save(investor);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProjectHistoryItem> getProjectHistory(Long id) {
+        Investor investor = findOrThrow(id);
+        return coordinatorPlanRepository.findAllByEquipmentInvestorVoen(investor.getVoen()).stream()
+                .flatMap(plan -> projectRepository.findByRequestIdAndDeletedFalse(plan.getRequest().getId())
+                        .map(project -> ProjectHistoryItem.from(project, plan))
+                        .stream())
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<InvoiceResponse> getInvoices(Long id) {
+        Investor investor = findOrThrow(id);
+        return invoiceRepository.findAllByInvestorCompanyName(investor.getCompanyName()).stream()
+                .map(InvoiceResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PayableResponse> getPayables(Long id) {
+        Investor investor = findOrThrow(id);
+        return payableRepository.findAllByInvestorVoen(investor.getVoen()).stream()
+                .map(p -> {
+                    List<Invoice> invoices = p.getProject() != null
+                            ? invoiceRepository.findAllByProjectIdAndDeletedFalse(p.getProject().getId())
+                            : List.of();
+                    return PayableResponse.from(p, invoices);
+                })
+                .toList();
     }
 
     private Investor findOrThrow(Long id) {

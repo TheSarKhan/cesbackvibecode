@@ -1,10 +1,13 @@
 package com.ces.erp.contractor.controller;
 
+import com.ces.erp.accounting.dto.InvoiceResponse;
+import com.ces.erp.accounting.dto.PayableResponse;
 import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.contractor.dto.ContractorRequest;
 import com.ces.erp.contractor.dto.ContractorResponse;
 import com.ces.erp.contractor.service.ContractorService;
+import com.ces.erp.coordinator.dto.ProjectHistoryItem;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -70,5 +73,26 @@ public class ContractorController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         contractorService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok("Podratçı silindi"));
+    }
+
+    @GetMapping("/{id}/projects")
+    @PreAuthorize("hasAuthority('CONTRACTOR_MANAGEMENT:GET')")
+    @Operation(summary = "Podratçının layihə tarixçəsi")
+    public ResponseEntity<ApiResponse<List<ProjectHistoryItem>>> getProjectHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(contractorService.getProjectHistory(id)));
+    }
+
+    @GetMapping("/{id}/invoices")
+    @PreAuthorize("hasAuthority('CONTRACTOR_MANAGEMENT:GET')")
+    @Operation(summary = "Podratçının qaimələri")
+    public ResponseEntity<ApiResponse<List<InvoiceResponse>>> getInvoices(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(contractorService.getInvoices(id)));
+    }
+
+    @GetMapping("/{id}/payables")
+    @PreAuthorize("hasAuthority('CONTRACTOR_MANAGEMENT:GET')")
+    @Operation(summary = "Podratçıya edilmiş ödənişlər")
+    public ResponseEntity<ApiResponse<List<PayableResponse>>> getPayables(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(contractorService.getPayables(id)));
     }
 }

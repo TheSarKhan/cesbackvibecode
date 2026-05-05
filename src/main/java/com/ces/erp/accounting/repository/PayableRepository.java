@@ -29,4 +29,10 @@ public interface PayableRepository extends JpaRepository<Payable, Long> {
 
     List<Payable> findAllByDueDateBeforeAndStatusInAndDeletedFalse(
             LocalDate dueDate, List<PayableStatus> statuses);
+
+    @Query("SELECT p FROM Payable p LEFT JOIN FETCH p.payments LEFT JOIN FETCH p.project WHERE p.contractor.id = :contractorId AND p.deleted = false ORDER BY p.dueDate DESC")
+    List<Payable> findAllByContractorId(@Param("contractorId") Long contractorId);
+
+    @Query("SELECT p FROM Payable p LEFT JOIN FETCH p.payments LEFT JOIN FETCH p.project WHERE p.investorVoen = :voen AND p.deleted = false ORDER BY p.dueDate DESC")
+    List<Payable> findAllByInvestorVoen(@Param("voen") String voen);
 }

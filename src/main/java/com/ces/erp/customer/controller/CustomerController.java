@@ -1,5 +1,7 @@
 package com.ces.erp.customer.controller;
 
+import com.ces.erp.accounting.dto.InvoiceResponse;
+import com.ces.erp.accounting.dto.ReceivableResponse;
 import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.security.UserPrincipal;
@@ -100,6 +102,22 @@ public class CustomerController {
     @Operation(summary = "Müştəriyə aid layihələri gətir")
     public ResponseEntity<ApiResponse<List<ProjectResponse>>> getProjects(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(customerService.getProjectsByCustomer(id)));
+    }
+
+    // ─── Maliyyə ─────────────────────────────────────────────────────────────
+
+    @GetMapping("/{id}/invoices")
+    @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:GET')")
+    @Operation(summary = "Müştərinin qaimələri")
+    public ResponseEntity<ApiResponse<List<InvoiceResponse>>> getInvoices(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(customerService.getInvoices(id)));
+    }
+
+    @GetMapping("/{id}/receivables")
+    @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:GET')")
+    @Operation(summary = "Müştəridən gəlməli ödənişlər")
+    public ResponseEntity<ApiResponse<List<ReceivableResponse>>> getReceivables(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(customerService.getReceivables(id)));
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────

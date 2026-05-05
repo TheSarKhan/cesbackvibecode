@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface CoordinatorPlanRepository extends JpaRepository<CoordinatorPlan, Long> {
 
@@ -15,6 +16,33 @@ public interface CoordinatorPlanRepository extends JpaRepository<CoordinatorPlan
     Optional<CoordinatorPlan> findByRequestId(Long requestId);
 
     boolean existsByRequestIdAndDeletedFalse(Long requestId);
+
+    @Query("""
+            SELECT cp FROM CoordinatorPlan cp
+            LEFT JOIN FETCH cp.selectedEquipment
+            WHERE cp.operator.id = :operatorId
+              AND cp.deleted = false
+            ORDER BY cp.createdAt DESC
+            """)
+    List<CoordinatorPlan> findAllByOperatorId(@Param("operatorId") Long operatorId);
+
+    @Query("""
+            SELECT cp FROM CoordinatorPlan cp
+            LEFT JOIN FETCH cp.selectedEquipment eq
+            WHERE eq.ownerContractor.id = :contractorId
+              AND cp.deleted = false
+            ORDER BY cp.createdAt DESC
+            """)
+    List<CoordinatorPlan> findAllByEquipmentContractorId(@Param("contractorId") Long contractorId);
+
+    @Query("""
+            SELECT cp FROM CoordinatorPlan cp
+            LEFT JOIN FETCH cp.selectedEquipment eq
+            WHERE eq.ownerInvestorVoen = :voen
+              AND cp.deleted = false
+            ORDER BY cp.createdAt DESC
+            """)
+    List<CoordinatorPlan> findAllByEquipmentInvestorVoen(@Param("voen") String voen);
 
     /**
      * Operatorun hal-hazırda başqa aktiv layihəyə (PENDING/ACTIVE) təyin olub-olmadığını yoxlayır.
