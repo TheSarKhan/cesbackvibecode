@@ -203,7 +203,7 @@ public class GeneratedDocumentService {
             lineReq.setSourceInvoiceId(invId);
             result.add(lineReq);
 
-            // Nəqliyyat sətiri — CoordinatorPlan-dan
+            // Daşınma sətiri — CoordinatorPlan-dan
             if (invoice.getProject() != null && invoice.getProject().getRequest() != null) {
                 Long requestId = invoice.getProject().getRequest().getId();
                 Optional<CoordinatorPlan> planOpt = coordinatorPlanRepository.findByRequestId(requestId);
@@ -215,7 +215,7 @@ public class GeneratedDocumentService {
                         String equipName = invoice.getEquipmentName() != null
                                 ? " (" + invoice.getEquipmentName() + ")"
                                 : "";
-                        transport.setDescription("Nəqliyyat" + equipName);
+                        transport.setDescription("Daşınma" + equipName);
                         transport.setUnit("dəfə");
                         transport.setQuantity(BigDecimal.ONE);
                         transport.setUnitPrice(plan.getTransportationPrice());
