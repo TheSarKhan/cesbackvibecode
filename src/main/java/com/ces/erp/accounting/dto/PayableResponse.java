@@ -12,6 +12,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Data
 @Builder
@@ -31,6 +33,27 @@ public class PayableResponse {
     private String notes;
     private List<InvoiceResponse> invoices;
     private List<PayablePaymentResponse> payments;
+
+    private static List<InvoiceResponse> buildInvoiceLines(List<Invoice> invoiceList, Payable p) {
+        Map<Long, BigDecimal> paidByInvoice = p.getPayments().stream()
+                .filter(pay -> !pay.isDeleted() && pay.getInvoice() != null)
+                .collect(Collectors.groupingBy(
+                        pay -> pay.getInvoice().getId(),
+                        Collectors.reducing(BigDecimal.ZERO, pay -> pay.getAmount(), BigDecimal::add)));
+        return invoiceList.stream()
+                .filter(i -> !i.isDeleted()
+                        && (i.getType() == InvoiceType.CONTRACTOR_EXPENSE || i.getType() == InvoiceType.INVESTOR_EXPENSE)
+                        && i.getStatus() == InvoiceStatus.APPROVED
+                        && i.getInvoiceNumber() != null && !i.getInvoiceNumber().trim().isEmpty())
+                .map(inv -> {
+                    InvoiceResponse ir = InvoiceResponse.from(inv);
+                    BigDecimal paid = paidByInvoice.getOrDefault(inv.getId(), BigDecimal.ZERO);
+                    ir.setPaidAmount(paid);
+                    ir.setRemainingAmount(inv.getAmount() != null ? inv.getAmount().subtract(paid) : BigDecimal.ZERO);
+                    return ir;
+                })
+                .toList();
+    }
 
     public static PayableResponse from(Payable p) {
         return from(p, Collections.emptyList());
@@ -86,13 +109,7 @@ public class PayableResponse {
                 .dueDate(p.getDueDate())
                 .status(p.getStatus())
                 .notes(p.getNotes())
-                .invoices(invoiceList != null ? invoiceList.stream()
-                        .filter(i -> !i.isDeleted()
-                                && (i.getType() == InvoiceType.CONTRACTOR_EXPENSE || i.getType() == InvoiceType.INVESTOR_EXPENSE)
-                                && i.getStatus() == InvoiceStatus.APPROVED
-                                && i.getInvoiceNumber() != null && !i.getInvoiceNumber().trim().isEmpty())
-                        .map(InvoiceResponse::from)
-                        .toList() : Collections.emptyList())
+                .invoices(invoiceList != null ? buildInvoiceLines(invoiceList, p) : Collections.emptyList())
                 .payments(p.getPayments().stream()
                         .filter(pay -> !pay.isDeleted())
                         .map(PayablePaymentResponse::from)

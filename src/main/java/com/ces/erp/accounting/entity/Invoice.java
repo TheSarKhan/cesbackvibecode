@@ -121,6 +121,13 @@ public class Invoice extends BaseEntity {
     // Avtomatik yaradılmış xərc qaiməsinin mənbə gəlir qaiməsi
     private Long sourceInvoiceId;
 
+    // Təhvil-Təslim Aktı
+    @Column(length = 500)
+    private String aktFilePath;
+
+    @Column(length = 255)
+    private String aktFileName;
+
     // ─── Texnika daşınması ────────────────────────────────────────────────────
 
     @Column(nullable = false)

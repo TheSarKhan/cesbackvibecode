@@ -131,7 +131,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             """)
     List<Invoice> findAllByCustomerId(@Param("customerId") Long customerId);
 
-    @Query("SELECT MAX(i.accountingId) FROM Invoice i WHERE i.accountingId LIKE CONCAT(:prefix, '%') AND i.deleted = false")
+    @Query("SELECT MAX(i.accountingId) FROM Invoice i WHERE i.accountingId LIKE CONCAT(:prefix, '%')")
     Optional<String> findMaxAccountingIdForYear(@Param("prefix") String prefix);
 
     @Query("""

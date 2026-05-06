@@ -8,6 +8,8 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Data
 @Builder
@@ -28,6 +30,26 @@ public class ReceivableResponse {
     private List<InvoiceResponse> invoices;
     private List<ReceivablePaymentResponse> payments;
 
+    private static List<InvoiceResponse> buildInvoiceLines(
+            List<com.ces.erp.accounting.entity.Invoice> invoices, Receivable r) {
+        Map<Long, BigDecimal> paidByInvoice = r.getPayments().stream()
+                .filter(p -> !p.isDeleted() && p.getInvoice() != null)
+                .collect(Collectors.groupingBy(
+                        p -> p.getInvoice().getId(),
+                        Collectors.reducing(BigDecimal.ZERO, p -> p.getAmount(), BigDecimal::add)));
+        return invoices.stream()
+                .filter(i -> !i.isDeleted() && i.getType() == com.ces.erp.enums.InvoiceType.INCOME)
+                .filter(i -> i.getStatus() == com.ces.erp.enums.InvoiceStatus.APPROVED)
+                .map(inv -> {
+                    InvoiceResponse ir = InvoiceResponse.from(inv);
+                    BigDecimal paid = paidByInvoice.getOrDefault(inv.getId(), BigDecimal.ZERO);
+                    ir.setPaidAmount(paid);
+                    ir.setRemainingAmount(inv.getAmount() != null ? inv.getAmount().subtract(paid) : BigDecimal.ZERO);
+                    return ir;
+                })
+                .toList();
+    }
+
     public static ReceivableResponse from(Receivable r) {
         return from(r, java.util.Collections.emptyList());
     }
@@ -46,11 +68,7 @@ public class ReceivableResponse {
                 .dueDate(r.getDueDate())
                 .status(r.getStatus())
                 .notes(r.getNotes())
-                .invoices(invoices != null ? invoices.stream()
-                        .filter(i -> !i.isDeleted() && i.getType() == com.ces.erp.enums.InvoiceType.INCOME)
-                        .filter(i -> i.getStatus() == com.ces.erp.enums.InvoiceStatus.APPROVED)
-                        .map(InvoiceResponse::from)
-                        .toList() : java.util.Collections.emptyList())
+                .invoices(invoices != null ? buildInvoiceLines(invoices, r) : java.util.Collections.emptyList())
                 .payments(r.getPayments().stream()
                         .filter(p -> !p.isDeleted())
                         .map(ReceivablePaymentResponse::from)

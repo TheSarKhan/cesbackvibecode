@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.InvalidStatusTransitionException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
@@ -39,8 +40,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -64,6 +68,7 @@ public class InvoiceService implements ApprovalHandler {
     private final AuditService auditService;
     private final ReceivableService receivableService;
     private final PayableService payableService;
+    private final FileStorageService fileStorageService;
 
     @Override public String getEntityType() { return "INVOICE"; }
     @Override public String getModuleCode()  { return "ACCOUNTING"; }
@@ -189,7 +194,7 @@ public class InvoiceService implements ApprovalHandler {
         inv.setOvertimeRate(req.getOvertimeRate());
         if (req.getType() == InvoiceType.INCOME && req.getPeriodMonth() != null) {
             BigDecimal calc = calculateTimesheetAmount(req);
-            if (calc != null) inv.setAmount(calc);
+            if (calc != null) inv.setAmount(calc.add(computeTransportTotal(req)));
         }
 
         if (req.getProjectId() != null) {
@@ -209,7 +214,7 @@ public class InvoiceService implements ApprovalHandler {
 
         // SENT statusunda mühasibatlığa göndərilirsə → avtomatik ID yarat
         if (inv.getStatus() == InvoiceStatus.SENT && inv.getAccountingId() == null) {
-            inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear()));
+            inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear(), inv.getType()));
         }
 
         Invoice saved = invoiceRepository.save(inv);
@@ -262,7 +267,7 @@ public class InvoiceService implements ApprovalHandler {
         inv.setOvertimeRate(req.getOvertimeRate());
         if (req.getType() == InvoiceType.INCOME && req.getPeriodMonth() != null) {
             BigDecimal calc = calculateTimesheetAmount(req);
-            if (calc != null) inv.setAmount(calc);
+            if (calc != null) inv.setAmount(calc.add(computeTransportTotal(req)));
         }
 
         inv.setProject(req.getProjectId() != null
@@ -327,7 +332,7 @@ public class InvoiceService implements ApprovalHandler {
         // Status SENT-ə keçirsə → avtomatik ID yarat
         if (req.getStatus() != null) {
             if (req.getStatus() == InvoiceStatus.SENT && inv.getAccountingId() == null) {
-                inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear()));
+                inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear(), inv.getType()));
             }
             inv.setStatus(req.getStatus());
         }
@@ -352,8 +357,8 @@ public class InvoiceService implements ApprovalHandler {
     @RequiresApproval(module = "ACCOUNTING", entityType = "INVOICE", isDelete = true)
     public void delete(Long id) {
         Invoice inv = findOrThrow(id);
-        if (inv.getStatus() == InvoiceStatus.SENT || inv.getStatus() == InvoiceStatus.APPROVED) {
-            throw new BusinessException("Mühasibatlığa göndərilmiş və ya təsdiqlənmiş qaiməni silə bilməzsiniz");
+        if (inv.getStatus() == InvoiceStatus.APPROVED) {
+            throw new BusinessException("Təsdiqlənmiş qaiməni silmək olmaz");
         }
         auditService.log("FAKTURA", inv.getId(), inv.getInvoiceNumber(), "SİLİNDİ", "Faktura silindi");
         inv.softDelete();
@@ -516,7 +521,7 @@ public class InvoiceService implements ApprovalHandler {
         }
 
         Invoice expense = builder.build();
-        expense.setAccountingId(generateAccountingId(incomeInvoice.getInvoiceDate().getYear()));
+        expense.setAccountingId(generateAccountingId(incomeInvoice.getInvoiceDate().getYear(), expense.getType()));
         Invoice saved = invoiceRepository.save(expense);
         log.info("[autoCreateExpenseInvoice] Xərc qaiməsi yaradıldı: id={}, type={}, amount={}, accountingId={}",
                 saved.getId(), saved.getType(), saved.getAmount(), saved.getAccountingId());
@@ -530,6 +535,15 @@ public class InvoiceService implements ApprovalHandler {
         }
         inv.setStatus(InvoiceStatus.RETURNED);
         Invoice updated = invoiceRepository.save(inv);
+
+        // Bağlı xərc qaimələrini (podratçı/investor) sil
+        List<Invoice> linked = invoiceRepository.findAllBySourceInvoiceIdAndDeletedFalse(id);
+        for (Invoice exp : linked) {
+            exp.softDelete();
+            invoiceRepository.save(exp);
+            auditService.log("FAKTURA", exp.getId(), exp.getAccountingId(), "SİLİNDİ", "Ana qaimə geri qaytarıldığı üçün avtomatik silindi");
+        }
+
         auditService.log("FAKTURA", updated.getId(), updated.getInvoiceNumber(), "GERİ QAYTARILDI", "Qaimə layihəyə geri qaytarıldı");
         return InvoiceResponse.from(updated);
     }
@@ -571,7 +585,7 @@ public class InvoiceService implements ApprovalHandler {
         // Vaxt cədvəlinə görə məbləği yenidən hesabla (məcburi sahələr varsa)
         BigDecimal recalc = calculateTimesheetAmount(req);
         if (recalc != null && recalc.compareTo(BigDecimal.ZERO) > 0) {
-            inv.setAmount(recalc);
+            inv.setAmount(recalc.add(computeTransportTotal(req)));
         }
 
         // Yalnız tam paket göndərildiyi halda daşınmaları sıfırla (yoxsa mövcud olanları qoru)
@@ -590,7 +604,7 @@ public class InvoiceService implements ApprovalHandler {
 
         // Əgər bu qaimənin hələ accountingId-si yoxdursa yarat (ilk dəfə resubmit olan köhnə qaimələr üçün)
         if (inv.getAccountingId() == null) {
-            inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear()));
+            inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear(), inv.getType()));
         }
         inv.setStatus(InvoiceStatus.SENT);
         Invoice updated = invoiceRepository.save(inv);
@@ -655,8 +669,30 @@ public class InvoiceService implements ApprovalHandler {
         invoice.getTransports().addAll(transports);
     }
 
-    private synchronized String generateAccountingId(int year) {
-        String prefix = "INV-" + year + "-";
+    @Transactional
+    public InvoiceResponse uploadAkt(Long id, MultipartFile file) {
+        Invoice inv = findOrThrow(id);
+        if (inv.getAktFilePath() != null) {
+            fileStorageService.delete(inv.getAktFilePath());
+        }
+        String path = fileStorageService.store(file, "invoice-akt");
+        inv.setAktFilePath(path);
+        inv.setAktFileName(file.getOriginalFilename());
+        Invoice saved = invoiceRepository.save(inv);
+        auditService.log("FAKTURA", saved.getId(), saved.getAccountingId(), "AKT YÜKLƏNDİ", "Təhvil-Təslim Aktı yükləndi: " + file.getOriginalFilename());
+        return InvoiceResponse.from(saved);
+    }
+
+    public Path resolveAktPath(Long id) {
+        Invoice inv = findOrThrow(id);
+        if (inv.getAktFilePath() == null) {
+            throw new ResourceNotFoundException("Bu qaimə üçün Akt faylı tapılmadı");
+        }
+        return fileStorageService.resolve(inv.getAktFilePath());
+    }
+
+    private synchronized String generateAccountingId(int year, InvoiceType type) {
+        String prefix = (type == InvoiceType.INCOME ? "INV-" : "POD-") + year + "-";
         java.util.Optional<String> maxId = invoiceRepository.findMaxAccountingIdForYear(prefix);
         int seq = 1;
         if (maxId.isPresent() && maxId.get() != null) {
@@ -681,5 +717,12 @@ public class InvoiceService implements ApprovalHandler {
                        .multiply(rate)
                 : BigDecimal.ZERO;
         return std.add(extD).add(extH).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal computeTransportTotal(InvoiceRequest req) {
+        if (!req.isHasTransport() || req.getTransports() == null) return BigDecimal.ZERO;
+        return req.getTransports().stream()
+                .map(t -> t.getTransportAmount() != null ? t.getTransportAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }

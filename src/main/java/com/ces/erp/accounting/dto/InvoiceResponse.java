@@ -25,6 +25,14 @@ public class InvoiceResponse {
     private BigDecimal amount;
     private LocalDate invoiceDate;
 
+    // Debitor/Kreditor kontekstindən doldurulur
+    private BigDecimal paidAmount;
+    private BigDecimal remainingAmount;
+
+    // Təhvil-Təslim Aktı
+    private String aktFileName;
+    private boolean aktFileUploaded;
+
     // Type A
     private String etaxesId;
     private String equipmentName;
@@ -163,6 +171,8 @@ public class InvoiceResponse {
                 .hasTransport(inv.isHasTransport())
                 .transports(transportDtos)
                 .totalTransportAmount(totalTransport)
+                .aktFileName(inv.getAktFileName())
+                .aktFileUploaded(inv.getAktFilePath() != null)
                 .build();
     }
 }
