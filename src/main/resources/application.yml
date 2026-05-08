@@ -65,7 +65,9 @@ app:
     access-token-expiry: 86400000
     refresh-token-expiry: 604800000
   upload:
-    dir: /opt/ces-uploads
+    # ${user.home} həm macOS (/Users/<name>), həm Windows (C:\Users\<name>) avtomatik resolve edir
+    # CES_UPLOAD_DIR ENV verilibsə onu istifadə edir (Docker/prod üçün override)
+    dir: ${CES_UPLOAD_DIR:${user.home}/ces-uploads}
   frontend:
     url: http://localhost:3000
 

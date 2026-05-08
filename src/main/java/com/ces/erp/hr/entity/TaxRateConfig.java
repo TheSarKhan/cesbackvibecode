@@ -76,7 +76,7 @@ public class TaxRateConfig extends BaseEntity {
     // ── Tibbi Sığorta — işçi ──
     @Column(nullable = false, precision = 10, scale = 4)
     @Builder.Default
-    private BigDecimal employeeMedicalThreshold = new BigDecimal("8000.00");
+    private BigDecimal employeeMedicalThreshold = new BigDecimal("2500.00");
 
     @Column(nullable = false, precision = 6, scale = 4)
     @Builder.Default
@@ -89,7 +89,7 @@ public class TaxRateConfig extends BaseEntity {
     // ── Tibbi Sığorta — işəgötürən ──
     @Column(nullable = false, precision = 10, scale = 4)
     @Builder.Default
-    private BigDecimal employerMedicalThreshold = new BigDecimal("8000.00");
+    private BigDecimal employerMedicalThreshold = new BigDecimal("2500.00");
 
     @Column(nullable = false, precision = 6, scale = 4)
     @Builder.Default

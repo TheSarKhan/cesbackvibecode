@@ -56,17 +56,15 @@ public class PayrollCalculatorService {
         if (gross.signum() < 0) gross = BigDecimal.ZERO;
         gross = gross.setScale(SCALE, ROUNDING);
 
-        // İşçidən tutulanlar
-        BigDecimal employeePension = bracketed(gross,
+        // İşçidən tutulanlar (xam dəyərlər — yuvarlaqlaşdırma yalnız sonda)
+        BigDecimal employeePension = bracketedRaw(gross,
                 cfg.getEmployeePensionThreshold(),
                 cfg.getEmployeePensionRateBelow(),
                 cfg.getEmployeePensionRateAbove());
 
-        BigDecimal employeeUnemployment = gross
-                .multiply(cfg.getEmployeeUnemploymentRate())
-                .setScale(SCALE, ROUNDING);
+        BigDecimal employeeUnemployment = gross.multiply(cfg.getEmployeeUnemploymentRate());
 
-        BigDecimal employeeMedical = bracketed(gross,
+        BigDecimal employeeMedical = bracketedRaw(gross,
                 cfg.getEmployeeMedicalThreshold(),
                 cfg.getEmployeeMedicalRateBelow(),
                 cfg.getEmployeeMedicalRateAbove());
@@ -83,54 +81,80 @@ public class PayrollCalculatorService {
         }
         if (taxBase.signum() < 0) taxBase = BigDecimal.ZERO;
 
-        BigDecimal incomeTax = bracketed(taxBase,
-                cfg.getIncomeTaxThreshold(),
-                cfg.getIncomeTaxRateBelow(),
-                cfg.getIncomeTaxRateAbove());
+        BigDecimal incomeTax = progressiveIncomeTaxRaw(taxBase);
 
-        BigDecimal totalDeductions = incomeTax
+        // Cəmi tutulmuş və net — xam dəyərlərin cəmindən hesablanır,
+        // sonra yuvarlaqlaşdırılır (kumulyativ 0.01 fərq olmasın deyə)
+        BigDecimal totalDeductionsRaw = incomeTax
                 .add(employeePension)
                 .add(employeeUnemployment)
-                .add(employeeMedical)
-                .setScale(SCALE, ROUNDING);
+                .add(employeeMedical);
 
-        BigDecimal netPay = gross.subtract(totalDeductions);
-        if (netPay.signum() < 0) netPay = BigDecimal.ZERO;
+        BigDecimal netPayRaw = gross.subtract(totalDeductionsRaw);
+        if (netPayRaw.signum() < 0) netPayRaw = BigDecimal.ZERO;
 
         // İşəgötürən töhfələri
-        BigDecimal employerPension = bracketed(gross,
+        BigDecimal employerPension = bracketedRaw(gross,
                 cfg.getEmployerPensionThreshold(),
                 cfg.getEmployerPensionRateBelow(),
                 cfg.getEmployerPensionRateAbove());
 
-        BigDecimal employerUnemployment = gross
-                .multiply(cfg.getEmployerUnemploymentRate())
-                .setScale(SCALE, ROUNDING);
+        BigDecimal employerUnemployment = gross.multiply(cfg.getEmployerUnemploymentRate());
 
-        BigDecimal employerMedical = bracketed(gross,
+        BigDecimal employerMedical = bracketedRaw(gross,
                 cfg.getEmployerMedicalThreshold(),
                 cfg.getEmployerMedicalRateBelow(),
                 cfg.getEmployerMedicalRateAbove());
 
-        BigDecimal totalEmployer = employerPension
+        BigDecimal totalEmployerRaw = employerPension
                 .add(employerUnemployment)
-                .add(employerMedical)
-                .setScale(SCALE, ROUNDING);
+                .add(employerMedical);
 
-        BigDecimal totalCompanyCost = gross.add(totalEmployer);
+        BigDecimal totalCompanyCostRaw = gross.add(totalEmployerRaw);
 
         e.setGrossTotal(gross);
-        e.setIncomeTax(incomeTax);
-        e.setEmployeePension(employeePension);
-        e.setEmployeeUnemployment(employeeUnemployment);
-        e.setEmployeeMedical(employeeMedical);
-        e.setTotalDeductions(totalDeductions);
-        e.setNetPay(netPay.setScale(SCALE, ROUNDING));
-        e.setEmployerPension(employerPension);
-        e.setEmployerUnemployment(employerUnemployment);
-        e.setEmployerMedical(employerMedical);
-        e.setTotalEmployerContributions(totalEmployer);
-        e.setTotalCompanyCost(totalCompanyCost.setScale(SCALE, ROUNDING));
+        e.setIncomeTax(round(incomeTax));
+        e.setEmployeePension(round(employeePension));
+        e.setEmployeeUnemployment(round(employeeUnemployment));
+        e.setEmployeeMedical(round(employeeMedical));
+        e.setTotalDeductions(round(totalDeductionsRaw));
+        e.setNetPay(round(netPayRaw));
+        e.setEmployerPension(round(employerPension));
+        e.setEmployerUnemployment(round(employerUnemployment));
+        e.setEmployerMedical(round(employerMedical));
+        e.setTotalEmployerContributions(round(totalEmployerRaw));
+        e.setTotalCompanyCost(round(totalCompanyCostRaw));
+    }
+
+    private BigDecimal round(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v.setScale(SCALE, ROUNDING);
+    }
+
+    /**
+     * Azərbaycan 2026 progressiv gəlir vergisi (qeyri-neft-qaz, qeyri-dövlət sektoru):
+     *   ≤ 200 AZN        → 0
+     *   ≤ 2500 AZN       → (taxBase − 200) × 3%
+     *   ≤ 8000 AZN       → 75 + (taxBase − 2500) × 10%
+     *   > 8000 AZN       → 625 + (taxBase − 8000) × 14%
+     */
+    private BigDecimal progressiveIncomeTaxRaw(BigDecimal taxBase) {
+        if (taxBase == null || taxBase.signum() <= 0) return BigDecimal.ZERO;
+
+        BigDecimal b1 = new BigDecimal("200");
+        BigDecimal b2 = new BigDecimal("2500");
+        BigDecimal b3 = new BigDecimal("8000");
+
+        if (taxBase.compareTo(b1) <= 0) {
+            return BigDecimal.ZERO;
+        } else if (taxBase.compareTo(b2) <= 0) {
+            return taxBase.subtract(b1).multiply(new BigDecimal("0.03"));
+        } else if (taxBase.compareTo(b3) <= 0) {
+            return new BigDecimal("75")
+                    .add(taxBase.subtract(b2).multiply(new BigDecimal("0.10")));
+        } else {
+            return new BigDecimal("625")
+                    .add(taxBase.subtract(b3).multiply(new BigDecimal("0.14")));
+        }
     }
 
     /**
@@ -138,18 +162,18 @@ public class PayrollCalculatorService {
      *   amount ≤ threshold:           amount × rateBelow
      *   amount > threshold:           threshold × rateBelow + (amount - threshold) × rateAbove
      */
-    private BigDecimal bracketed(BigDecimal amount, BigDecimal threshold, BigDecimal rateBelow, BigDecimal rateAbove) {
+    private BigDecimal bracketedRaw(BigDecimal amount, BigDecimal threshold, BigDecimal rateBelow, BigDecimal rateAbove) {
         if (amount == null || amount.signum() <= 0) return BigDecimal.ZERO;
         BigDecimal t = threshold == null ? BigDecimal.ZERO : threshold;
         BigDecimal rb = rateBelow == null ? BigDecimal.ZERO : rateBelow;
         BigDecimal ra = rateAbove == null ? BigDecimal.ZERO : rateAbove;
 
         if (amount.compareTo(t) <= 0) {
-            return amount.multiply(rb).setScale(SCALE, ROUNDING);
+            return amount.multiply(rb);
         }
         BigDecimal belowPart = t.multiply(rb);
         BigDecimal abovePart = amount.subtract(t).multiply(ra);
-        return belowPart.add(abovePart).setScale(SCALE, ROUNDING);
+        return belowPart.add(abovePart);
     }
 
     private BigDecimal nz(BigDecimal v) { return v == null ? BigDecimal.ZERO : v; }
