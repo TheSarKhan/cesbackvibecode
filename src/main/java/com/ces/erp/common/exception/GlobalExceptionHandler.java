@@ -5,6 +5,7 @@ import com.ces.erp.approval.exception.PendingApprovalException;
 import com.ces.erp.common.dto.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
@@ -37,6 +40,12 @@ public class GlobalExceptionHandler {
     }
 
     // ─── 400 Bad Request ──────────────────────────────────────────────────────
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMultipart(MultipartException ex) {
+        logger.warn("Multipart xətası: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error("Fayl yüklənərkən xəta baş verdi"));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
@@ -146,6 +155,24 @@ public class GlobalExceptionHandler {
         logger.warn("Yanlış status keçidi: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    // ─── 413 Payload Too Large ────────────────────────────────────────────────
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        logger.warn("Fayl ölçüsü həddən böyükdür: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiResponse.error("Fayl ölçüsü həddən böyükdür. Maksimum icazə verilən ölçü: 50MB"));
+    }
+
+    // ─── 409 Conflict (DB constraint) ────────────────────────────────────────
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        logger.warn("Verilənlər bazası məhdudiyyəti pozuldu: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("Bu məlumat artıq mövcuddur və ya məhdudiyyəti pozur"));
     }
 
     // ─── 500 Internal Server Error ────────────────────────────────────────────

@@ -123,7 +123,7 @@ public class OperatorController {
                     .contentType(mediaType)
                     .body(resource);
         } catch (IOException e) {
-            throw new com.ces.erp.common.exception.BusinessException("Fayl endirilə bilmədi");
+            throw new com.ces.erp.common.exception.FileStorageException("Fayl endirilə bilmədi: " + e.getMessage());
         }
     }
 }

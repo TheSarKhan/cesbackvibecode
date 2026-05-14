@@ -5,6 +5,8 @@ import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.DuplicateResourceException;
+import com.ces.erp.common.exception.FileStorageException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.config.repository.ConfigItemRepository;
@@ -272,7 +274,7 @@ public class EquipmentService implements ApprovalHandler {
     public InspectionResponse uploadInspectionDocument(Long equipmentId, Long inspectionId, MultipartFile file) {
         EquipmentInspection inspection = inspectionRepository
                 .findByIdAndEquipmentId(inspectionId, equipmentId)
-                .orElseThrow(() -> new BusinessException("Texniki baxış tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Texniki baxış tapılmadı"));
         if (inspection.getDocumentPath() != null) {
             fileStorageService.delete(inspection.getDocumentPath());
         }
@@ -286,7 +288,7 @@ public class EquipmentService implements ApprovalHandler {
     public void deleteInspection(Long equipmentId, Long inspectionId) {
         EquipmentInspection inspection = inspectionRepository
                 .findByIdAndEquipmentId(inspectionId, equipmentId)
-                .orElseThrow(() -> new BusinessException("Texniki baxış tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Texniki baxış tapılmadı"));
         if (inspection.getDocumentPath() != null) {
             fileStorageService.delete(inspection.getDocumentPath());
         }
@@ -334,7 +336,7 @@ public class EquipmentService implements ApprovalHandler {
     public void deleteDocument(Long equipmentId, Long documentId) {
         EquipmentDocument doc = documentRepository
                 .findByIdAndEquipmentId(documentId, equipmentId)
-                .orElseThrow(() -> new BusinessException("Sənəd tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Sənəd tapılmadı"));
         fileStorageService.delete(doc.getFilePath());
         documentRepository.delete(doc);
     }
@@ -342,16 +344,16 @@ public class EquipmentService implements ApprovalHandler {
     public java.nio.file.Path resolveDocumentPath(Long equipmentId, Long documentId) {
         EquipmentDocument doc = documentRepository
                 .findByIdAndEquipmentId(documentId, equipmentId)
-                .orElseThrow(() -> new BusinessException("Sənəd tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Sənəd tapılmadı"));
         return fileStorageService.resolve(doc.getFilePath());
     }
 
     public java.nio.file.Path resolveInspectionDocPath(Long equipmentId, Long inspectionId) {
         EquipmentInspection inspection = inspectionRepository
                 .findByIdAndEquipmentId(inspectionId, equipmentId)
-                .orElseThrow(() -> new BusinessException("Texniki baxış tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Texniki baxış tapılmadı"));
         if (inspection.getDocumentPath() == null) {
-            throw new BusinessException("Bu baxışa aid sənəd yoxdur");
+            throw new ResourceNotFoundException("Bu baxışa aid sənəd yoxdur");
         }
         return fileStorageService.resolve(inspection.getDocumentPath());
     }
@@ -388,7 +390,7 @@ public class EquipmentService implements ApprovalHandler {
     public void deleteImage(Long equipmentId, Long imageId) {
         EquipmentImage image = imageRepository
                 .findByIdAndEquipmentId(imageId, equipmentId)
-                .orElseThrow(() -> new BusinessException("Şəkil tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Şəkil tapılmadı"));
         fileStorageService.delete(image.getImagePath());
         imageRepository.delete(image);
     }
@@ -396,7 +398,7 @@ public class EquipmentService implements ApprovalHandler {
     public java.nio.file.Path resolveImagePath(Long equipmentId, Long imageId) {
         EquipmentImage image = imageRepository
                 .findByIdAndEquipmentId(imageId, equipmentId)
-                .orElseThrow(() -> new BusinessException("Şəkil tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Şəkil tapılmadı"));
         return fileStorageService.resolve(image.getImagePath());
     }
 
@@ -467,19 +469,19 @@ public class EquipmentService implements ApprovalHandler {
     private void validateCodes(EquipmentRequest request, Long excludeId) {
         if (excludeId == null) {
             if (equipmentRepository.existsByEquipmentCodeAndDeletedFalse(request.getEquipmentCode())) {
-                throw new BusinessException("Bu texnika kodu artıq mövcuddur");
+                throw new DuplicateResourceException("Bu texnika kodu artıq mövcuddur");
             }
             if (request.getSerialNumber() != null &&
                     equipmentRepository.existsBySerialNumberAndDeletedFalse(request.getSerialNumber())) {
-                throw new BusinessException("Bu seriya nömrəsi artıq mövcuddur");
+                throw new DuplicateResourceException("Bu seriya nömrəsi artıq mövcuddur");
             }
         } else {
             if (equipmentRepository.existsByEquipmentCodeAndIdNotAndDeletedFalse(request.getEquipmentCode(), excludeId)) {
-                throw new BusinessException("Bu texnika kodu artıq mövcuddur");
+                throw new DuplicateResourceException("Bu texnika kodu artıq mövcuddur");
             }
             if (request.getSerialNumber() != null &&
                     equipmentRepository.existsBySerialNumberAndIdNotAndDeletedFalse(request.getSerialNumber(), excludeId)) {
-                throw new BusinessException("Bu seriya nömrəsi artıq mövcuddur");
+                throw new DuplicateResourceException("Bu seriya nömrəsi artıq mövcuddur");
             }
         }
     }

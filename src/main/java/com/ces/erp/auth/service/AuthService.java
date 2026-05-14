@@ -61,9 +61,9 @@ public class AuthService {
         );
 
         User user = userRepository.findByEmailAndDeletedFalse(request.getEmail())
-                .orElseThrow(() -> new BusinessException("İstifadəçi tapılmadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi tapılmadı"));
 
-        user.setLastLoginAt(LocalDateTime.now());
+        user.setLastLoginAt(LocalDateTime.now(java.time.ZoneOffset.UTC));
         userRepository.save(user);
 
         auditService.log("SİSTEM", user.getId(), user.getFullName(), "GİRİŞ ETDİ", user.getEmail() + " sistemə daxil oldu");
@@ -88,7 +88,7 @@ public class AuthService {
 
     public void forgotPassword(String email) {
         User user = userRepository.findByEmailAndDeletedFalse(email)
-                .orElseThrow(() -> new BusinessException("Bu email sistemdə qeydiyyatda deyil"));
+                .orElseThrow(() -> new ResourceNotFoundException("Bu email sistemdə qeydiyyatda deyil"));
 
         // 6 rəqəmli OTP kod yarat
         String otp = String.format("%06d", new Random().nextInt(999999));

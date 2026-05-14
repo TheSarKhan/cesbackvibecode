@@ -1,10 +1,14 @@
 package com.ces.erp.user.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.ces.erp.department.entity.Department;
@@ -27,7 +31,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class UserService {
+public class UserService implements ApprovalHandler {
 
     private final UserRepository userRepository;
     private final UserApprovalDepartmentRepository approvalDepartmentRepository;
@@ -35,6 +39,30 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "USER"; }
+    @Override public String getModuleCode()  { return "ROLE_PERMISSION"; }
+    @Override public String getLabel(Long id) {
+        return userRepository.findByIdAndDeletedFalse(id).map(User::getFullName).orElse("İstifadəçi #" + id);
+    }
+    @Override public Object getSnapshot(Long id) {
+        return UserResponse.from(userRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", id)));
+    }
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            UserRequest req = objectMapper.readValue(json, UserRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     public List<UserResponse> getAll() {
         return userRepository.findAllByDeletedFalse().stream()
@@ -84,9 +112,14 @@ public class UserService {
     }
 
     @Transactional
+    @RequiresApproval(module = "ROLE_PERMISSION", entityType = "USER")
     public UserResponse update(Long id, UserRequest request) {
         User user = userRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", id));
+
+        if (!user.isActive()) {
+            throw new BusinessException("Deaktiv istifadəçiyə şöbə və rol təyin edilə bilməz");
+        }
 
         // Email dəyişibsə unikallıq yoxla
         if (!user.getEmail().equals(request.getEmail()) &&
@@ -153,6 +186,7 @@ public class UserService {
     }
 
     @Transactional
+    @RequiresApproval(module = "ROLE_PERMISSION", entityType = "USER", isDelete = true)
     public void delete(Long id) {
         User user = userRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", id));

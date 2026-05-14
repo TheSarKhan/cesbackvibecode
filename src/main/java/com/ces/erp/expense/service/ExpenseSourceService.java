@@ -2,6 +2,7 @@ package com.ces.erp.expense.service;
 
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.expense.dto.ExpenseSourceRequest;
 import com.ces.erp.expense.dto.ExpenseSourceResponse;
@@ -57,7 +58,7 @@ public class ExpenseSourceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Xərc kateqoriyası", request.getCategoryId()));
         String code = request.getCode().toUpperCase().trim();
         if (sourceRepository.existsByCodeAndCategoryIdAndDeletedFalse(code, request.getCategoryId())) {
-            throw new BusinessException("Bu kateqoriyada bu kod artıq mövcuddur: " + code);
+            throw new DuplicateResourceException("Bu kateqoriyada bu kod artıq mövcuddur: " + code);
         }
         ExpenseSource saved = sourceRepository.save(
                 ExpenseSource.builder()
@@ -78,7 +79,7 @@ public class ExpenseSourceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Xərc kateqoriyası", request.getCategoryId()));
         String code = request.getCode().toUpperCase().trim();
         if (sourceRepository.existsByCodeAndCategoryIdAndIdNotAndDeletedFalse(code, request.getCategoryId(), id)) {
-            throw new BusinessException("Bu kateqoriyada bu kod artıq mövcuddur: " + code);
+            throw new DuplicateResourceException("Bu kateqoriyada bu kod artıq mövcuddur: " + code);
         }
         src.setCode(code);
         src.setName(request.getName().trim());

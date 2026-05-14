@@ -2,11 +2,7 @@ package com.ces.erp.investor.dto;
 
 import com.ces.erp.enums.ContractorStatus;
 import com.ces.erp.enums.RiskLevel;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -15,15 +11,22 @@ import java.math.BigDecimal;
 public class InvestorRequest {
 
     @NotBlank(message = "Şirkət adı boş ola bilməz")
+    @Size(min = 2, max = 150, message = "Şirkət adı 2-150 simvol arasında olmalıdır")
     private String companyName;
 
-    @NotBlank(message = "VÖEN boş ola bilməz")
     @Pattern(regexp = "^\\d{10}$", message = "VÖEN 10 rəqəmdən ibarət olmalıdır")
     private String voen;
 
+    @Size(max = 100, message = "Əlaqə şəxsinin adı maksimum 100 simvol ola bilər")
     private String contactPerson;
+
+    @Pattern(regexp = "^(\\+994|0)(10|12|50|51|55|60|70|77|99)\\d{7}$", message = "Düzgün telefon nömrəsi daxil edin")
     private String contactPhone;
+
+    @Size(max = 200, message = "Ünvan maksimum 200 simvol ola bilər")
     private String address;
+
+    @Size(max = 50, message = "Ödəniş növü maksimum 50 simvol ola bilər")
     private String paymentType;
 
     @NotNull(message = "Status boş ola bilməz")

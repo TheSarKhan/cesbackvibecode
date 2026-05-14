@@ -2,6 +2,7 @@ package com.ces.erp.expense.service;
 
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.expense.dto.ExpenseCategoryRequest;
 import com.ces.erp.expense.dto.ExpenseCategoryResponse;
@@ -40,7 +41,7 @@ public class ExpenseCategoryService {
     public ExpenseCategoryResponse create(ExpenseCategoryRequest request) {
         String code = request.getCode().toUpperCase().trim();
         if (categoryRepository.existsByCodeAndDeletedFalse(code)) {
-            throw new BusinessException("Bu kod artıq mövcuddur: " + code);
+            throw new DuplicateResourceException("Bu kod artıq mövcuddur: " + code);
         }
         ExpenseCategory saved = categoryRepository.save(
                 ExpenseCategory.builder()
@@ -59,7 +60,7 @@ public class ExpenseCategoryService {
         ExpenseCategory cat = findOrThrow(id);
         String code = request.getCode().toUpperCase().trim();
         if (categoryRepository.existsByCodeAndIdNotAndDeletedFalse(code, id)) {
-            throw new BusinessException("Bu kod artıq mövcuddur: " + code);
+            throw new DuplicateResourceException("Bu kod artıq mövcuddur: " + code);
         }
         cat.setCode(code);
         cat.setName(request.getName().trim());

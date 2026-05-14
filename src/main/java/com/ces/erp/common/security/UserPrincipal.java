@@ -18,6 +18,7 @@ public class UserPrincipal implements UserDetails {
     private final String password;
     private final boolean active;
     private final boolean hasApproval;
+    private final String roleName;
     private final Collection<? extends GrantedAuthority> authorities;
 
     public UserPrincipal(User user) {
@@ -26,6 +27,7 @@ public class UserPrincipal implements UserDetails {
         this.password = user.getPassword();
         this.active = user.isActive();
         this.hasApproval = user.isHasApproval();
+        this.roleName = user.getRole() != null ? user.getRole().getName() : null;
 
         // Hər modul üçün icazələri GrantedAuthority-yə çevir
         // Format: "MODULE_CODE:ACTION"  →  örn: "CUSTOMER_MANAGEMENT:GET"

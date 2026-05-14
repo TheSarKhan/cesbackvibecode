@@ -1,9 +1,12 @@
 package com.ces.erp.department.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
-import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ces.erp.department.dto.DepartmentRequest;
 import com.ces.erp.department.dto.DepartmentResponse;
 import com.ces.erp.department.entity.Department;
@@ -20,12 +23,36 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class DepartmentService {
+public class DepartmentService implements ApprovalHandler {
 
     private final DepartmentRepository departmentRepository;
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "DEPARTMENT"; }
+    @Override public String getModuleCode()  { return "ROLE_PERMISSION"; }
+    @Override public String getLabel(Long id) {
+        return departmentRepository.findByIdAndDeletedFalse(id).map(Department::getName).orElse("Şöbə #" + id);
+    }
+    @Override public Object getSnapshot(Long id) {
+        return DepartmentResponse.from(departmentRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Şöbə", id)));
+    }
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            DepartmentRequest req = objectMapper.readValue(json, DepartmentRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     public List<DepartmentResponse> getAll() {
         return departmentRepository.findAllByDeletedFalse().stream()
@@ -54,6 +81,7 @@ public class DepartmentService {
     }
 
     @Transactional
+    @RequiresApproval(module = "ROLE_PERMISSION", entityType = "DEPARTMENT")
     public DepartmentResponse update(Long id, DepartmentRequest request) {
         Department dept = departmentRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Şöbə", id));
@@ -65,6 +93,7 @@ public class DepartmentService {
     }
 
     @Transactional
+    @RequiresApproval(module = "ROLE_PERMISSION", entityType = "DEPARTMENT", isDelete = true)
     public void delete(Long id) {
         Department dept = departmentRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Şöbə", id));

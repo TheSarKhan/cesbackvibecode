@@ -38,7 +38,7 @@ public class SearchService {
                 .limit(5)
                 .forEach(c -> results.add(SearchResultItem.builder()
                         .id(c.getId()).type("MÜŞTƏRİ").label(c.getCompanyName())
-                        .subLabel(c.getVoen()).path("/customers").build()));
+                        .subLabel(c.getVoen()).path("/customers?open=" + c.getId()).build()));
 
         // Search contractors by companyName, contactPerson, voen
         contractorRepository.findAllByDeletedFalse().stream()
@@ -46,7 +46,7 @@ public class SearchService {
                 .limit(5)
                 .forEach(c -> results.add(SearchResultItem.builder()
                         .id(c.getId()).type("PODRATÇI").label(c.getCompanyName())
-                        .subLabel(c.getVoen()).path("/contractors").build()));
+                        .subLabel(c.getVoen()).path("/contractors?open=" + c.getId()).build()));
 
         // Search investors by companyName, contactPerson, voen
         investorRepository.findAllByDeletedFalse().stream()

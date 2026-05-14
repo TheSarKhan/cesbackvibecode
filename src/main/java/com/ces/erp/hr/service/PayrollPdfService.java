@@ -1,6 +1,6 @@
 package com.ces.erp.hr.service;
 
-import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.FileStorageException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.hr.entity.PayrollEntry;
 import com.ces.erp.hr.entity.PayrollPeriod;
@@ -47,7 +47,7 @@ public class PayrollPdfService {
             return buildPeriodPdf(p);
         } catch (Exception e) {
             log.error("Payroll period PDF generation failed", e);
-            throw new BusinessException("PDF yaradıla bilmədi: " + e.getMessage());
+            throw new FileStorageException("PDF yaradıla bilmədi: " + e.getMessage());
         }
     }
 
@@ -58,7 +58,7 @@ public class PayrollPdfService {
             return buildPayslipPdf(entry);
         } catch (Exception e) {
             log.error("Payslip PDF generation failed", e);
-            throw new BusinessException("Pay slip yaradıla bilmədi: " + e.getMessage());
+            throw new FileStorageException("Pay slip yaradıla bilmədi: " + e.getMessage());
         }
     }
 

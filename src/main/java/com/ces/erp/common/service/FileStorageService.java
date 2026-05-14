@@ -32,7 +32,7 @@ public class FileStorageService {
 
     public String store(MultipartFile file, String subDir) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException("Fayl boş ola bilməz");
+            throw new IllegalArgumentException("Fayl boş ola bilməz");
         }
 
         String originalName = file.getOriginalFilename();

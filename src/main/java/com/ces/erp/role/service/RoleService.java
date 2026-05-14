@@ -1,9 +1,14 @@
 package com.ces.erp.role.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
+import com.ces.erp.common.security.UserPrincipal;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.ces.erp.department.entity.Department;
@@ -19,6 +24,8 @@ import com.ces.erp.role.repository.RoleRepository;
 import com.ces.erp.systemmodule.entity.SystemModule;
 import com.ces.erp.systemmodule.repository.SystemModuleRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +33,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class RoleService {
+public class RoleService implements ApprovalHandler {
 
     private final RoleRepository roleRepository;
     private final RolePermissionRepository rolePermissionRepository;
@@ -34,21 +41,57 @@ public class RoleService {
     private final SystemModuleRepository systemModuleRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "ROLE"; }
+    @Override public String getModuleCode()  { return "ROLE_PERMISSION"; }
+    @Override public String getLabel(Long id) {
+        return roleRepository.findByIdAndDeletedFalse(id).map(Role::getName).orElse("Rol #" + id);
+    }
+    @Override public Object getSnapshot(Long id) {
+        return RoleResponse.from(roleRepository.findByIdWithPermissions(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Rol", id)));
+    }
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            RoleRequest req = objectMapper.readValue(json, RoleRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
+
+    private boolean isSuperAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (!(auth.getPrincipal() instanceof UserPrincipal principal)) return false;
+        return "Super Admin".equals(principal.getRoleName());
+    }
 
     public List<RoleResponse> getAll() {
+        boolean superAdmin = isSuperAdmin();
         return roleRepository.findAllByDeletedFalse().stream()
+                .filter(r -> superAdmin || !"Super Admin".equals(r.getName()))
                 .map(RoleResponse::from)
                 .toList();
     }
 
     public PagedResponse<RoleResponse> getAllPaged(int page, int size, String search, Long departmentId) {
         String q = (search != null && !search.isBlank()) ? search : null;
+        String excludeName = isSuperAdmin() ? null : "Super Admin";
         var pageable = PageRequest.of(page, size, Sort.by("name").ascending());
-        return PagedResponse.from(roleRepository.findAllFiltered(q, departmentId, pageable), RoleResponse::from);
+        return PagedResponse.from(roleRepository.findAllFiltered(q, departmentId, excludeName, pageable), RoleResponse::from);
     }
 
     public List<RoleResponse> getByDepartment(Long departmentId) {
+        boolean superAdmin = isSuperAdmin();
         return roleRepository.findAllByDepartmentIdAndDeletedFalse(departmentId).stream()
+                .filter(r -> superAdmin || !"Super Admin".equals(r.getName()))
                 .map(RoleResponse::from)
                 .toList();
     }
@@ -78,6 +121,7 @@ public class RoleService {
     }
 
     @Transactional
+    @RequiresApproval(module = "ROLE_PERMISSION", entityType = "ROLE")
     public RoleResponse update(Long id, RoleRequest request) {
         Role role = roleRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol", id));
@@ -100,6 +144,7 @@ public class RoleService {
     }
 
     @Transactional
+    @RequiresApproval(module = "ROLE_PERMISSION", entityType = "ROLE", isDelete = true)
     public void delete(Long id) {
         Role role = roleRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol", id));

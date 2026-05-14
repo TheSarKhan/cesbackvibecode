@@ -2,6 +2,8 @@ package com.ces.erp.role.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
@@ -10,6 +12,8 @@ import java.util.List;
 public class RoleRequest {
 
     @NotBlank(message = "Rol adı boş ola bilməz")
+    @Size(min = 2, max = 100, message = "Rol adı 2-100 simvol arasında olmalıdır")
+    @Pattern(regexp = ".*\\p{L}.*", message = "Rol adı ən azı bir hərf içərməlidir")
     private String name;
 
     private String description;

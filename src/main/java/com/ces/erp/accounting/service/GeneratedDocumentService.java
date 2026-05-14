@@ -9,6 +9,7 @@ import com.ces.erp.accounting.repository.InvoiceRepository;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.FileStorageException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
 import com.ces.erp.config.dto.ConfigItemResponse;
@@ -253,7 +254,7 @@ public class GeneratedDocumentService {
             var path = fileStorageService.resolve(doc.getPdfFilePath());
             return new UrlResource(path.toUri());
         } catch (Exception e) {
-            throw new BusinessException("PDF fayl tapıla bilmədi: " + e.getMessage());
+            throw new FileStorageException("PDF fayl tapıla bilmədi: " + e.getMessage());
         }
     }
 
@@ -275,7 +276,7 @@ public class GeneratedDocumentService {
             doc.setPdfFilePath(pdfPath);
             documentRepository.save(doc);
         } catch (Exception e) {
-            throw new BusinessException("PDF yenidən yaradıla bilmədi: " + e.getMessage());
+            throw new FileStorageException("PDF yenidən yaradıla bilmədi: " + e.getMessage());
         }
 
         auditService.log("SƏNƏD", doc.getId(), doc.getDocumentNumber(),

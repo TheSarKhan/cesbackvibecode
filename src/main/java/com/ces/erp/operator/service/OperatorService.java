@@ -103,6 +103,7 @@ public class OperatorService implements ApprovalHandler {
                 .email(req.getEmail())
                 .specialization(req.getSpecialization())
                 .notes(req.getNotes())
+
                 .build();
         Operator saved = operatorRepository.save(o);
         auditService.log("OPERATOR", saved.getId(), saved.getFirstName() + " " + saved.getLastName(), "YARADILDI", "Yeni operator qeydiyyatı");
@@ -153,7 +154,8 @@ public class OperatorService implements ApprovalHandler {
         // Əgər bu tip artıq varsa, əvvəlki faylı sil
         documentRepository.findByOperatorIdAndDocumentType(id, type).ifPresent(existing -> {
             fileStorageService.delete(existing.getFilePath());
-            documentRepository.delete(existing);
+            o.getDocuments().remove(existing); // orphanRemoval=true: kolleksiyadan çıxarılınca DB-dən silinir
+            documentRepository.flush();        // silinməni dərhal tətbiq et, sonrakı save konflikt yaratmasın
         });
 
         String path = fileStorageService.store(file, "operator-documents");

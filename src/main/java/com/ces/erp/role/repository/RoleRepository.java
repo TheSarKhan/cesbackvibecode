@@ -17,9 +17,11 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     @Query("SELECT r FROM Role r WHERE r.deleted = false" +
             " AND (CAST(:search AS string) IS NULL OR LOWER(r.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
             " OR LOWER(COALESCE(r.description, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))" +
-            " AND (:departmentId IS NULL OR r.department.id = :departmentId)")
+            " AND (:departmentId IS NULL OR r.department.id = :departmentId)" +
+            " AND (:excludeName IS NULL OR r.name <> :excludeName)")
     Page<Role> findAllFiltered(@Param("search") String search,
                                @Param("departmentId") Long departmentId,
+                               @Param("excludeName") String excludeName,
                                Pageable pageable);
 
     List<Role> findAllByDepartmentIdAndDeletedFalse(Long departmentId);

@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 
 @Aspect
 @Component
+@Order(1)
 @RequiredArgsConstructor
 @Slf4j
 public class ApprovalAspect {

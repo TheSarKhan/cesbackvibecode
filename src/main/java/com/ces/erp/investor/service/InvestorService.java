@@ -14,6 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
+import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.coordinator.dto.ProjectHistoryItem;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
@@ -83,7 +84,7 @@ public class InvestorService implements ApprovalHandler {
     @Transactional
     public InvestorResponse create(InvestorRequest request) {
         if (investorRepository.existsByVoenAndDeletedFalse(request.getVoen())) {
-            throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
+            throw new DuplicateResourceException("Bu VÖEN artıq qeydiyyatdadır");
         }
         Investor saved = investorRepository.save(toEntity(request, new Investor()));
         auditService.log("İNVESTOR", saved.getId(), saved.getCompanyName(), "YARADILDI", "Yeni investor qeydiyyatı");
@@ -95,7 +96,7 @@ public class InvestorService implements ApprovalHandler {
     public InvestorResponse update(Long id, InvestorRequest request) {
         Investor investor = findOrThrow(id);
         if (investorRepository.existsByVoenAndIdNotAndDeletedFalse(request.getVoen(), id)) {
-            throw new BusinessException("Bu VÖEN artıq qeydiyyatdadır");
+            throw new DuplicateResourceException("Bu VÖEN artıq qeydiyyatdadır");
         }
         Investor updated = investorRepository.save(toEntity(request, investor));
         auditService.log("İNVESTOR", updated.getId(), updated.getCompanyName(), "YENİLƏNDİ", "İnvestor məlumatları yeniləndi");
