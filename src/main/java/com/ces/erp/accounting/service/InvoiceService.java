@@ -482,17 +482,31 @@ public class InvoiceService implements ApprovalHandler {
             return;
         }
 
-        // Məbləği planın ödəniş məlumatlarından götür
-        // MONTHLY: hər qaimə bir aya uyğundur → aylıq dərəcə
-        // DAILY: tam məbləğ
+        // Məbləği gəlir qaiməsinin gün/saat məlumatlarına və planın contractorDailyRate-inə görə hesabla
+        // (Frontend ilə eyni düstur: perDay × (std+ext gün) + (perDay / saat) × əlavə saat)
         BigDecimal expenseAmount = BigDecimal.ZERO;
         if (plan != null) {
-            boolean isMonthly = project.getRequest().getProjectType() == ProjectType.MONTHLY;
-            if (isMonthly && plan.getContractorDailyRate() != null
-                    && plan.getContractorDailyRate().compareTo(BigDecimal.ZERO) > 0) {
-                expenseAmount = plan.getContractorDailyRate();
+            boolean isDaily = project.getRequest().getProjectType() == ProjectType.DAILY;
+            BigDecimal contractorRate = plan.getContractorDailyRate();
+            if (contractorRate != null && contractorRate.compareTo(BigDecimal.ZERO) > 0) {
+                int workDaysInMonth = isDaily ? 1
+                        : (incomeInvoice.getWorkingDaysInMonth() != null && incomeInvoice.getWorkingDaysInMonth() > 0
+                                ? incomeInvoice.getWorkingDaysInMonth() : 26);
+                int workHoursPerDay = incomeInvoice.getWorkingHoursPerDay() != null && incomeInvoice.getWorkingHoursPerDay() > 0
+                        ? incomeInvoice.getWorkingHoursPerDay() : 9;
+                int stdDays = incomeInvoice.getStandardDays() != null ? incomeInvoice.getStandardDays() : 0;
+                int extDays = incomeInvoice.getExtraDays() != null ? incomeInvoice.getExtraDays() : 0;
+                BigDecimal extHours = incomeInvoice.getExtraHours() != null ? incomeInvoice.getExtraHours() : BigDecimal.ZERO;
+
+                BigDecimal perDay = contractorRate.divide(BigDecimal.valueOf(workDaysInMonth), 6, RoundingMode.HALF_UP);
+                BigDecimal daysAmt = perDay.multiply(BigDecimal.valueOf((long) stdDays + extDays));
+                BigDecimal extHAmt = perDay
+                        .divide(BigDecimal.valueOf(workHoursPerDay), 6, RoundingMode.HALF_UP)
+                        .multiply(extHours);
+                expenseAmount = daysAmt.add(extHAmt).setScale(2, RoundingMode.HALF_UP);
             } else if (plan.getContractorPayment() != null
                     && plan.getContractorPayment().compareTo(BigDecimal.ZERO) > 0) {
+                // Fallback: dailyRate yoxdursa cəmi ödənişdən istifadə et
                 expenseAmount = plan.getContractorPayment();
             }
         }
