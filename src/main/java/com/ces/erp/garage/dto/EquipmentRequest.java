@@ -40,8 +40,10 @@ public class EquipmentRequest {
     @Max(value = 2099, message = "İstehsal ili 2099-dan böyük ola bilməz")
     private Integer manufactureYear;
 
+    @NotNull(message = "Alınma tarixi tələb olunur")
     private LocalDate purchaseDate;
 
+    @NotNull(message = "Alış qiyməti tələb olunur")
     @DecimalMin(value = "0", message = "Alış qiyməti mənfi ola bilməz")
     @Digits(integer = 12, fraction = 2, message = "Alış qiyməti düzgün formatda deyil")
     private BigDecimal purchasePrice;

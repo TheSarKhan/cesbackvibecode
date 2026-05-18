@@ -5,6 +5,7 @@ import com.ces.erp.department.entity.Department;
 import com.ces.erp.role.entity.Role;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -51,6 +52,7 @@ public class User extends BaseEntity {
     private LocalDateTime lastLoginAt;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     @Builder.Default
     private List<UserApprovalDepartment> approvalDepartments = new ArrayList<>();
 }

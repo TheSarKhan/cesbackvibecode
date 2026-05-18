@@ -14,9 +14,24 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmailAndDeletedFalse(String email);
 
+    @Query("SELECT DISTINCT u FROM User u " +
+            "LEFT JOIN FETCH u.department " +
+            "LEFT JOIN FETCH u.role r " +
+            "LEFT JOIN FETCH r.permissions p " +
+            "LEFT JOIN FETCH p.module " +
+            "WHERE u.deleted = false")
     List<User> findAllByDeletedFalse();
 
-    @Query("SELECT u FROM User u WHERE u.deleted = false" +
+    @Query(value = "SELECT u FROM User u " +
+            "LEFT JOIN FETCH u.department " +
+            "LEFT JOIN FETCH u.role r " +
+            "LEFT JOIN FETCH r.permissions p " +
+            "LEFT JOIN FETCH p.module " +
+            "WHERE u.deleted = false" +
+            " AND (CAST(:search AS string) IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(u.email) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))" +
+            " AND (:departmentId IS NULL OR u.department.id = :departmentId)",
+            countQuery = "SELECT COUNT(u) FROM User u WHERE u.deleted = false" +
             " AND (CAST(:search AS string) IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
             " OR LOWER(u.email) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))" +
             " AND (:departmentId IS NULL OR u.department.id = :departmentId)")
