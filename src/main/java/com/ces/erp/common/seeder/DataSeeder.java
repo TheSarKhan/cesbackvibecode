@@ -58,17 +58,18 @@ public class DataSeeder implements CommandLineRunner {
                 module("EMPLOYEE_MANAGEMENT",    "İşçi İdarəetməsi",           4),
                 module("GARAGE",                 "Qaraj Modulu",               5),
                 module("REQUESTS",               "Sorğular Modulu",            6),
-                module("COORDINATOR",            "Koordinator Modulu",         7),
-                module("PROJECTS",               "Layihələr Modulu",           8),
-                module("ACCOUNTING",             "Mühasibatlıq Modulu",        9),
-                module("SERVICE_MANAGEMENT",     "Texniki Servis Modulu",     10),
-                module("INVESTORS",              "İnvestor İdarəetməsi",      11),
-                module("OPERATORS",              "Operator İdarəetməsi",      12),
-                module("OPERATIONS_APPROVAL",    "Əməliyyatların Təsdiqi",    13),
-                module("TRASH",                  "Silinmiş Məlumatlar",       14),
-                module("AUDIT_LOG",              "Audit Jurnal",              15),
-                module("CONFIG",                 "Konfiqurasiya Modulu",      16),
-                module("HR_MANAGEMENT",          "İnsan Resursları Modulu",   17)
+                module("PROJECT_MANAGER",        "Layihə Meneceri",            7),
+                module("COORDINATOR",            "Koordinator Modulu",         8),
+                module("PROJECTS",               "Layihələr Modulu",           9),
+                module("ACCOUNTING",             "Mühasibatlıq Modulu",       10),
+                module("SERVICE_MANAGEMENT",     "Texniki Servis Modulu",     11),
+                module("INVESTORS",              "İnvestor İdarəetməsi",      12),
+                module("OPERATORS",              "Operator İdarəetməsi",      13),
+                module("OPERATIONS_APPROVAL",    "Əməliyyatların Təsdiqi",    14),
+                module("TRASH",                  "Silinmiş Məlumatlar",       15),
+                module("AUDIT_LOG",              "Audit Jurnal",              16),
+                module("CONFIG",                 "Konfiqurasiya Modulu",      17),
+                module("HR_MANAGEMENT",          "İnsan Resursları Modulu",   18)
         );
         moduleRepository.saveAll(modules);
         log.info("{} modul əlavə edildi.", modules.size());
@@ -84,22 +85,22 @@ public class DataSeeder implements CommandLineRunner {
         // ── Şöbələr ──
         Department rehberlik  = dept("Rəhbərlik",            "Şirkət rəhbərliyi");
         Department satis      = dept("Satış şöbəsi",         "Müştəri və sorğu idarəetməsi");
+        Department layihePm   = dept("Layihə İdarəetməsi",   "Layihə menecerləri");
         Department koord      = dept("Koordinasiya şöbəsi",  "Koordinator əməliyyatları");
         Department maliyye    = dept("Maliyyə şöbəsi",       "Mühasibatlıq və maliyyə");
         Department texniki    = dept("Texniki Xidmət şöbəsi","Qaraj və avadanlıq idarəetməsi");
-        departmentRepository.saveAll(List.of(rehberlik, satis, koord, maliyye, texniki));
+        departmentRepository.saveAll(List.of(rehberlik, satis, layihePm, koord, maliyye, texniki));
 
         // ── Rollar ──
 
-        // 1. Super Admin — hər şeyə tam giriş
+        // 1. Super Admin — hər şeyə tam giriş (bütün custom action-lar daxil)
         Role superAdmin = role("Super Admin", "Bütün modullara tam giriş", rehberlik);
         superAdmin = roleRepository.save(superAdmin);
         for (SystemModule m : allModules) {
-            rolePermissionRepository.save(perm(superAdmin, m, true, true, true, true,
-                    "REQUESTS".equals(m.getCode()), "COORDINATOR".equals(m.getCode())));
+            rolePermissionRepository.save(permAll(superAdmin, m));
         }
 
-        // 2. Satış Meneceri
+        // 2. Satış Meneceri — sorğu yaradır, PM-ə yönləndirir
         Role salesRole = role("Satış Meneceri", "Müştəri və sorğu idarəetməsi", satis);
         salesRole = roleRepository.save(salesRole);
         grantAll(salesRole, byCode, "CUSTOMER_MANAGEMENT");
@@ -108,24 +109,37 @@ public class DataSeeder implements CommandLineRunner {
         grant(salesRole, byCode, "PROJECTS", true, false, false, false, false, false);
         grant(salesRole, byCode, "GARAGE", true, false, false, false, false, false);
 
-        // 3. Koordinator
+        // 3. Layihə Meneceri — shortlist, sifarişçi danışıqları, təsdiq
+        Role pmRole = role("Layihə Meneceri", "Layihə menecmenti və müştəri əlaqələri", layihePm);
+        pmRole = roleRepository.save(pmRole);
+        grant(pmRole, byCode, "REQUESTS", true, false, true, false, false, false);
+        rolePermissionRepository.save(pmModulePerm(pmRole, byCode.get("PROJECT_MANAGER")));
+        grant(pmRole, byCode, "CUSTOMER_MANAGEMENT", true, false, false, false, false, false);
+        grant(pmRole, byCode, "CONTRACTOR_MANAGEMENT", true, false, false, false, false, false);
+        grant(pmRole, byCode, "INVESTORS", true, false, false, false, false, false);
+        grant(pmRole, byCode, "GARAGE", true, false, false, false, false, false);
+        grant(pmRole, byCode, "PROJECTS", true, false, false, false, false, false);
+
+        // 4. Koordinator — danışıq (Mərhələ A) + icra (Mərhələ B)
         Role coordRole = role("Koordinator", "Koordinasiya əməliyyatları", koord);
         coordRole = roleRepository.save(coordRole);
         grant(coordRole, byCode, "REQUESTS", true, false, true, false, false, false);
-        grant(coordRole, byCode, "COORDINATOR", true, true, true, true, false, true);
+        rolePermissionRepository.save(coordModulePerm(coordRole, byCode.get("COORDINATOR")));
         grant(coordRole, byCode, "GARAGE", true, false, false, false, false, false);
         grant(coordRole, byCode, "CUSTOMER_MANAGEMENT", true, false, false, false, false, false);
+        grant(coordRole, byCode, "CONTRACTOR_MANAGEMENT", true, false, false, false, false, false);
         grant(coordRole, byCode, "OPERATORS", true, false, false, false, false, false);
+        grant(coordRole, byCode, "PROJECT_MANAGER", true, false, false, false, false, false);
 
-        // 4. Maliyyəçi
+        // 5. Maliyyəçi — sənəd yoxlama + mühasibatlıq
         Role financeRole = role("Maliyyəçi", "Mühasibatlıq və maliyyə əməliyyatları", maliyye);
         financeRole = roleRepository.save(financeRole);
-        grantAll(financeRole, byCode, "ACCOUNTING");
+        rolePermissionRepository.save(accountingPerm(financeRole, byCode.get("ACCOUNTING")));
         grant(financeRole, byCode, "PROJECTS", true, false, false, false, false, false);
         grant(financeRole, byCode, "REQUESTS", true, false, false, false, false, false);
         grant(financeRole, byCode, "AUDIT_LOG", true, false, false, false, false, false);
 
-        // 5. Texnik
+        // 6. Texnik
         Role techRole = role("Texnik", "Qaraj və texniki xidmət", texniki);
         techRole = roleRepository.save(techRole);
         grantAll(techRole, byCode, "GARAGE");
@@ -158,6 +172,17 @@ public class DataSeeder implements CommandLineRunner {
                 .active(true)
                 .build());
 
+        // Layihə Meneceri
+        userRepository.save(User.builder()
+                .fullName("Səbinə Quliyeva")
+                .email("sebine@ces.az")
+                .password(passwordEncoder.encode("Test@123"))
+                .phone("+994505000001")
+                .department(layihePm)
+                .role(pmRole)
+                .active(true)
+                .build());
+
         // Koordinator
         userRepository.save(User.builder()
                 .fullName("Bəhruz Hüseynov")
@@ -180,7 +205,7 @@ public class DataSeeder implements CommandLineRunner {
                 .active(true)
                 .build());
 
-        log.info("5 şöbə, 5 rol, 4 istifadəçi əlavə edildi.");
+        log.info("6 şöbə, 6 rol, 5 istifadəçi əlavə edildi.");
     }
 
     // ─── Köməkçi metodlar ────────────────────────────────────────────────────
@@ -204,6 +229,48 @@ public class DataSeeder implements CommandLineRunner {
                 .role(role).module(m)
                 .canGet(get).canPost(post).canPut(put).canDelete(del)
                 .canSendToCoordinator(send).canSubmitOffer(offer)
+                .build();
+    }
+
+    // Super Admin üçün — bütün flag-lər true
+    private RolePermission permAll(Role role, SystemModule m) {
+        return RolePermission.builder()
+                .role(role).module(m)
+                .canGet(true).canPost(true).canPut(true).canDelete(true)
+                .canSendToCoordinator(true).canSubmitOffer(true)
+                .canSendToAccounting(true).canReturnToProject(true)
+                .canApproveByPm(true).canCheckDocuments(true)
+                .canDispatch(true).canDeliver(true)
+                .build();
+    }
+
+    // Layihə Meneceri PROJECT_MANAGER modulunda — CRUD + PM təsdiqi
+    private RolePermission pmModulePerm(Role role, SystemModule m) {
+        if (m == null) return null;
+        return RolePermission.builder()
+                .role(role).module(m)
+                .canGet(true).canPost(true).canPut(true).canDelete(true)
+                .canApproveByPm(true)
+                .build();
+    }
+
+    // Koordinator COORDINATOR modulunda — CRUD + submit + dispatch + deliver
+    private RolePermission coordModulePerm(Role role, SystemModule m) {
+        if (m == null) return null;
+        return RolePermission.builder()
+                .role(role).module(m)
+                .canGet(true).canPost(true).canPut(true).canDelete(true)
+                .canSubmitOffer(true).canDispatch(true).canDeliver(true)
+                .build();
+    }
+
+    // Maliyyəçi ACCOUNTING modulunda — CRUD + sənəd yoxlama
+    private RolePermission accountingPerm(Role role, SystemModule m) {
+        if (m == null) return null;
+        return RolePermission.builder()
+                .role(role).module(m)
+                .canGet(true).canPost(true).canPut(true).canDelete(true)
+                .canCheckDocuments(true)
                 .build();
     }
 

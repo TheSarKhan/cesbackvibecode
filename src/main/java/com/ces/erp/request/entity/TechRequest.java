@@ -94,4 +94,9 @@ public class TechRequest extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    // ─── PM razılaşdırılmış son qiymət (status PM_PRICE_NEGOTIATION→PM_APPROVED) ──
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal agreedTotalPrice;
 }

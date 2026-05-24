@@ -43,6 +43,10 @@ public class RoleResponse {
         private boolean canSubmitOffer;
         private boolean canSendToAccounting;
         private boolean canReturnToProject;
+        private boolean canApproveByPm;
+        private boolean canCheckDocuments;
+        private boolean canDispatch;
+        private boolean canDeliver;
 
         public static PermissionResponse from(RolePermission p) {
             return PermissionResponse.builder()
@@ -57,6 +61,10 @@ public class RoleResponse {
                     .canSubmitOffer(p.isCanSubmitOffer())
                     .canSendToAccounting(p.isCanSendToAccounting())
                     .canReturnToProject(p.isCanReturnToProject())
+                    .canApproveByPm(p.isCanApproveByPm())
+                    .canCheckDocuments(p.isCanCheckDocuments())
+                    .canDispatch(p.isCanDispatch())
+                    .canDeliver(p.isCanDeliver())
                     .build();
         }
     }

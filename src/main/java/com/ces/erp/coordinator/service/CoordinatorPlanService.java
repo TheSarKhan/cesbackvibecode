@@ -23,6 +23,7 @@ import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.approval.repository.PendingOperationRepository;
 import com.ces.erp.enums.OperationStatus;
 import com.ces.erp.config.repository.ConfigItemRepository;
+import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.garage.entity.EquipmentDocument;
 import com.ces.erp.garage.repository.EquipmentDocumentRepository;
@@ -58,6 +59,9 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final NotificationService notificationService;
     private final PendingOperationRepository pendingOperationRepository;
     private final ConfigItemRepository configItemRepository;
+    private final ContractorRepository contractorRepository;
+    private final com.ces.erp.request.repository.RequestStatusLogRepository statusLogRepository;
+    private final com.ces.erp.common.audit.AuditService auditService;
 
     @Override public String getEntityType() { return "COORDINATOR_SUBMIT"; }
     @Override public String getModuleCode()  { return "COORDINATOR"; }
@@ -76,10 +80,16 @@ public class CoordinatorPlanService implements ApprovalHandler {
     }
     @Override public void applyDelete(Long id) { /* istifadə edilmir */ }
 
+    // Yeni flowda koordinator iki mərhələdə işləyir:
+    // Mərhələ A: COORDINATOR_NEGOTIATING (danışıq), COORDINATOR_PROPOSED (geri PM-ə)
+    // Mərhələ B: EXECUTION_READY, OPERATOR_ASSIGNED, EQUIPMENT_DISPATCHED, DELIVERED (icra)
     private static final List<RequestStatus> COORDINATOR_STATUSES = List.of(
-            RequestStatus.SENT_TO_COORDINATOR,
-            RequestStatus.OFFER_SENT,
-            RequestStatus.ACCEPTED,
+            RequestStatus.COORDINATOR_NEGOTIATING,
+            RequestStatus.COORDINATOR_PROPOSED,
+            RequestStatus.EXECUTION_READY,
+            RequestStatus.OPERATOR_ASSIGNED,
+            RequestStatus.EQUIPMENT_DISPATCHED,
+            RequestStatus.DELIVERED,
             RequestStatus.REJECTED
     );
 
@@ -177,6 +187,12 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
         plan.setOperatorPayment(req.getOperatorPayment());
         plan.setTransportationPrice(req.getTransportationPrice());
+        if (req.getTransportContractorId() != null) {
+            plan.setTransportContractor(contractorRepository.findById(req.getTransportContractorId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Daşınma podratçısı", req.getTransportContractorId())));
+        } else {
+            plan.setTransportContractor(null);
+        }
         plan.setStartDate(req.getStartDate());
         plan.setEndDate(req.getEndDate());
         if (req.getSafetyEquipmentIds() != null) {
@@ -190,8 +206,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
     public void validateBeforeSubmit(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
-        if (request.getStatus() != RequestStatus.SENT_TO_COORDINATOR) {
-            throw new BusinessException("Plan yalnız SENT_TO_COORDINATOR statusunda göndərilə bilər");
+        if (request.getStatus() != RequestStatus.COORDINATOR_NEGOTIATING) {
+            throw new BusinessException("Plan yalnız COORDINATOR_NEGOTIATING statusunda göndərilə bilər");
         }
         CoordinatorPlan existing = planRepository.findByRequestId(requestId)
                 .orElseThrow(() -> new BusinessException("Əvvəlcə koordinator planını doldurun"));
@@ -213,7 +229,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
     @RequiresApproval(module = "COORDINATOR", entityType = "COORDINATOR_SUBMIT")
     public CoordinatorPlanResponse submitPlan(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
-        request.setStatus(RequestStatus.OFFER_SENT);
+        // Yeni flowda koordinator təklifi PM-ə qaytarır
+        request.setStatus(RequestStatus.COORDINATOR_PROPOSED);
         requestRepository.save(request);
 
         // Seçilmiş texnikanın statusunu İcarədə et
@@ -236,49 +253,35 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
     // ─── Qəbul / Rədd ────────────────────────────────────────────────────────
 
+    // Yeni flowda təklifin qəbulu Layihə Meneceri tərəfindən edilir.
+    // Bu metodlar Dalğa 2-də ProjectManagerService-ə köçürüləcək — hələlik
+    // backward-compat üçün saxlanılır, lakin işlədilmir.
     @Transactional
     public void acceptOffer(Long requestId) {
-        TechRequest request = findRequestOrThrow(requestId);
-        if (request.getStatus() != RequestStatus.OFFER_SENT) {
-            throw new BusinessException("Təklif yalnız OFFER_SENT statusunda qəbul edilə bilər");
-        }
-        request.setStatus(RequestStatus.ACCEPTED);
-        requestRepository.save(request);
-
-        // Layihə artıq yaradılmayıbsa — PENDING layihə yarat
-        if (!projectRepository.existsByRequestIdAndDeletedFalse(requestId)) {
-            int nextNum = projectRepository.findMaxProjectCodeNumber() + 1;
-            Project project = Project.builder()
-                    .projectCode("PRJ-" + String.format("%04d", nextNum))
-                    .request(request)
-                    .status(ProjectStatus.PENDING)
-                    .build();
-            projectRepository.save(project);
-        }
+        throw new BusinessException("Yeni flowda təklifin qəbulu Layihə Meneceri tərəfindən edilir");
     }
 
     @Transactional
     public void rejectOffer(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
         RequestStatus currentStatus = request.getStatus();
-        if (currentStatus != RequestStatus.OFFER_SENT && currentStatus != RequestStatus.SENT_TO_COORDINATOR) {
-            throw new BusinessException("Sorğu yalnız OFFER_SENT və ya SENT_TO_COORDINATOR statusunda rədd edilə bilər");
+        // Yeni flowda hər mərhələdə imtina mümkündür
+        if (currentStatus == RequestStatus.DELIVERED || currentStatus == RequestStatus.REJECTED) {
+            throw new BusinessException("Bu statusda olan sorğu rədd edilə bilməz");
         }
         request.setStatus(RequestStatus.REJECTED);
         requestRepository.save(request);
 
-        // Texnikanı yenidən Mövcud et — yalnız OFFER_SENT statusunda texnika İcarədə sayılırdı
-        if (currentStatus == RequestStatus.OFFER_SENT) {
-            planRepository.findByRequestId(requestId).ifPresent(plan -> {
-                Equipment eq = plan.getSelectedEquipment() != null
-                        ? plan.getSelectedEquipment()
-                        : request.getSelectedEquipment();
-                if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
-                    eq.setStatus(EquipmentStatus.AVAILABLE);
-                    equipmentRepository.save(eq);
-                }
-            });
-        }
+        // Əgər texnika icarədə idi (Mərhələ B), onu Mövcud-a qaytar
+        planRepository.findByRequestId(requestId).ifPresent(plan -> {
+            Equipment eq = plan.getSelectedEquipment() != null
+                    ? plan.getSelectedEquipment()
+                    : request.getSelectedEquipment();
+            if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
+                eq.setStatus(EquipmentStatus.AVAILABLE);
+                equipmentRepository.save(eq);
+            }
+        });
     }
 
     // ─── Texnika seçimi ───────────────────────────────────────────────────────
@@ -301,6 +304,119 @@ public class CoordinatorPlanService implements ApprovalHandler {
         plan.setSelectedEquipment(equipment);
 
         return CoordinatorPlanResponse.from(planRepository.save(plan));
+    }
+
+    // ─── Mərhələ B: İcra (operator → yükləmə → təhvil-təslim) ───────────────
+
+    @Transactional
+    public CoordinatorPlanResponse assignOperator(Long requestId, Long operatorId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.EXECUTION_READY) {
+            throw new BusinessException("Operator təyini yalnız EXECUTION_READY statusunda mümkündür");
+        }
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+
+        var operator = operatorRepository.findByIdActive(operatorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Operator", operatorId));
+        boolean busy = planRepository.isOperatorBusyInOtherProject(operatorId, requestId,
+                List.of(ProjectStatus.PENDING, ProjectStatus.ACTIVE));
+        if (busy) {
+            throw new BusinessException("Bu operator artıq başqa aktiv layihəyə təyin edilib");
+        }
+        plan.setOperator(operator);
+        planRepository.save(plan);
+
+        changeRequestStatus(request, RequestStatus.OPERATOR_ASSIGNED, "Operator təyin edildi: " + operator.getFirstName());
+        return CoordinatorPlanResponse.from(plan);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse verifyEquipmentDocs(Long requestId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.EXECUTION_READY
+                && request.getStatus() != RequestStatus.OPERATOR_ASSIGNED) {
+            throw new BusinessException("Sənəd yoxlaması yalnız icra mərhələsində mümkündür");
+        }
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+        plan.setEquipmentDocsVerified(true);
+        plan.setEquipmentDocsCheckedAt(java.time.LocalDateTime.now());
+        planRepository.save(plan);
+        auditService.log("KOORDİNATOR", request.getId(), request.getRequestCode(),
+                "SƏNƏD_YOXLANDI", "Texnika sənədləri yoxlanıldı");
+        return CoordinatorPlanResponse.from(plan);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse dispatch(Long requestId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.OPERATOR_ASSIGNED) {
+            throw new BusinessException("Yükləmə yalnız OPERATOR_ASSIGNED statusunda mümkündür");
+        }
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+        if (!plan.isEquipmentDocsVerified()) {
+            throw new BusinessException("Yükləmə üçün texnika sənədləri əvvəlcə yoxlanmalıdır");
+        }
+        plan.setDispatchedAt(java.time.LocalDateTime.now());
+        planRepository.save(plan);
+
+        // Texnikanı icarədə işarələ
+        Equipment eq = plan.getSelectedEquipment();
+        if (eq != null && eq.getStatus() != EquipmentStatus.RENTED) {
+            eq.setStatus(EquipmentStatus.RENTED);
+            equipmentRepository.save(eq);
+        }
+        changeRequestStatus(request, RequestStatus.EQUIPMENT_DISPATCHED, "Texnika yükləndi və göndərildi");
+        return CoordinatorPlanResponse.from(plan);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse deliver(Long requestId, String notes) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.EQUIPMENT_DISPATCHED) {
+            throw new BusinessException("Təhvil-təslim yalnız EQUIPMENT_DISPATCHED statusunda mümkündür");
+        }
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+        plan.setDeliveredAt(java.time.LocalDateTime.now());
+        if (notes != null && !notes.isBlank()) plan.setDeliveryNotes(notes);
+        planRepository.save(plan);
+
+        changeRequestStatus(request, RequestStatus.DELIVERED, "Təhvil-təslim tamamlandı");
+
+        // Project-i ACTIVE et (yaradılıbsa)
+        projectRepository.findByRequestIdAndDeletedFalse(requestId).ifPresent(project -> {
+            if (project.getStatus() == ProjectStatus.PENDING) {
+                project.setStatus(ProjectStatus.ACTIVE);
+                if (plan.getStartDate() != null) project.setStartDate(plan.getStartDate());
+                if (plan.getEndDate() != null) project.setEndDate(plan.getEndDate());
+                projectRepository.save(project);
+            }
+        });
+
+        return CoordinatorPlanResponse.from(plan);
+    }
+
+    private void changeRequestStatus(TechRequest r, RequestStatus newStatus, String reason) {
+        RequestStatus old = r.getStatus();
+        r.setStatus(newStatus);
+        requestRepository.save(r);
+
+        String username = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication() != null
+                ? org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName() : "system";
+        statusLogRepository.save(com.ces.erp.request.entity.RequestStatusLog.builder()
+                .requestId(r.getId())
+                .oldStatus(old)
+                .newStatus(newStatus)
+                .reason(reason)
+                .changedBy(username)
+                .build());
+        auditService.log("SORĞU", r.getId(),
+                r.getRequestCode() != null ? r.getRequestCode() : "REQ-" + r.getId(),
+                "STATUS_DƏYİŞDİ",
+                old.name() + " → " + newStatus.name() + (reason != null ? " | " + reason : ""));
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────

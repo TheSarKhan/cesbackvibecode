@@ -2,6 +2,7 @@ package com.ces.erp.coordinator.entity;
 
 import com.ces.erp.common.entity.BaseEntity;
 import com.ces.erp.config.entity.ConfigItem;
+import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.operator.entity.Operator;
 import com.ces.erp.request.entity.TechRequest;
@@ -10,6 +11,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,4 +72,26 @@ public class CoordinatorPlan extends BaseEntity {
     @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<CoordinatorDocument> documents = new ArrayList<>();
+
+    // ─── Yeni flow — Mərhələ A (Danışıq) ──────────────────────────────────────
+
+    // Daşınma podratçısı (transportationPrice ilə birlikdə)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transport_contractor_id")
+    private Contractor transportContractor;
+
+    // ─── Yeni flow — Mərhələ B (İcra) ────────────────────────────────────────
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean equipmentDocsVerified = false;
+
+    private LocalDateTime equipmentDocsCheckedAt;
+
+    private LocalDateTime dispatchedAt;
+
+    private LocalDateTime deliveredAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String deliveryNotes;
 }

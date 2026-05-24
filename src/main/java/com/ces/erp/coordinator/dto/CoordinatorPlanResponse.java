@@ -60,6 +60,8 @@ public class CoordinatorPlanResponse {
     private BigDecimal contractorPayment;
     private BigDecimal operatorPayment;
     private BigDecimal transportationPrice;
+    private Long transportContractorId;
+    private String transportContractorName;
     private BigDecimal totalAmount;
     private BigDecimal companyProfit;
     private LocalDate startDate;
@@ -68,6 +70,13 @@ public class CoordinatorPlanResponse {
     private String notes;
     private List<DocumentDto> documents;
     private LocalDateTime planCreatedAt;
+
+    // Mərhələ B (icra) status sahələri
+    private boolean equipmentDocsVerified;
+    private LocalDateTime equipmentDocsCheckedAt;
+    private LocalDateTime dispatchedAt;
+    private LocalDateTime deliveredAt;
+    private String deliveryNotes;
 
     @Data
     @Builder
@@ -187,6 +196,15 @@ public class CoordinatorPlanResponse {
         base.setContractorPayment(plan.getContractorPayment());
         base.setOperatorPayment(plan.getOperatorPayment());
         base.setTransportationPrice(plan.getTransportationPrice());
+        if (plan.getTransportContractor() != null) {
+            base.setTransportContractorId(plan.getTransportContractor().getId());
+            base.setTransportContractorName(plan.getTransportContractor().getCompanyName());
+        }
+        base.setEquipmentDocsVerified(plan.isEquipmentDocsVerified());
+        base.setEquipmentDocsCheckedAt(plan.getEquipmentDocsCheckedAt());
+        base.setDispatchedAt(plan.getDispatchedAt());
+        base.setDeliveredAt(plan.getDeliveredAt());
+        base.setDeliveryNotes(plan.getDeliveryNotes());
         base.setTotalAmount(total);
         base.setCompanyProfit(profit);
         base.setStartDate(plan.getStartDate());

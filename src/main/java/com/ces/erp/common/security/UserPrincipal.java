@@ -41,7 +41,13 @@ public class UserPrincipal implements UserDetails {
                                 p.isCanPut()               ? new SimpleGrantedAuthority(code + ":PUT")                : null,
                                 p.isCanDelete()            ? new SimpleGrantedAuthority(code + ":DELETE")             : null,
                                 p.isCanSendToCoordinator() ? new SimpleGrantedAuthority(code + ":SEND_COORDINATOR")   : null,
-                                p.isCanSubmitOffer()       ? new SimpleGrantedAuthority(code + ":SUBMIT_OFFER")       : null
+                                p.isCanSubmitOffer()       ? new SimpleGrantedAuthority(code + ":SUBMIT_OFFER")       : null,
+                                p.isCanSendToAccounting()  ? new SimpleGrantedAuthority(code + ":SEND_ACCOUNTING")    : null,
+                                p.isCanReturnToProject()   ? new SimpleGrantedAuthority(code + ":RETURN_PROJECT")     : null,
+                                p.isCanApproveByPm()       ? new SimpleGrantedAuthority(code + ":APPROVE_PM")         : null,
+                                p.isCanCheckDocuments()    ? new SimpleGrantedAuthority(code + ":CHECK_DOCUMENTS")    : null,
+                                p.isCanDispatch()          ? new SimpleGrantedAuthority(code + ":DISPATCH")           : null,
+                                p.isCanDeliver()           ? new SimpleGrantedAuthority(code + ":DELIVER")            : null
                         ).filter(a -> a != null);
                     })
                     .toList();

@@ -57,4 +57,26 @@ public class RolePermission {
     @Column(nullable = false, columnDefinition = "boolean default false")
     @Builder.Default
     private boolean canReturnToProject = false;
+
+    // ─── Yeni flow icazələri ─────────────────────────────────────────────────
+
+    // PM-in qiymət razılaşmasını təsdiqləyib layihə yaratması (status 7→8)
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean canApproveByPm = false;
+
+    // Mühasibatlığın sənəd yoxlamasını tamamlaması (status 9→10)
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean canCheckDocuments = false;
+
+    // Koordinatorun yükləmə əməliyyatı (status 11→12)
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean canDispatch = false;
+
+    // Koordinatorun təhvil-təslim əməliyyatı (status 12→13)
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean canDeliver = false;
 }

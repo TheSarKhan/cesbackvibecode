@@ -180,6 +180,10 @@ public class RoleService implements ApprovalHandler {
                             .canSubmitOffer(pr.isCanSubmitOffer())
                             .canSendToAccounting(pr.isCanSendToAccounting())
                             .canReturnToProject(pr.isCanReturnToProject())
+                            .canApproveByPm(pr.isCanApproveByPm())
+                            .canCheckDocuments(pr.isCanCheckDocuments())
+                            .canDispatch(pr.isCanDispatch())
+                            .canDeliver(pr.isCanDeliver())
                             .build();
                 })
                 .toList();

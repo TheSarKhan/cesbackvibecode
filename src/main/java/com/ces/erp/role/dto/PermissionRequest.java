@@ -18,4 +18,8 @@ public class PermissionRequest {
     private boolean canSendToAccounting;
     private boolean canReturnToProject;
     private boolean canGetCustomer;
+    private boolean canApproveByPm;
+    private boolean canCheckDocuments;
+    private boolean canDispatch;
+    private boolean canDeliver;
 }

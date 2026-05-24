@@ -145,7 +145,7 @@ public class TechRequestController {
 
     @PostMapping("/{id}/send-to-coordinator")
     @PreAuthorize("hasAuthority('REQUESTS:SEND_COORDINATOR')")
-    @Operation(summary = "Sorğunu kordinatora göndər (PENDING → SENT_TO_COORDINATOR)")
+    @Operation(summary = "Sorğunu Layihə Menecerinə yönləndir (PENDING → PM_REVIEW)")
     public ResponseEntity<ApiResponse<TechRequestResponse>> sendToCoordinator(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Kordinatora göndərildi",
                 requestService.sendToCoordinator(id)));

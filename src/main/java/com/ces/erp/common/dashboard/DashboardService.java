@@ -44,7 +44,11 @@ public class DashboardService {
     public DashboardStatsResponse getStats() {
         List<RequestStatus> activeRequestStatuses = List.of(
                 RequestStatus.DRAFT, RequestStatus.PENDING,
-                RequestStatus.SENT_TO_COORDINATOR, RequestStatus.OFFER_SENT
+                RequestStatus.PM_REVIEW, RequestStatus.PM_SHORTLIST_READY,
+                RequestStatus.COORDINATOR_NEGOTIATING, RequestStatus.COORDINATOR_PROPOSED,
+                RequestStatus.PM_PRICE_NEGOTIATION, RequestStatus.PM_APPROVED,
+                RequestStatus.ACCOUNTING_DOCS_CHECK, RequestStatus.EXECUTION_READY,
+                RequestStatus.OPERATOR_ASSIGNED, RequestStatus.EQUIPMENT_DISPATCHED
         );
 
         List<Project> projects = projectRepository.findAllWithFinances();

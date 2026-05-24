@@ -26,7 +26,8 @@ public interface TechRequestRepository extends JpaRepository<TechRequest, Long> 
     List<TechRequest> findAllByStatusInAndDeletedFalse(@Param("statuses") List<RequestStatus> statuses);
 
     @Query("SELECT r FROM TechRequest r WHERE r.deleted = false" +
-            " AND r.status IN ('SENT_TO_COORDINATOR', 'OFFER_SENT', 'ACCEPTED', 'REJECTED')" +
+            " AND r.status IN ('COORDINATOR_NEGOTIATING', 'COORDINATOR_PROPOSED', 'EXECUTION_READY'," +
+            "                    'OPERATOR_ASSIGNED', 'EQUIPMENT_DISPATCHED', 'DELIVERED', 'REJECTED')" +
             " AND (CAST(:search AS string) IS NULL OR LOWER(r.companyName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
             " OR LOWER(COALESCE(r.requestCode, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
             " OR LOWER(COALESCE(r.region, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
@@ -35,6 +36,18 @@ public interface TechRequestRepository extends JpaRepository<TechRequest, Long> 
     Page<TechRequest> findAllCoordinatorFiltered(@Param("search") String search,
                                                   @Param("status") RequestStatus status,
                                                   Pageable pageable);
+
+    @Query("SELECT r FROM TechRequest r WHERE r.deleted = false" +
+            " AND r.status IN ('PENDING', 'PM_REVIEW', 'PM_SHORTLIST_READY', 'COORDINATOR_PROPOSED'," +
+            "                    'PM_PRICE_NEGOTIATION', 'PM_APPROVED', 'REJECTED')" +
+            " AND (CAST(:search AS string) IS NULL OR LOWER(r.companyName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(r.requestCode, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(r.region, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
+            " OR LOWER(COALESCE(r.projectName, '')) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))" +
+            " AND (CAST(:status AS string) IS NULL OR r.status = :status)")
+    Page<TechRequest> findAllProjectManagerFiltered(@Param("search") String search,
+                                                     @Param("status") RequestStatus status,
+                                                     Pageable pageable);
 
     List<TechRequest> findAllByDeletedTrue();
 

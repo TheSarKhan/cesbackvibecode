@@ -17,6 +17,7 @@ public class CoordinatorPlanRequest {
     private BigDecimal contractorPayment;    // cəmi (dayCount * dailyRate — backend hesablayır, ya da manual)
     private BigDecimal operatorPayment;
     private BigDecimal transportationPrice;
+    private Long transportContractorId;
 
     private LocalDate startDate;
     private LocalDate endDate;

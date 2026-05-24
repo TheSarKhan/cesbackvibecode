@@ -74,7 +74,7 @@ public class CoordinatorPlanController {
 
     @PostMapping("/requests/{requestId}/submit")
     @PreAuthorize("hasAuthority('COORDINATOR:SUBMIT_OFFER')")
-    @Operation(summary = "Planı bitir və sorğuyu OFFER_SENT statusuna keçir")
+    @Operation(summary = "Planı bitir və sorğuyu PM-ə qaytar (COORDINATOR_PROPOSED)")
     public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> submitPlan(@PathVariable Long requestId) {
         planService.validateBeforeSubmit(requestId);
         return ResponseEntity.ok(ApiResponse.success("Təklif göndərildi",
@@ -83,7 +83,7 @@ public class CoordinatorPlanController {
 
     @PostMapping("/requests/{requestId}/accept")
     @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
-    @Operation(summary = "Təklifi qəbul et — ACCEPTED statusuna keçir, Layihə yaradılır")
+    @Operation(summary = "[Köhnə endpoint — yeni flowda PM təsdiqləyir] Təklifi qəbul et")
     public ResponseEntity<ApiResponse<Void>> acceptOffer(@PathVariable Long requestId) {
         planService.acceptOffer(requestId);
         return ResponseEntity.ok(ApiResponse.ok("Təklif qəbul edildi, layihə yaradıldı"));
@@ -95,6 +95,44 @@ public class CoordinatorPlanController {
     public ResponseEntity<ApiResponse<Void>> rejectOffer(@PathVariable Long requestId) {
         planService.rejectOffer(requestId);
         return ResponseEntity.ok(ApiResponse.ok("Təklif rədd edildi"));
+    }
+
+    // ─── Mərhələ B: İcra ─────────────────────────────────────────────────────
+
+    @PostMapping("/requests/{requestId}/assign-operator")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Operator təyin et (EXECUTION_READY → OPERATOR_ASSIGNED)")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> assignOperator(
+            @PathVariable Long requestId,
+            @RequestParam Long operatorId) {
+        return ResponseEntity.ok(ApiResponse.success("Operator təyin edildi",
+                planService.assignOperator(requestId, operatorId)));
+    }
+
+    @PostMapping("/requests/{requestId}/verify-equipment-docs")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Texnika sənədlərini yoxlanıldı kimi işarələ")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> verifyEquipmentDocs(@PathVariable Long requestId) {
+        return ResponseEntity.ok(ApiResponse.success("Texnika sənədləri yoxlanıldı",
+                planService.verifyEquipmentDocs(requestId)));
+    }
+
+    @PostMapping("/requests/{requestId}/dispatch")
+    @PreAuthorize("hasAuthority('COORDINATOR:DISPATCH')")
+    @Operation(summary = "Texnikanı yüklə və göndər (OPERATOR_ASSIGNED → EQUIPMENT_DISPATCHED)")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> dispatch(@PathVariable Long requestId) {
+        return ResponseEntity.ok(ApiResponse.success("Texnika göndərildi", planService.dispatch(requestId)));
+    }
+
+    @PostMapping("/requests/{requestId}/deliver")
+    @PreAuthorize("hasAuthority('COORDINATOR:DELIVER')")
+    @Operation(summary = "Təhvil-təslim tamamla (EQUIPMENT_DISPATCHED → DELIVERED + Project ACTIVE)")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> deliver(
+            @PathVariable Long requestId,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+        String notes = body != null ? body.get("notes") : null;
+        return ResponseEntity.ok(ApiResponse.success("Təhvil-təslim tamamlandı",
+                planService.deliver(requestId, notes)));
     }
 
     @PutMapping("/requests/{requestId}/equipment")
