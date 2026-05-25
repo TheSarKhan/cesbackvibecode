@@ -201,6 +201,12 @@ public class AuthService {
                             .canDelete(p.isCanDelete())
                             .canSendToCoordinator(p.isCanSendToCoordinator())
                             .canSubmitOffer(p.isCanSubmitOffer())
+                            .canSendToAccounting(p.isCanSendToAccounting())
+                            .canReturnToProject(p.isCanReturnToProject())
+                            .canApproveByPm(p.isCanApproveByPm())
+                            .canCheckDocuments(p.isCanCheckDocuments())
+                            .canDispatch(p.isCanDispatch())
+                            .canDeliver(p.isCanDeliver())
                             .build())
                     .toList();
         }

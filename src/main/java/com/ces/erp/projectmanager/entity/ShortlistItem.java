@@ -45,6 +45,10 @@ public class ShortlistItem extends BaseEntity {
     @Column(precision = 12, scale = 2)
     private BigDecimal negotiatedPrice;
 
+    // Koordinatorun verdiyi prioritet sıralama (1 = ilk seçim, 2 = ikinci və s.)
+    @Column(name = "priority_rank")
+    private Integer rank;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 }

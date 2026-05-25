@@ -20,6 +20,7 @@ import com.ces.erp.investor.repository.InvestorRepository;
 import com.ces.erp.project.entity.Project;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.projectmanager.dto.CustomerAgreementRequest;
+import com.ces.erp.projectmanager.dto.CustomerContactRequest;
 import com.ces.erp.projectmanager.dto.PmRequestResponse;
 import com.ces.erp.projectmanager.dto.ShortlistItemDto;
 import com.ces.erp.projectmanager.dto.ShortlistSaveRequest;
@@ -28,8 +29,10 @@ import com.ces.erp.projectmanager.entity.RequestShortlist;
 import com.ces.erp.projectmanager.entity.ShortlistItem;
 import com.ces.erp.projectmanager.repository.RequestShortlistRepository;
 import com.ces.erp.projectmanager.repository.ShortlistItemRepository;
+import com.ces.erp.request.entity.RequestDocumentType;
 import com.ces.erp.request.entity.RequestStatusLog;
 import com.ces.erp.request.entity.TechRequest;
+import com.ces.erp.request.repository.RequestDocumentRepository;
 import com.ces.erp.request.repository.RequestStatusLogRepository;
 import com.ces.erp.request.repository.TechRequestRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +42,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -55,6 +60,7 @@ public class ProjectManagerService implements ApprovalHandler {
     private final InvestorRepository investorRepository;
     private final EquipmentRepository equipmentRepository;
     private final ProjectRepository projectRepository;
+    private final RequestDocumentRepository requestDocumentRepository;
     private final AuditService auditService;
 
     // PM-in görəcəyi statuslar
@@ -111,6 +117,15 @@ public class ProjectManagerService implements ApprovalHandler {
     }
 
     @Transactional(readOnly = true)
+    public Map<RequestStatus, Long> getStats() {
+        Map<RequestStatus, Long> result = new EnumMap<>(RequestStatus.class);
+        for (RequestStatus s : PM_STATUSES) result.put(s, 0L);
+        requestRepository.countGroupedByStatusIn(PM_STATUSES)
+                .forEach(row -> result.put(row.getStatus(), row.getCnt()));
+        return result;
+    }
+
+    @Transactional(readOnly = true)
     public PmRequestResponse getRequest(Long requestId) {
         TechRequest request = findOrThrow(requestId);
 
@@ -139,6 +154,18 @@ public class ProjectManagerService implements ApprovalHandler {
         coordinatorPlanRepository.findByRequestId(requestId).ifPresent(plan -> {
             resp.setCoordinatorOffer(CoordinatorPlanResponse.from(plan));
         });
+
+        // PM-in yüklədiyi sənədlər (müqavilə + qiymət protokolu)
+        var docs = requestDocumentRepository.findAllByRequestIdAndDeletedFalse(requestId);
+        resp.setContractUploaded(docs.stream().anyMatch(d -> d.getDocType() == RequestDocumentType.CONTRACT));
+        resp.setPriceProtocolUploaded(docs.stream().anyMatch(d -> d.getDocType() == RequestDocumentType.PRICE_PROTOCOL));
+        resp.setDocuments(docs.stream().map(d -> PmRequestResponse.DocumentDto.builder()
+                .id(d.getId())
+                .docType(d.getDocType().name())
+                .fileName(d.getFileName())
+                .uploadedByName(d.getUploadedBy() != null ? d.getUploadedBy().getFullName() : null)
+                .uploadedAt(d.getCreatedAt())
+                .build()).toList());
 
         return resp;
     }
@@ -179,8 +206,19 @@ public class ProjectManagerService implements ApprovalHandler {
         TechRequest r = findOrThrow(requestId);
         requireStatusIn(r, Set.of(RequestStatus.COORDINATOR_PROPOSED, RequestStatus.PM_PRICE_NEGOTIATION));
 
+        if (req.getAgreedEquipmentPrice() != null) {
+            r.setAgreedEquipmentPrice(req.getAgreedEquipmentPrice());
+        }
+        if (req.getAgreedTransportPrice() != null) {
+            r.setAgreedTransportPrice(req.getAgreedTransportPrice());
+        }
+        // Cəmi: ya client göndərdiyini götür, ya texnika+daşınma cəmini
+        java.math.BigDecimal eq = r.getAgreedEquipmentPrice() != null ? r.getAgreedEquipmentPrice() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal tr = r.getAgreedTransportPrice() != null ? r.getAgreedTransportPrice() : java.math.BigDecimal.ZERO;
         if (req.getAgreedTotalPrice() != null) {
             r.setAgreedTotalPrice(req.getAgreedTotalPrice());
+        } else if (req.getAgreedEquipmentPrice() != null || req.getAgreedTransportPrice() != null) {
+            r.setAgreedTotalPrice(eq.add(tr));
         }
         if (req.getAgreementNote() != null && !req.getAgreementNote().isBlank()) {
             String existing = r.getNotes() != null ? r.getNotes() + "\n" : "";
@@ -192,6 +230,20 @@ public class ProjectManagerService implements ApprovalHandler {
         } else {
             requestRepository.save(r);
         }
+        return getRequest(requestId);
+    }
+
+    /**
+     * LM addımı 1.3 — Sifarişçi ofisindəki əlaqə şəxsini qeyd et.
+     * PM sorğunu PM_REVIEW və ya PM_SHORTLIST_READY statusunda iken dəyişə bilər.
+     */
+    @Transactional
+    public PmRequestResponse saveCustomerContact(Long requestId, CustomerContactRequest req) {
+        TechRequest r = findOrThrow(requestId);
+        requireStatusIn(r, Set.of(RequestStatus.PM_REVIEW, RequestStatus.PM_SHORTLIST_READY));
+        r.setCustomerOfficeContact(req.getCustomerOfficeContact());
+        r.setCustomerOfficePhone(req.getCustomerOfficePhone());
+        requestRepository.save(r);
         return getRequest(requestId);
     }
 
@@ -271,11 +323,16 @@ public class ProjectManagerService implements ApprovalHandler {
         if (req.getItems() != null) {
             for (ShortlistSaveRequest.Item itemReq : req.getItems()) {
                 if (itemReq.getPartyType() == null) {
-                    throw new BusinessException("Hər sətrin tipi (Podratçı/Investor) seçilməlidir");
+                    throw new BusinessException("Hər sətrin tipi (Şirkət/Podratçı/Investor) seçilməlidir");
                 }
-                // XOR validation
+                if (itemReq.getEquipmentId() == null) {
+                    throw new BusinessException("Hər sətrdə texnika seçilməlidir");
+                }
                 boolean hasContractor = itemReq.getContractorId() != null;
                 boolean hasInvestor = itemReq.getInvestorId() != null;
+                if (itemReq.getPartyType() == PartyType.COMPANY && (hasContractor || hasInvestor)) {
+                    throw new BusinessException("Şirkət sətrində podratçı/investor seçilə bilməz");
+                }
                 if (itemReq.getPartyType() == PartyType.CONTRACTOR && (!hasContractor || hasInvestor)) {
                     throw new BusinessException("Podratçı sətrində yalnız Podratçı seçilməlidir");
                 }
@@ -304,6 +361,7 @@ public class ProjectManagerService implements ApprovalHandler {
                             .orElseThrow(() -> new ResourceNotFoundException("Texnika", itemReq.getEquipmentId()))
                         : null);
                 item.setNegotiatedPrice(itemReq.getNegotiatedPrice());
+                item.setRank(itemReq.getRank());
                 item.setNotes(itemReq.getNotes());
                 shortlistItemRepository.save(item);
             }

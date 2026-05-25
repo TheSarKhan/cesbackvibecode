@@ -54,8 +54,10 @@ public class DocumentCheckService {
     public RequestDocumentCheckResponse uploadDocument(Long requestId, RequestDocumentType type,
                                                        MultipartFile file, Long userId) {
         TechRequest r = findOrThrow(requestId);
-        if (r.getStatus() != RequestStatus.ACCOUNTING_DOCS_CHECK) {
-            throw new BusinessException("Sənəd yükləmək üçün sorğu mühasibatlıq mərhələsində olmalıdır");
+        // PM razılaşma mərhələsindən başlayaraq, mühasibatlıqda da yükləmək mümkündür
+        if (r.getStatus() != RequestStatus.PM_PRICE_NEGOTIATION
+                && r.getStatus() != RequestStatus.ACCOUNTING_DOCS_CHECK) {
+            throw new BusinessException("Sənəd yükləmək üçün sorğu razılaşma və ya mühasibatlıq mərhələsində olmalıdır");
         }
 
         // Eyni tipdə əvvəlki sənəd varsa onu soft-delete et
@@ -88,6 +90,11 @@ public class DocumentCheckService {
                 .orElseThrow(() -> new ResourceNotFoundException("Sənəd", documentId));
         if (!doc.getRequest().getId().equals(requestId)) {
             throw new BusinessException("Bu sənəd bu sorğuya aid deyil");
+        }
+        TechRequest r = doc.getRequest();
+        if (r.getStatus() != RequestStatus.PM_PRICE_NEGOTIATION
+                && r.getStatus() != RequestStatus.ACCOUNTING_DOCS_CHECK) {
+            throw new BusinessException("Bu mərhələdə sənəd silinə bilməz");
         }
         fileStorageService.delete(doc.getFilePath());
         doc.softDelete();

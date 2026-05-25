@@ -20,6 +20,7 @@ public class ShortlistSaveRequest {
         private Long investorId;
         private Long equipmentId;
         private BigDecimal negotiatedPrice;
+        private Integer rank;
         private String notes;
     }
 }

@@ -25,6 +25,7 @@ public class ShortlistItemDto {
     private String equipmentCode;
 
     private BigDecimal negotiatedPrice;
+    private Integer rank;
     private String notes;
 
     public static ShortlistItemDto from(ShortlistItem item) {
@@ -39,6 +40,7 @@ public class ShortlistItemDto {
                 .equipmentName(item.getEquipment() != null ? item.getEquipment().getName() : null)
                 .equipmentCode(item.getEquipment() != null ? item.getEquipment().getEquipmentCode() : null)
                 .negotiatedPrice(item.getNegotiatedPrice())
+                .rank(item.getRank())
                 .notes(item.getNotes())
                 .build();
     }

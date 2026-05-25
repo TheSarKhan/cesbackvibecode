@@ -3,6 +3,7 @@ package com.ces.erp.coordinator.controller;
 import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.security.UserPrincipal;
+import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.coordinator.dto.CoordinatorPlanRequest;
 import com.ces.erp.coordinator.dto.CoordinatorPlanResponse;
 import com.ces.erp.coordinator.service.CoordinatorPlanService;
@@ -25,6 +26,7 @@ import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/coordinator")
@@ -33,6 +35,13 @@ import java.util.List;
 public class CoordinatorPlanController {
 
     private final CoordinatorPlanService planService;
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasAuthority('COORDINATOR:GET')")
+    @Operation(summary = "Koordinator status üzrə sorğu sayları (kartlar üçün)")
+    public ResponseEntity<ApiResponse<Map<RequestStatus, Long>>> getStats() {
+        return ResponseEntity.ok(ApiResponse.success(planService.getStats()));
+    }
 
     @GetMapping("/requests")
     @PreAuthorize("hasAuthority('COORDINATOR:GET')")

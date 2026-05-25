@@ -10,4 +10,6 @@ import java.util.List;
 public interface ShortlistItemRepository extends JpaRepository<ShortlistItem, Long> {
 
     List<ShortlistItem> findAllByShortlistIdAndDeletedFalse(Long shortlistId);
+
+    List<ShortlistItem> findAllByShortlist_Request_IdAndDeletedFalseOrderByRankAscIdAsc(Long requestId);
 }

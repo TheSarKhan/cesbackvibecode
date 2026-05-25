@@ -54,6 +54,15 @@ public interface TechRequestRepository extends JpaRepository<TechRequest, Long> 
     @Query("SELECT COUNT(r) FROM TechRequest r WHERE r.status IN :statuses AND r.deleted = false")
     long countByStatusInAndDeletedFalse(@Param("statuses") List<RequestStatus> statuses);
 
+    @Query("SELECT r.status AS status, COUNT(r) AS cnt FROM TechRequest r" +
+            " WHERE r.deleted = false AND r.status IN :statuses GROUP BY r.status")
+    List<StatusCount> countGroupedByStatusIn(@Param("statuses") List<RequestStatus> statuses);
+
+    interface StatusCount {
+        RequestStatus getStatus();
+        long getCnt();
+    }
+
     @Query("SELECT COUNT(r) FROM TechRequest r WHERE r.deleted = true")
     long countByDeletedTrue();
 

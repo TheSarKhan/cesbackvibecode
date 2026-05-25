@@ -41,7 +41,13 @@ public class PmRequestResponse {
     private boolean transportationRequired;
 
     private String notes;
+    private BigDecimal agreedEquipmentPrice;
+    private BigDecimal agreedTransportPrice;
     private BigDecimal agreedTotalPrice;
+
+    // PM-in əlavə etdiyi sifarişçi ofis kontaktı (LM addımı 1.3)
+    private String customerOfficeContact;
+    private String customerOfficePhone;
 
     // Sorğunun texniki parametrləri (key-value)
     private List<ParamDto> params;
@@ -54,11 +60,26 @@ public class PmRequestResponse {
     // Koordinatorun göndərdiyi təklif (status >= COORDINATOR_PROPOSED olduqda)
     private CoordinatorPlanResponse coordinatorOffer;
 
+    // PM tərəfindən yüklənmiş sənədlər (müqavilə + qiymət protokolu)
+    private boolean contractUploaded;
+    private boolean priceProtocolUploaded;
+    private List<DocumentDto> documents;
+
     @Data
     @Builder
     public static class ParamDto {
         private String paramKey;
         private String paramValue;
+    }
+
+    @Data
+    @Builder
+    public static class DocumentDto {
+        private Long id;
+        private String docType;           // CONTRACT | PRICE_PROTOCOL
+        private String fileName;
+        private String uploadedByName;
+        private java.time.LocalDateTime uploadedAt;
     }
 
     public static PmRequestResponse fromList(TechRequest r) {
@@ -78,7 +99,11 @@ public class PmRequestResponse {
                 .dayCount(r.getDayCount())
                 .transportationRequired(r.isTransportationRequired())
                 .notes(r.getNotes())
+                .agreedEquipmentPrice(r.getAgreedEquipmentPrice())
+                .agreedTransportPrice(r.getAgreedTransportPrice())
                 .agreedTotalPrice(r.getAgreedTotalPrice())
+                .customerOfficeContact(r.getCustomerOfficeContact())
+                .customerOfficePhone(r.getCustomerOfficePhone())
                 .build();
     }
 }

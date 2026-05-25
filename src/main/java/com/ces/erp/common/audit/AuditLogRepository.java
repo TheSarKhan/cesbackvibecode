@@ -22,8 +22,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
         WHERE (:entityType IS NULL OR a.entityType = :entityType)
           AND (:action     IS NULL OR a.action = :action)
           AND (:q          IS NULL
-               OR LOWER(a.entityLabel) LIKE CONCAT('%', :q, '%')
-               OR LOWER(a.performedBy) LIKE CONCAT('%', :q, '%'))
+               OR LOWER(a.entityLabel) LIKE CONCAT('%', CAST(:q AS string), '%')
+               OR LOWER(a.performedBy) LIKE CONCAT('%', CAST(:q AS string), '%'))
           AND a.performedAt >= :from
           AND a.performedAt <= :to
         ORDER BY a.performedAt DESC
@@ -33,8 +33,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
         WHERE (:entityType IS NULL OR a.entityType = :entityType)
           AND (:action     IS NULL OR a.action = :action)
           AND (:q          IS NULL
-               OR LOWER(a.entityLabel) LIKE CONCAT('%', :q, '%')
-               OR LOWER(a.performedBy) LIKE CONCAT('%', :q, '%'))
+               OR LOWER(a.entityLabel) LIKE CONCAT('%', CAST(:q AS string), '%')
+               OR LOWER(a.performedBy) LIKE CONCAT('%', CAST(:q AS string), '%'))
           AND a.performedAt >= :from
           AND a.performedAt <= :to
         """)

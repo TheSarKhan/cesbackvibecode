@@ -95,8 +95,24 @@ public class TechRequest extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    // ─── PM-in əlavə etdiyi sifarişçi ofis əlaqəsi (LM addımı 1.3) ───────────
+
+    private String customerOfficeContact;
+
+    @Column(length = 50)
+    private String customerOfficePhone;
+
     // ─── PM razılaşdırılmış son qiymət (status PM_PRICE_NEGOTIATION→PM_APPROVED) ──
 
+    // Texnika üçün razılaşdırılmış qiymət
+    @Column(precision = 12, scale = 2)
+    private BigDecimal agreedEquipmentPrice;
+
+    // Daşınma üçün razılaşdırılmış qiymət
+    @Column(precision = 12, scale = 2)
+    private BigDecimal agreedTransportPrice;
+
+    // Cəmi razılaşdırılmış qiymət (texnika + daşınma)
     @Column(precision = 12, scale = 2)
     private BigDecimal agreedTotalPrice;
 }

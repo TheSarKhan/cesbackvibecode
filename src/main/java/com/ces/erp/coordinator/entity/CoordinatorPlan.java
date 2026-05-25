@@ -5,6 +5,7 @@ import com.ces.erp.config.entity.ConfigItem;
 import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.operator.entity.Operator;
+import com.ces.erp.projectmanager.entity.ShortlistItem;
 import com.ces.erp.request.entity.TechRequest;
 import jakarta.persistence.*;
 import lombok.*;
@@ -39,8 +40,13 @@ public class CoordinatorPlan extends BaseEntity {
 
     private Integer dayCount;
 
+    // Koordinatorun podratçı/investora ödəyəcəyimiz texnika xərci (cost)
     @Column(precision = 12, scale = 2)
     private BigDecimal equipmentPrice;
+
+    // Koordinatorun sifarişçiyə təklif etdiyi texnika qiyməti (revenue)
+    @Column(name = "customer_equipment_price", precision = 12, scale = 2)
+    private BigDecimal customerEquipmentPrice;
 
     // Günlük dərəcə (input olaraq daxil edilir)
     @Column(precision = 12, scale = 2)
@@ -79,6 +85,11 @@ public class CoordinatorPlan extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transport_contractor_id")
     private Contractor transportContractor;
+
+    // Koordinatorun shortlist-dən seçdiyi qalib sətir (rank 1)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "winner_item_id")
+    private ShortlistItem winnerItem;
 
     // ─── Yeni flow — Mərhələ B (İcra) ────────────────────────────────────────
 

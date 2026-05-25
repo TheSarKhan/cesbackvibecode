@@ -37,7 +37,15 @@ public class LoginResponse {
         private boolean canPost;
         private boolean canPut;
         private boolean canDelete;
+        // Köhnə custom action icazələr
         private boolean canSendToCoordinator;
         private boolean canSubmitOffer;
+        private boolean canSendToAccounting;
+        private boolean canReturnToProject;
+        // Yeni flow icazələri
+        private boolean canApproveByPm;
+        private boolean canCheckDocuments;
+        private boolean canDispatch;
+        private boolean canDeliver;
     }
 }
