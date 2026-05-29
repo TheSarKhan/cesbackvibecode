@@ -24,6 +24,15 @@ public class ConfigController {
 
     private final ConfigService configService;
 
+    // Test endpoint — yeni @PreAuthorize icazəsinin avtomatik kataloqa düşməsini yoxlamaq üçün.
+    // Restart sonrası CONFIG:PING icazə kataloqunda və rol ekranında görünməlidir.
+    @GetMapping("/ping")
+    @PreAuthorize("hasAuthority('CONFIG:PING')")
+    @Operation(summary = "İcazə kataloqu test endpoint-i")
+    public ResponseEntity<ApiResponse<String>> ping() {
+        return ResponseEntity.ok(ApiResponse.success("pong"));
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('CONFIG:GET')")
     @Operation(summary = "Bütün konfiqurasiya elementlərini kateqoriya üzrə gətir")

@@ -11,10 +11,12 @@ import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.coordinator.dto.CoordinatorPlanResponse;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
+import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.ProjectStatus;
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.garage.repository.EquipmentRepository;
+import com.ces.erp.request.service.RequestTransitionService;
 import com.ces.erp.investor.entity.Investor;
 import com.ces.erp.investor.repository.InvestorRepository;
 import com.ces.erp.project.entity.Project;
@@ -62,6 +64,7 @@ public class ProjectManagerService implements ApprovalHandler {
     private final ProjectRepository projectRepository;
     private final RequestDocumentRepository requestDocumentRepository;
     private final AuditService auditService;
+    private final RequestTransitionService transitionService;
 
     // PM-in görəcəyi statuslar
     private static final List<RequestStatus> PM_STATUSES = List.of(
@@ -293,6 +296,19 @@ public class ProjectManagerService implements ApprovalHandler {
         return getRequest(requestId);
     }
 
+    /**
+     * Geri qaytarma — LM müştəri ilə qiyməti tuta bilmədi, koordinatordan yeni təklif istəyir.
+     * PM_PRICE_NEGOTIATION → COORDINATOR_NEGOTIATING. Səbəb məcburidir; seçilmiş texnika AVAILABLE-ə qaytarılır.
+     */
+    @Transactional
+    public PmRequestResponse sendBackToCoordinator(Long requestId, String reason) {
+        TechRequest r = findOrThrow(requestId);
+        requireStatus(r, RequestStatus.PM_PRICE_NEGOTIATION);
+        transitionService.transition(r, RequestStatus.COORDINATOR_NEGOTIATING, reason, null);
+        releaseSelectedEquipment(r);
+        return getRequest(requestId);
+    }
+
     // ─── Shortlist ───────────────────────────────────────────────────────────
 
     @Transactional
@@ -410,24 +426,23 @@ public class ProjectManagerService implements ApprovalHandler {
         }
     }
 
+    /** Bütün PM status keçidləri mərkəzi gateway-dən keçir (validasiya + log + audit). */
     private void changeStatus(TechRequest r, RequestStatus newStatus, String reason) {
-        RequestStatus old = r.getStatus();
-        r.setStatus(newStatus);
-        requestRepository.save(r);
+        transitionService.transition(r, newStatus, reason, null);
+    }
 
-        String username = SecurityContextHolder.getContext().getAuthentication() != null
-                ? SecurityContextHolder.getContext().getAuthentication().getName() : "system";
-        statusLogRepository.save(RequestStatusLog.builder()
-                .requestId(r.getId())
-                .oldStatus(old)
-                .newStatus(newStatus)
-                .reason(reason)
-                .changedBy(username)
-                .build());
+    /** Seçilmiş texnikanı (koordinator planındakı və ya sorğudakı) AVAILABLE-ə qaytarır. */
+    private void releaseSelectedEquipment(TechRequest r) {
+        coordinatorPlanRepository.findByRequestId(r.getId()).ifPresentOrElse(plan -> {
+            Equipment eq = plan.getSelectedEquipment() != null ? plan.getSelectedEquipment() : r.getSelectedEquipment();
+            releaseEquipment(eq);
+        }, () -> releaseEquipment(r.getSelectedEquipment()));
+    }
 
-        auditService.log("SORĞU", r.getId(),
-                r.getRequestCode() != null ? r.getRequestCode() : "REQ-" + r.getId(),
-                "STATUS_DƏYİŞDİ",
-                old.name() + " → " + newStatus.name() + (reason != null ? " | " + reason : ""));
+    private void releaseEquipment(Equipment eq) {
+        if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
+            eq.setStatus(EquipmentStatus.AVAILABLE);
+            equipmentRepository.save(eq);
+        }
     }
 }

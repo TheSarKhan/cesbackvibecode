@@ -21,7 +21,8 @@ public class RoleRequest {
     @NotNull(message = "Şöbə ID boş ola bilməz")
     private Long departmentId;
 
-    private List<PermissionRequest> permissions;
+    // Dinamik icazə kataloqundan verilən icazə ID-ləri
+    private List<Long> permissionIds;
 
     private List<Long> approvalDepartmentIds;
 }

@@ -94,4 +94,15 @@ public class DocumentCheckController {
         return ResponseEntity.ok(ApiResponse.success("Sənəd yoxlaması tamamlandı",
                 service.completeCheck(requestId)));
     }
+
+    @PostMapping("/{requestId}/send-back")
+    @PreAuthorize("hasAuthority('ACCOUNTING:CHECK_DOCUMENTS')")
+    @Operation(summary = "LM-ə geri qaytar (ACCOUNTING_DOCS_CHECK → PM_PRICE_NEGOTIATION, səbəb məcburi)")
+    public ResponseEntity<ApiResponse<RequestDocumentCheckResponse>> sendBack(
+            @PathVariable Long requestId,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(ApiResponse.success("Sorğu LM-ə geri qaytarıldı",
+                service.sendBackToProjectManager(requestId, reason)));
+    }
 }

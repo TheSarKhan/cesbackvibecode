@@ -3,6 +3,8 @@ package com.ces.erp.user.dto;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class UserRequest {
 
@@ -29,6 +31,6 @@ public class UserRequest {
     @NotNull(message = "Şöbə ID boş ola bilməz")
     private Long departmentId;
 
-    @NotNull(message = "Rol ID boş ola bilməz")
-    private Long roleId;
+    @NotEmpty(message = "Ən azı bir rol seçilməlidir")
+    private List<Long> roleIds;
 }

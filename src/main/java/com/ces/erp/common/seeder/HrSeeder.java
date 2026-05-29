@@ -10,11 +10,6 @@ import com.ces.erp.hr.entity.TaxRateConfig;
 import com.ces.erp.hr.repository.EmployeeRepository;
 import com.ces.erp.hr.repository.PositionRepository;
 import com.ces.erp.hr.repository.TaxRateConfigRepository;
-import com.ces.erp.role.entity.Role;
-import com.ces.erp.role.entity.RolePermission;
-import com.ces.erp.role.repository.RolePermissionRepository;
-import com.ces.erp.role.repository.RoleRepository;
-import com.ces.erp.systemmodule.entity.SystemModule;
 import com.ces.erp.systemmodule.repository.SystemModuleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,15 +36,13 @@ public class HrSeeder implements CommandLineRunner {
     private final EmployeeRepository employeeRepo;
     private final DepartmentRepository departmentRepo;
     private final SystemModuleRepository moduleRepo;
-    private final RoleRepository roleRepo;
-    private final RolePermissionRepository rolePermissionRepo;
 
     @Override
     @Transactional
     public void run(String... args) {
         seedTaxRates();
         seedPositions();
-        seedSuperAdminPermission();
+        ensureHrModule();
         seedEmployees();
     }
 
@@ -180,37 +173,18 @@ public class HrSeeder implements CommandLineRunner {
         log.info("{} işçi əlavə edildi.", data.size());
     }
 
-    // ─── Super Admin HR icazəsi ───────────────────────────────────────────────
+    // ─── HR modulunun mövcudluğunu təmin et ───────────────────────────────────
+    // (Super Admin HR-ə ümumi icazə qrantları ilə çıxış əldə edir — ayrıca grant lazım deyil.)
 
-    private void seedSuperAdminPermission() {
-        SystemModule existing = moduleRepo.findAll().stream()
-                .filter(m -> "HR_MANAGEMENT".equals(m.getCode()))
-                .findFirst().orElse(null);
-        final SystemModule hrModule;
-        if (existing == null) {
-            hrModule = moduleRepo.save(SystemModule.builder()
+    private void ensureHrModule() {
+        if (!moduleRepo.existsByCode("HR_MANAGEMENT")) {
+            moduleRepo.save(com.ces.erp.systemmodule.entity.SystemModule.builder()
                     .code("HR_MANAGEMENT")
                     .nameAz("İnsan Resursları Modulu")
                     .nameEn("HR Management")
                     .orderIndex(17)
                     .build());
             log.info("HR_MANAGEMENT modulu yaradıldı.");
-        } else {
-            hrModule = existing;
-        }
-
-        for (Role r : roleRepo.findAll()) {
-            if (r.isDeleted()) continue;
-            if (!"Super Admin".equalsIgnoreCase(r.getName())) continue;
-            boolean alreadyHas = rolePermissionRepo.findAllByRoleId(r.getId()).stream()
-                    .anyMatch(rp -> rp.getModule() != null && rp.getModule().getId().equals(hrModule.getId()));
-            if (alreadyHas) continue;
-            rolePermissionRepo.save(RolePermission.builder()
-                    .role(r).module(hrModule)
-                    .canGet(true).canPost(true).canPut(true).canDelete(true)
-                    .canSendToCoordinator(false).canSubmitOffer(false)
-                    .build());
-            log.info("Super Admin rolu üçün HR_MANAGEMENT icazəsi əlavə edildi.");
         }
     }
 

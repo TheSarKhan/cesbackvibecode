@@ -106,6 +106,17 @@ public class CoordinatorPlanController {
         return ResponseEntity.ok(ApiResponse.ok("Təklif rədd edildi"));
     }
 
+    @PostMapping("/requests/{requestId}/withdraw-offer")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Təklifi geri al və yenidən danışığa qayıt (COORDINATOR_PROPOSED → COORDINATOR_NEGOTIATING, səbəb məcburi)")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> withdrawOffer(
+            @PathVariable Long requestId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(ApiResponse.success("Təklif geri alındı",
+                planService.withdrawOffer(requestId, reason)));
+    }
+
     // ─── Mərhələ B: İcra ─────────────────────────────────────────────────────
 
     @PostMapping("/requests/{requestId}/assign-operator")
@@ -116,6 +127,17 @@ public class CoordinatorPlanController {
             @RequestParam Long operatorId) {
         return ResponseEntity.ok(ApiResponse.success("Operator təyin edildi",
                 planService.assignOperator(requestId, operatorId)));
+    }
+
+    @PostMapping("/requests/{requestId}/reset-operator")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Operatoru dəyişmək üçün geri qaytar (OPERATOR_ASSIGNED → EXECUTION_READY, səbəb məcburi)")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> resetOperator(
+            @PathVariable Long requestId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(ApiResponse.success("Operator təyini sıfırlandı",
+                planService.resetOperator(requestId, reason)));
     }
 
     @PostMapping("/requests/{requestId}/verify-equipment-docs")

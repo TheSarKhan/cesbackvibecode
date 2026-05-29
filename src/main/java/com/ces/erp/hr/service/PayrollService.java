@@ -14,7 +14,6 @@ import com.ces.erp.hr.dto.PayrollPeriodResponse;
 import com.ces.erp.hr.entity.Employee;
 import com.ces.erp.hr.entity.PayrollEntry;
 import com.ces.erp.hr.entity.PayrollPeriod;
-import com.ces.erp.hr.entity.TaxRateConfig;
 import com.ces.erp.hr.repository.EmployeeRepository;
 import com.ces.erp.hr.repository.PayrollEntryRepository;
 import com.ces.erp.hr.repository.PayrollPeriodRepository;
@@ -28,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -39,7 +39,7 @@ public class PayrollService {
     private final PayrollPeriodRepository periodRepository;
     private final PayrollEntryRepository entryRepository;
     private final EmployeeRepository employeeRepository;
-    private final TaxRateConfigService taxRateConfigService;
+    private final DeductionConfigService deductionConfigService;
     private final PayrollCalculatorService calculator;
     private final AuditService auditService;
 
@@ -102,7 +102,7 @@ public class PayrollService {
     }
 
     private void populatePeriod(PayrollPeriod p) {
-        TaxRateConfig cfg = taxRateConfigService.resolveActive();
+        ResolvedDeductionConfig cfg = resolveCfg(p);
         List<Employee> activeEmployees = employeeRepository.findAllByStatusAndDeletedFalse(EmployeeStatus.ACTIVE);
         for (Employee emp : activeEmployees) {
             if (entryRepository.findByPeriodIdAndEmployeeIdAndDeletedFalse(p.getId(), emp.getId()).isPresent()) {
@@ -131,7 +131,7 @@ public class PayrollService {
         if (req.getWorkingHoursPerDay() != null) p.setWorkingHoursPerDay(req.getWorkingHoursPerDay());
         if (req.getNotes() != null) p.setNotes(req.getNotes());
         // Working days dəyişdirilibsə bütün entry-lərin workingDaysInMonth-unu sinxronlaşdırırıq
-        TaxRateConfig cfg = taxRateConfigService.resolveActive();
+        ResolvedDeductionConfig cfg = resolveCfg(p);
         if (req.getWorkingDaysInMonth() != null) {
             for (PayrollEntry e : p.getEntries()) {
                 if (e.isDeleted()) continue;
@@ -155,7 +155,7 @@ public class PayrollService {
             throw new BusinessException("Boş dövr təsdiqlənə bilməz");
         }
         // Son hesablama
-        TaxRateConfig cfg = taxRateConfigService.resolveActive();
+        ResolvedDeductionConfig cfg = resolveCfg(p);
         for (PayrollEntry e : p.getEntries()) {
             if (e.isDeleted()) continue;
             calculator.recalculate(e, cfg);
@@ -227,7 +227,7 @@ public class PayrollService {
         if (req.getBaseSalary() != null) e.setBaseSalary(req.getBaseSalary());
         if (req.getNotes() != null) e.setNotes(req.getNotes());
 
-        TaxRateConfig cfg = taxRateConfigService.resolveActive();
+        ResolvedDeductionConfig cfg = resolveCfg(e.getPeriod());
         calculator.recalculate(e, cfg);
         entryRepository.save(e);
         recalcTotals(e.getPeriod());
@@ -254,7 +254,7 @@ public class PayrollService {
                 .workingDaysInMonth(p.getWorkingDaysInMonth())
                 .actualDaysWorked(p.getWorkingDaysInMonth())
                 .build();
-        calculator.recalculate(entry, taxRateConfigService.resolveActive());
+        calculator.recalculate(entry, resolveCfg(p));
         PayrollEntry saved = entryRepository.save(entry);
         p.getEntries().add(saved);
         recalcTotals(p);
@@ -290,6 +290,11 @@ public class PayrollService {
     private PayrollPeriod loadActive(Long id) {
         return periodRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Payroll period", id));
+    }
+
+    /** Dövrün tarixinə (ayın 1-i) uyğun qüvvədə olan tutulma konfiqurasiyasını həll edir. */
+    private ResolvedDeductionConfig resolveCfg(PayrollPeriod p) {
+        return deductionConfigService.resolveForDate(LocalDate.of(p.getYear(), p.getMonth(), 1));
     }
 
     private void ensureEditable(PayrollPeriod p) {

@@ -162,13 +162,13 @@ public class ApprovalService {
     private boolean hasApprovalAccess(User user) {
         // Köhnə (user-səviyyə) yoxlama — geriyə uyğunluq
         if (user.isHasApproval()) return true;
+        if (user.getRoles() == null) return false;
 
-        // Yeni (rol-səviyyə) yoxlama
-        Role role = user.getRole();
-        if (role == null || role.getPermissions() == null) return false;
-        return role.getPermissions().stream()
-                .anyMatch(p -> "OPERATIONS_APPROVAL".equals(p.getModule().getCode())
-                        && (p.isCanGet() || p.isCanPut()));
+        // Rolların OPERATIONS_APPROVAL GET/PUT icazəsi (tam permission-əsaslı)
+        return user.getRoles().stream().anyMatch(role ->
+                role.getGrantedPermissions() != null && role.getGrantedPermissions().stream()
+                        .anyMatch(p -> "OPERATIONS_APPROVAL:GET".equals(p.getCode())
+                                || "OPERATIONS_APPROVAL:PUT".equals(p.getCode())));
     }
 
     /**
@@ -176,12 +176,15 @@ public class ApprovalService {
      * əvvəlcə rolun approvalDepartments, sonra köhnə user-səviyyə yoxlanır.
      */
     private List<Long> getApprovalDeptIds(User user) {
-        // Rolun approval şöbələri
-        Role role = user.getRole();
-        if (role != null && role.getApprovalDepartments() != null && !role.getApprovalDepartments().isEmpty()) {
-            return role.getApprovalDepartments().stream()
+        // Rolların approval şöbələri (bütün rolların birləşməsi)
+        if (user.getRoles() != null && !user.getRoles().isEmpty()) {
+            List<Long> deptIds = user.getRoles().stream()
+                    .filter(r -> r.getApprovalDepartments() != null)
+                    .flatMap(r -> r.getApprovalDepartments().stream())
                     .map(Department::getId)
+                    .distinct()
                     .toList();
+            if (!deptIds.isEmpty()) return deptIds;
         }
 
         // Köhnə user-səviyyə (geriyə uyğunluq)

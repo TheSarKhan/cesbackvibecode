@@ -13,6 +13,7 @@ import com.ces.erp.request.entity.TechRequest;
 import com.ces.erp.request.repository.RequestDocumentRepository;
 import com.ces.erp.request.repository.RequestStatusLogRepository;
 import com.ces.erp.request.repository.TechRequestRepository;
+import com.ces.erp.request.service.RequestTransitionService;
 import com.ces.erp.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -33,6 +34,7 @@ public class DocumentCheckService {
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
+    private final RequestTransitionService transitionService;
 
     @Transactional(readOnly = true)
     public List<RequestDocumentCheckResponse> getPendingChecks() {
@@ -116,22 +118,25 @@ public class DocumentCheckService {
             throw new BusinessException("Müqavilə və qiymət razılaşma protokolu yüklənməlidir");
         }
 
-        RequestStatus oldStatus = r.getStatus();
-        r.setStatus(RequestStatus.EXECUTION_READY);
-        requestRepository.save(r);
+        // Mərkəzi gateway: ACCOUNTING_DOCS_CHECK → EXECUTION_READY (validasiya + log + audit)
+        transitionService.transition(r, RequestStatus.EXECUTION_READY, "Sənədlər tamamlandı", null);
 
-        String username = SecurityContextHolder.getContext().getAuthentication() != null
-                ? SecurityContextHolder.getContext().getAuthentication().getName() : "system";
-        statusLogRepository.save(RequestStatusLog.builder()
-                .requestId(r.getId())
-                .oldStatus(oldStatus)
-                .newStatus(RequestStatus.EXECUTION_READY)
-                .reason("Sənədlər tamamlandı")
-                .changedBy(username)
-                .build());
-        auditService.log("SORĞU", r.getId(), r.getRequestCode(), "STATUS_DƏYİŞDİ",
-                oldStatus.name() + " → EXECUTION_READY | Sənədlər tam");
+        return RequestDocumentCheckResponse.from(r,
+                documentRepository.findAllByRequestIdAndDeletedFalse(requestId));
+    }
 
+    /**
+     * Geri qaytarma — maliyyə sənəd əskik/səhv olduqda sorğunu LM-ə (qiymət danışığına) qaytarır.
+     * ACCOUNTING_DOCS_CHECK → PM_PRICE_NEGOTIATION. Səbəb məcburi.
+     * PM_APPROVED-da yaranmış PENDING Project SAXLANILIR (silinmir) — LM yenidən təsdiqləyəndə dublikat yaranmır.
+     */
+    @Transactional
+    public RequestDocumentCheckResponse sendBackToProjectManager(Long requestId, String reason) {
+        TechRequest r = findOrThrow(requestId);
+        if (r.getStatus() != RequestStatus.ACCOUNTING_DOCS_CHECK) {
+            throw new BusinessException("Geri qaytarma yalnız ACCOUNTING_DOCS_CHECK statusunda mümkündür");
+        }
+        transitionService.transition(r, RequestStatus.PM_PRICE_NEGOTIATION, reason, null);
         return RequestDocumentCheckResponse.from(r,
                 documentRepository.findAllByRequestIdAndDeletedFalse(requestId));
     }

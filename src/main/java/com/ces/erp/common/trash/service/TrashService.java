@@ -163,7 +163,9 @@ public class TrashService {
                 d.put("Email", e.getEmail());
                 d.put("Telefon", nvl(e.getPhone()));
                 d.put("Şöbə", e.getDepartment() != null ? e.getDepartment().getName() : "—");
-                d.put("Rol", e.getRole() != null ? e.getRole().getName() : "—");
+                d.put("Rol", (e.getRoles() != null && !e.getRoles().isEmpty())
+                        ? e.getRoles().stream().map(r -> r.getName()).collect(java.util.stream.Collectors.joining(", "))
+                        : "—");
                 d.put("Aktiv", e.isActive() ? "Bəli" : "Xeyr");
                 items.add(item(e.getId(), "USER", e.getFullName(), "EMPLOYEE_MANAGEMENT", "İstifadəçi İdarəetməsi", e.getDeletedAt(), d));
             });

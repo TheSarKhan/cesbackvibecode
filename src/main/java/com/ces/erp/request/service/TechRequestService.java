@@ -51,26 +51,7 @@ public class TechRequestService implements ApprovalHandler {
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
     private final NotificationService notificationService;
-
-    private static final Map<RequestStatus, Set<RequestStatus>> ALLOWED_TRANSITIONS;
-    static {
-        Map<RequestStatus, Set<RequestStatus>> m = new java.util.EnumMap<>(RequestStatus.class);
-        m.put(RequestStatus.DRAFT, Set.of(RequestStatus.PENDING, RequestStatus.REJECTED));
-        m.put(RequestStatus.PENDING, Set.of(RequestStatus.PM_REVIEW, RequestStatus.REJECTED));
-        m.put(RequestStatus.PM_REVIEW, Set.of(RequestStatus.PM_SHORTLIST_READY, RequestStatus.REJECTED));
-        m.put(RequestStatus.PM_SHORTLIST_READY, Set.of(RequestStatus.COORDINATOR_NEGOTIATING, RequestStatus.REJECTED));
-        m.put(RequestStatus.COORDINATOR_NEGOTIATING, Set.of(RequestStatus.COORDINATOR_PROPOSED, RequestStatus.REJECTED));
-        m.put(RequestStatus.COORDINATOR_PROPOSED, Set.of(RequestStatus.PM_PRICE_NEGOTIATION, RequestStatus.REJECTED));
-        m.put(RequestStatus.PM_PRICE_NEGOTIATION, Set.of(RequestStatus.PM_APPROVED, RequestStatus.REJECTED));
-        m.put(RequestStatus.PM_APPROVED, Set.of(RequestStatus.ACCOUNTING_DOCS_CHECK, RequestStatus.REJECTED));
-        m.put(RequestStatus.ACCOUNTING_DOCS_CHECK, Set.of(RequestStatus.EXECUTION_READY, RequestStatus.REJECTED));
-        m.put(RequestStatus.EXECUTION_READY, Set.of(RequestStatus.OPERATOR_ASSIGNED, RequestStatus.REJECTED));
-        m.put(RequestStatus.OPERATOR_ASSIGNED, Set.of(RequestStatus.EQUIPMENT_DISPATCHED, RequestStatus.REJECTED));
-        m.put(RequestStatus.EQUIPMENT_DISPATCHED, Set.of(RequestStatus.DELIVERED, RequestStatus.REJECTED));
-        m.put(RequestStatus.DELIVERED, Set.of());
-        m.put(RequestStatus.REJECTED, Set.of());
-        ALLOWED_TRANSITIONS = java.util.Collections.unmodifiableMap(m);
-    }
+    private final RequestTransitionService transitionService;
 
     @Override public String getEntityType() { return "REQUEST"; }
     @Override public String getModuleCode()  { return "REQUESTS"; }
@@ -114,31 +95,7 @@ public class TechRequestService implements ApprovalHandler {
     @Transactional
     public TechRequestResponse changeStatus(Long id, RequestStatus newStatus, String reason) {
         TechRequest entity = findOrThrow(id);
-        RequestStatus oldStatus = entity.getStatus();
-
-        Set<RequestStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(oldStatus, Set.of());
-        if (!allowed.contains(newStatus)) {
-            throw new InvalidStatusTransitionException(oldStatus.name() + " statusundan " + newStatus.name() + " statusuna keçid mümkün deyil");
-        }
-
-        entity.setStatus(newStatus);
-        TechRequest saved = requestRepository.save(entity);
-
-        String username = SecurityContextHolder.getContext().getAuthentication() != null
-                ? SecurityContextHolder.getContext().getAuthentication().getName() : "system";
-
-        statusLogRepository.save(RequestStatusLog.builder()
-                .requestId(id)
-                .oldStatus(oldStatus)
-                .newStatus(newStatus)
-                .reason(reason)
-                .changedBy(username)
-                .build());
-
-        String code = resolveCode(saved);
-        auditService.log("SORĞU", saved.getId(), code,
-                "STATUS_DƏYİŞDİ", oldStatus.name() + " → " + newStatus.name() + (reason != null ? " | " + reason : ""));
-
+        TechRequest saved = transitionService.transition(entity, newStatus, reason, null);
         return TechRequestResponse.from(saved);
     }
 
@@ -150,11 +107,7 @@ public class TechRequestService implements ApprovalHandler {
     }
 
     public Map<String, List<String>> getAllowedTransitions() {
-        Map<String, List<String>> result = new java.util.LinkedHashMap<>();
-        for (Map.Entry<RequestStatus, Set<RequestStatus>> e : ALLOWED_TRANSITIONS.entrySet()) {
-            result.put(e.getKey().name(), e.getValue().stream().map(Enum::name).toList());
-        }
-        return result;
+        return transitionService.getAllowedTransitions();
     }
 
     @Transactional
@@ -213,10 +166,7 @@ public class TechRequestService implements ApprovalHandler {
         if (entity.getStatus() != RequestStatus.DRAFT) {
             throw new BusinessException("Yalnız DRAFT statuslu sorğu göndərilə bilər");
         }
-        RequestStatus oldStatus = entity.getStatus();
-        entity.setStatus(RequestStatus.PENDING);
-        TechRequest saved = requestRepository.save(entity);
-        logStatusChange(saved.getId(), oldStatus, RequestStatus.PENDING, null);
+        TechRequest saved = transitionService.transition(entity, RequestStatus.PENDING, null, null);
         return TechRequestResponse.from(saved);
     }
 
@@ -243,10 +193,7 @@ public class TechRequestService implements ApprovalHandler {
         if (entity.getStatus() != RequestStatus.PENDING) {
             throw new BusinessException("Yönləndirmək üçün sorğu PENDING statusunda olmalıdır");
         }
-        RequestStatus oldStatus = entity.getStatus();
-        entity.setStatus(RequestStatus.PM_REVIEW);
-        TechRequest saved = requestRepository.save(entity);
-        logStatusChange(saved.getId(), oldStatus, RequestStatus.PM_REVIEW, null);
+        TechRequest saved = transitionService.transition(entity, RequestStatus.PM_REVIEW, null, null);
         return TechRequestResponse.from(saved);
     }
 
@@ -310,17 +257,5 @@ public class TechRequestService implements ApprovalHandler {
     private String resolveCode(TechRequest entity) {
         return entity.getRequestCode() != null ? entity.getRequestCode()
                 : "REQ-" + String.format("%04d", entity.getId());
-    }
-
-    private void logStatusChange(Long requestId, RequestStatus oldStatus, RequestStatus newStatus, String reason) {
-        String username = SecurityContextHolder.getContext().getAuthentication() != null
-                ? SecurityContextHolder.getContext().getAuthentication().getName() : "system";
-        statusLogRepository.save(RequestStatusLog.builder()
-                .requestId(requestId)
-                .oldStatus(oldStatus)
-                .newStatus(newStatus)
-                .reason(reason)
-                .changedBy(username)
-                .build());
     }
 }

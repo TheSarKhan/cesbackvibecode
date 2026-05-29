@@ -75,6 +75,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final RequestShortlistRepository requestShortlistRepository;
     private final com.ces.erp.request.repository.RequestStatusLogRepository statusLogRepository;
     private final com.ces.erp.common.audit.AuditService auditService;
+    private final com.ces.erp.request.service.RequestTransitionService transitionService;
 
     @Override public String getEntityType() { return "COORDINATOR_SUBMIT"; }
     @Override public String getModuleCode()  { return "COORDINATOR"; }
@@ -376,9 +377,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
     @RequiresApproval(module = "COORDINATOR", entityType = "COORDINATOR_SUBMIT")
     public CoordinatorPlanResponse submitPlan(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
-        // Yeni flowda koordinator təklifi PM-ə qaytarır
-        request.setStatus(RequestStatus.COORDINATOR_PROPOSED);
-        requestRepository.save(request);
+        // Yeni flowda koordinator təklifi PM-ə qaytarır (mərkəzi gateway ilə)
+        transitionService.transition(request, RequestStatus.COORDINATOR_PROPOSED, "Koordinator təklifi göndərildi", null);
 
         // Seçilmiş texnikanın statusunu İcarədə et
         planRepository.findByRequestId(requestId).ifPresent(plan -> {
@@ -416,8 +416,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
         if (currentStatus == RequestStatus.DELIVERED || currentStatus == RequestStatus.REJECTED) {
             throw new BusinessException("Bu statusda olan sorğu rədd edilə bilməz");
         }
-        request.setStatus(RequestStatus.REJECTED);
-        requestRepository.save(request);
+        transitionService.transition(request, RequestStatus.REJECTED, "Koordinator tərəfindən rədd edildi", null);
 
         // Əgər texnika icarədə idi (Mərhələ B), onu Mövcud-a qaytar
         planRepository.findByRequestId(requestId).ifPresent(plan -> {
@@ -429,6 +428,54 @@ public class CoordinatorPlanService implements ApprovalHandler {
                 equipmentRepository.save(eq);
             }
         });
+    }
+
+    /**
+     * Geri qaytarma — koordinator öz təklifini geri alıb yenidən danışığa qayıdır.
+     * COORDINATOR_PROPOSED → COORDINATOR_NEGOTIATING. Səbəb məcburi; texnika AVAILABLE-ə qaytarılır.
+     */
+    @Transactional
+    public CoordinatorPlanResponse withdrawOffer(Long requestId, String reason) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.COORDINATOR_PROPOSED) {
+            throw new BusinessException("Təklif yalnız COORDINATOR_PROPOSED statusunda geri alına bilər");
+        }
+        transitionService.transition(request, RequestStatus.COORDINATOR_NEGOTIATING, reason, null);
+        releaseSelectedEquipment(request);
+        return planRepository.findByRequestId(requestId).map(CoordinatorPlanResponse::from).orElse(null);
+    }
+
+    /**
+     * Geri qaytarma — operatoru dəyişmək üçün icra mərhələsinə qayıt.
+     * OPERATOR_ASSIGNED → EXECUTION_READY. Səbəb məcburi; plandakı operator təyini sıfırlanır.
+     */
+    @Transactional
+    public CoordinatorPlanResponse resetOperator(Long requestId, String reason) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.OPERATOR_ASSIGNED) {
+            throw new BusinessException("Operatoru dəyişmək yalnız OPERATOR_ASSIGNED statusunda mümkündür");
+        }
+        transitionService.transition(request, RequestStatus.EXECUTION_READY, reason, null);
+        planRepository.findByRequestId(requestId).ifPresent(plan -> {
+            plan.setOperator(null);
+            planRepository.save(plan);
+        });
+        return planRepository.findByRequestId(requestId).map(CoordinatorPlanResponse::from).orElse(null);
+    }
+
+    /** Seçilmiş texnikanı (plandakı və ya sorğudakı) RENTED → AVAILABLE qaytarır. */
+    private void releaseSelectedEquipment(TechRequest request) {
+        planRepository.findByRequestId(request.getId()).ifPresentOrElse(plan -> {
+            Equipment eq = plan.getSelectedEquipment() != null ? plan.getSelectedEquipment() : request.getSelectedEquipment();
+            releaseEquipment(eq);
+        }, () -> releaseEquipment(request.getSelectedEquipment()));
+    }
+
+    private void releaseEquipment(Equipment eq) {
+        if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
+            eq.setStatus(EquipmentStatus.AVAILABLE);
+            equipmentRepository.save(eq);
+        }
     }
 
     // ─── Texnika seçimi ───────────────────────────────────────────────────────
@@ -546,24 +593,9 @@ public class CoordinatorPlanService implements ApprovalHandler {
         return CoordinatorPlanResponse.from(plan);
     }
 
+    /** Bütün koordinator status keçidləri mərkəzi gateway-dən keçir (validasiya + log + audit). */
     private void changeRequestStatus(TechRequest r, RequestStatus newStatus, String reason) {
-        RequestStatus old = r.getStatus();
-        r.setStatus(newStatus);
-        requestRepository.save(r);
-
-        String username = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication() != null
-                ? org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName() : "system";
-        statusLogRepository.save(com.ces.erp.request.entity.RequestStatusLog.builder()
-                .requestId(r.getId())
-                .oldStatus(old)
-                .newStatus(newStatus)
-                .reason(reason)
-                .changedBy(username)
-                .build());
-        auditService.log("SORĞU", r.getId(),
-                r.getRequestCode() != null ? r.getRequestCode() : "REQ-" + r.getId(),
-                "STATUS_DƏYİŞDİ",
-                old.name() + " → " + newStatus.name() + (reason != null ? " | " + reason : ""));
+        transitionService.transition(r, newStatus, reason, null);
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────

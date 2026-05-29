@@ -2,6 +2,7 @@ package com.ces.erp.user.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
+import com.ces.erp.common.security.UserPrincipal;
 import com.ces.erp.user.dto.UserApprovalRequest;
 import com.ces.erp.user.dto.UserRequest;
 import com.ces.erp.user.dto.UserResponse;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +25,13 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Cari istifadəçinin profili və güncəl icazələri")
+    public ResponseEntity<ApiResponse<UserResponse>> me(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success(userService.getMe(principal.getUsername())));
+    }
 
     @GetMapping
     @PreAuthorize("hasAuthority('ROLE_PERMISSION:GET')")

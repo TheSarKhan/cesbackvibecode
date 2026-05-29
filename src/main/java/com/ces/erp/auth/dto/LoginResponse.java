@@ -22,30 +22,10 @@ public class LoginResponse {
         private String email;
         private String phone;
         private String department;
-        private String role;
+        private String role;              // convenience — ilk rolun adı (display)
+        private List<String> roleNames;   // bütün rolların adları
         private boolean hasApproval;
         private List<String> approvalDepartments;
-        private List<ModulePermission> permissions;
-    }
-
-    @Data
-    @Builder
-    public static class ModulePermission {
-        private String moduleCode;
-        private String moduleNameAz;
-        private boolean canGet;
-        private boolean canPost;
-        private boolean canPut;
-        private boolean canDelete;
-        // Köhnə custom action icazələr
-        private boolean canSendToCoordinator;
-        private boolean canSubmitOffer;
-        private boolean canSendToAccounting;
-        private boolean canReturnToProject;
-        // Yeni flow icazələri
-        private boolean canApproveByPm;
-        private boolean canCheckDocuments;
-        private boolean canDispatch;
-        private boolean canDeliver;
+        private List<String> permissions; // effektiv icazə code-ları (MODULE:ACTION)
     }
 }

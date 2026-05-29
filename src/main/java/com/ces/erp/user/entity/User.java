@@ -8,7 +8,9 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "users")
@@ -34,10 +36,15 @@ public class User extends BaseEntity {
     @JoinColumn(name = "department_id")
     private Department department;
 
-    // İstifadəçiyə 1 rol
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id")
-    private Role role;
+    // İstifadəçiyə bir və ya bir neçə rol (effektiv icazə bütün rolların birləşməsidir)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    @Builder.Default
+    private Set<Role> roles = new LinkedHashSet<>();
 
     @Column(nullable = false)
     @Builder.Default

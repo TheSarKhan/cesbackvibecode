@@ -143,6 +143,17 @@ public class ProjectManagerController {
         return ResponseEntity.ok(ApiResponse.success("Sorğu rədd edildi", service.reject(requestId, reason)));
     }
 
+    @PostMapping("/requests/{requestId}/send-back-to-coordinator")
+    @PreAuthorize("hasAuthority('PROJECT_MANAGER:PUT')")
+    @Operation(summary = "Koordinatora geri qaytar (PM_PRICE_NEGOTIATION → COORDINATOR_NEGOTIATING, səbəb məcburi)")
+    public ResponseEntity<ApiResponse<PmRequestResponse>> sendBackToCoordinator(
+            @PathVariable Long requestId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(ApiResponse.success("Koordinatora geri qaytarıldı",
+                service.sendBackToCoordinator(requestId, reason)));
+    }
+
     // ─── Sənəd yükləmə (PM_PRICE_NEGOTIATION mərhələsində) ────────────────────
     // PM müştəri ilə razılaşmadan sonra müqavilə və qiymət protokolunu burada
     // yükləyə bilir. Eyni sənədlər sonradan mühasibatlıqda da görünür.

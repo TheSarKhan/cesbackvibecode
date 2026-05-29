@@ -188,33 +188,23 @@ public class AuthService {
                 TimeUnit.MILLISECONDS
         );
 
-        // Modül icazələrini topla
-        List<LoginResponse.ModulePermission> permissions = List.of();
-        if (user.getRole() != null && user.getRole().getPermissions() != null) {
-            permissions = user.getRole().getPermissions().stream()
-                    .map(p -> LoginResponse.ModulePermission.builder()
-                            .moduleCode(p.getModule().getCode())
-                            .moduleNameAz(p.getModule().getNameAz())
-                            .canGet(p.isCanGet())
-                            .canPost(p.isCanPost())
-                            .canPut(p.isCanPut())
-                            .canDelete(p.isCanDelete())
-                            .canSendToCoordinator(p.isCanSendToCoordinator())
-                            .canSubmitOffer(p.isCanSubmitOffer())
-                            .canSendToAccounting(p.isCanSendToAccounting())
-                            .canReturnToProject(p.isCanReturnToProject())
-                            .canApproveByPm(p.isCanApproveByPm())
-                            .canCheckDocuments(p.isCanCheckDocuments())
-                            .canDispatch(p.isCanDispatch())
-                            .canDeliver(p.isCanDeliver())
-                            .build())
-                    .toList();
-        }
+        // Effektiv icazə code-ları — bütün rolların granted icazələrinin birləşməsi (tam permission-əsaslı)
+        var roles = user.getRoles() == null ? java.util.List.<com.ces.erp.role.entity.Role>of()
+                : user.getRoles().stream().toList();
+
+        java.util.Set<String> codeSet = new java.util.LinkedHashSet<>();
+        roles.forEach(r -> {
+            if (r.getGrantedPermissions() != null)
+                r.getGrantedPermissions().forEach(p -> codeSet.add(p.getCode()));
+        });
+        List<String> permissions = codeSet.stream().sorted().toList();
 
         // Approval şöbələri
         List<String> approvalDepts = user.getApprovalDepartments().stream()
                 .map(ad -> ad.getDepartment().getName())
                 .toList();
+
+        var primary = roles.stream().findFirst().orElse(null);
 
         LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
                 .id(user.getId())
@@ -222,7 +212,8 @@ public class AuthService {
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .department(user.getDepartment() != null ? user.getDepartment().getName() : null)
-                .role(user.getRole() != null ? user.getRole().getName() : null)
+                .role(primary != null ? primary.getName() : null)
+                .roleNames(roles.stream().map(com.ces.erp.role.entity.Role::getName).toList())
                 .hasApproval(user.isHasApproval())
                 .approvalDepartments(approvalDepts)
                 .permissions(permissions)
