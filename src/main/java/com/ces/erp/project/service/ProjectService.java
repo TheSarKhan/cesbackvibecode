@@ -60,6 +60,7 @@ public class ProjectService {
     private final CoordinatorPlanRepository planRepository;
     private final EquipmentProjectHistoryRepository equipmentHistoryRepository;
     private final EquipmentRepository equipmentRepository;
+    private final com.ces.erp.garage.service.EquipmentService equipmentService;
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
     private final ReceivableService receivableService;
@@ -102,25 +103,32 @@ public class ProjectService {
     @Transactional
     public ProjectResponse uploadContract(Long id, MultipartFile file, LocalDate startDate) {
         Project p = findOrThrow(id);
-        if (p.getStatus() != ProjectStatus.PENDING) {
-            throw new BusinessException("Müqavilə yalnız PENDING statuslu layihəyə yüklənə bilər");
+        if (p.getStatus() == ProjectStatus.COMPLETED) {
+            throw new BusinessException("Bağlanmış layihəyə müqavilə yüklənə bilməz");
         }
+        boolean firstContract = !p.isHasContract();
 
         String path = fileStorageService.store(file, "project-contracts");
         p.setContractFilePath(path);
         p.setContractFileName(file.getOriginalFilename());
         p.setHasContract(true);
-        p.setStatus(ProjectStatus.ACTIVE);
-        LocalDate effectiveStart = startDate != null ? startDate : LocalDate.now();
-        p.setStartDate(effectiveStart);
+
+        // PENDING → icra mərhələsinə (ACTIVE) keçir və başlanğıc tarixini təyin et.
+        // Layihə artıq ACTIVE-dirsə (təhvil-təslim olub) status/tarix toxunulmur — yalnız müqavilə əlavə olunur.
+        LocalDate effectiveStart = startDate != null ? startDate
+                : (p.getStartDate() != null ? p.getStartDate() : LocalDate.now());
+        if (p.getStatus() == ProjectStatus.PENDING) {
+            p.setStatus(ProjectStatus.ACTIVE);
+            p.setStartDate(effectiveStart);
+        }
 
         projectRepository.save(p);
         receivableService.createFromProject(p);
         auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YARADILDI", "Yeni layihə yaradıldı");
 
-        // Müqaviləni müştərinin sənədlər bölməsinə avtomatik əlavə et
+        // Müqaviləni müştərinin sənədlər bölməsinə yalnız ilk dəfə əlavə et (təkrar yükləmədə dublikat olmasın)
         var customer = p.getRequest() != null ? p.getRequest().getCustomer() : null;
-        if (customer != null) {
+        if (firstContract && customer != null) {
             String originalName = file.getOriginalFilename();
             String fileType = originalName != null && originalName.contains(".")
                     ? originalName.substring(originalName.lastIndexOf('.') + 1).toUpperCase()
@@ -352,8 +360,8 @@ public class ProjectService {
 
             // Texnikanı avtomatik "Yolda" statusuna keçir
             if (eq.getStatus() == EquipmentStatus.RENTED) {
-                eq.setStatus(EquipmentStatus.IN_TRANSIT);
-                equipmentRepository.save(eq);
+                equipmentService.changeStatus(eq, EquipmentStatus.IN_TRANSIT,
+                        "Layihə tamamlandı — texnika geri yoldadır", equipmentService.currentUserOrNull());
             }
 
             // Podratçı/İnvestor ödəniş qaiməsini avtomatik yarat (əgər artıq yoxdursa)

@@ -63,7 +63,8 @@ public class EquipmentService implements ApprovalHandler {
     // IN_INSPECTION → baxış bitdikdə AVAILABLE, problem varsa DEFECTIVE
     private static final java.util.Map<EquipmentStatus, java.util.Set<EquipmentStatus>> ALLOWED_TRANSITIONS = java.util.Map.of(
             EquipmentStatus.AVAILABLE,      java.util.Set.of(EquipmentStatus.RENTED, EquipmentStatus.DEFECTIVE, EquipmentStatus.OUT_OF_SERVICE, EquipmentStatus.IN_INSPECTION),
-            EquipmentStatus.RENTED,         java.util.Set.of(EquipmentStatus.IN_TRANSIT),
+            // RENTED → IN_TRANSIT (layihə bağlandıqda), RENTED → AVAILABLE (icarə ləğvi: reject/withdraw/PM-release)
+            EquipmentStatus.RENTED,         java.util.Set.of(EquipmentStatus.IN_TRANSIT, EquipmentStatus.AVAILABLE),
             EquipmentStatus.IN_TRANSIT,     java.util.Set.of(EquipmentStatus.IN_INSPECTION),
             EquipmentStatus.IN_INSPECTION,  java.util.Set.of(EquipmentStatus.UNDER_CHECK, EquipmentStatus.DEFECTIVE, EquipmentStatus.IN_REPAIR, EquipmentStatus.AVAILABLE),
             EquipmentStatus.UNDER_CHECK,    java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.IN_REPAIR),
@@ -193,6 +194,10 @@ public class EquipmentService implements ApprovalHandler {
         notificationService.notifyEquipmentChanged("DELETED", id);
     }
 
+    /**
+     * Manual status dəyişikliyi (UI). Köhnə davranış qorunur: old==new-də "artıq bu statusdadır" xətası.
+     * Bütün validasiya/log/audit mərkəzi {@link #changeStatus} gateway-indən keçir.
+     */
     @Transactional
     public EquipmentResponse updateStatus(Long id, String status, String reason, Long userId) {
         Equipment equipment = findOrThrow(id);
@@ -204,12 +209,33 @@ public class EquipmentService implements ApprovalHandler {
             throw new BusinessException("Yanlış status: " + status);
         }
 
-        EquipmentStatus oldStatus = equipment.getStatus();
-        if (oldStatus == newStatus) {
+        // Manual UI davranışı — eyni statusa keçid istəyi xəta verir
+        if (equipment.getStatus() == newStatus) {
             throw new BusinessException("Texnika artıq bu statusdadır");
         }
 
-        // Keçid qaydalarını yoxla
+        User changedBy = userRepository.findByIdAndDeletedFalse(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", userId));
+
+        changeStatus(equipment, newStatus, reason, changedBy);
+        return EquipmentResponse.from(equipment);
+    }
+
+    /**
+     * MƏRKƏZİ texnika status gateway-i — bütün status dəyişiklikləri (manual + axın) buradan keçməlidir.
+     * Xəritəni yoxlayır, {@link EquipmentStatusLog} yazır, audit log yazır, notification göndərir.
+     * <p>
+     * {@code old == new} olduqda SƏSSİZ keçir (xəta yox, log yox) — axın çağırıçıları üçün
+     * (mövcud {@code if (eq.getStatus() == ...)} qılaflarını əvəz edir).
+     * {@code actor} null ola bilər — sistem-tetikli keçidlər üçün (EquipmentStatusLog.changedBy nullable).
+     */
+    @Transactional
+    public void changeStatus(Equipment equipment, EquipmentStatus newStatus, String reason, User actor) {
+        EquipmentStatus oldStatus = equipment.getStatus();
+        if (oldStatus == newStatus) {
+            return; // səssiz keç — axın üçün idempotent
+        }
+
         java.util.Set<EquipmentStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(oldStatus, java.util.Set.of());
         if (!allowed.contains(newStatus)) {
             throw new BusinessException(
@@ -217,24 +243,30 @@ public class EquipmentService implements ApprovalHandler {
                             oldStatus.name(), newStatus.name()));
         }
 
-        User changedBy = userRepository.findByIdAndDeletedFalse(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", userId));
-
-        // Logu yaz
         statusLogRepository.save(EquipmentStatusLog.builder()
                 .equipment(equipment)
                 .oldStatus(oldStatus)
                 .newStatus(newStatus)
                 .reason(reason)
-                .changedBy(changedBy)
+                .changedBy(actor)
                 .build());
 
         equipment.setStatus(newStatus);
-        Equipment saved = equipmentRepository.save(equipment);
-        auditService.log("TEXNİKA", saved.getId(), saved.getName() + " (" + saved.getEquipmentCode() + ")",
+        equipmentRepository.save(equipment);
+        auditService.log("TEXNİKA", equipment.getId(), equipment.getName() + " (" + equipment.getEquipmentCode() + ")",
                 "YENİLƏNDİ", "Status dəyişdi: " + oldStatus.name() + " → " + newStatus.name());
-        notificationService.notifyEquipmentChanged("STATUS_CHANGED", id);
-        return EquipmentResponse.from(saved);
+        notificationService.notifyEquipmentChanged("STATUS_CHANGED", equipment.getId());
+    }
+
+    /** SecurityContext-dən cari User (varsa); axın çağırıçıları üçün — yoxdursa null (sistem-tetikli). */
+    @Transactional(readOnly = true)
+    public User currentUserOrNull() {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            return null;
+        }
+        return userRepository.findByEmailAndDeletedFalse(auth.getName()).orElse(null);
     }
 
     @Transactional(readOnly = true)

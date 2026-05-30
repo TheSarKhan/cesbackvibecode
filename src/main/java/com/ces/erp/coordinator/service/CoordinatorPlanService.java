@@ -61,6 +61,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final CoordinatorPlanRepository planRepository;
     private final CoordinatorDocumentRepository documentRepository;
     private final EquipmentRepository equipmentRepository;
+    private final com.ces.erp.garage.service.EquipmentService equipmentService;
     private final EquipmentDocumentRepository equipmentDocumentRepository;
     private final OperatorRepository operatorRepository;
     private final UserRepository userRepository;
@@ -386,8 +387,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
                     ? plan.getSelectedEquipment()
                     : request.getSelectedEquipment();
             if (eq != null) {
-                eq.setStatus(EquipmentStatus.RENTED);
-                equipmentRepository.save(eq);
+                equipmentService.changeStatus(eq, EquipmentStatus.RENTED,
+                        "Koordinator təklifi göndərildi — texnika icarəyə alındı", equipmentService.currentUserOrNull());
             }
         });
 
@@ -424,8 +425,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
                     ? plan.getSelectedEquipment()
                     : request.getSelectedEquipment();
             if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
-                eq.setStatus(EquipmentStatus.AVAILABLE);
-                equipmentRepository.save(eq);
+                equipmentService.changeStatus(eq, EquipmentStatus.AVAILABLE,
+                        "Sorğu rədd edildi — texnika azad edildi", equipmentService.currentUserOrNull());
             }
         });
     }
@@ -473,8 +474,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
     private void releaseEquipment(Equipment eq) {
         if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
-            eq.setStatus(EquipmentStatus.AVAILABLE);
-            equipmentRepository.save(eq);
+            equipmentService.changeStatus(eq, EquipmentStatus.AVAILABLE,
+                    "Təklif geri alındı — texnika azad edildi", equipmentService.currentUserOrNull());
         }
     }
 
@@ -559,8 +560,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
         // Texnikanı icarədə işarələ
         Equipment eq = plan.getSelectedEquipment();
         if (eq != null && eq.getStatus() != EquipmentStatus.RENTED) {
-            eq.setStatus(EquipmentStatus.RENTED);
-            equipmentRepository.save(eq);
+            equipmentService.changeStatus(eq, EquipmentStatus.RENTED,
+                    "Texnika yükləndi və göndərildi", equipmentService.currentUserOrNull());
         }
         changeRequestStatus(request, RequestStatus.EQUIPMENT_DISPATCHED, "Texnika yükləndi və göndərildi");
         return CoordinatorPlanResponse.from(plan);

@@ -56,10 +56,11 @@ public class DataSeeder implements CommandLineRunner {
 
     private void seedModules() {
         List<SystemModule> modules = List.of(
+                module("DASHBOARD",             "İdarə paneli",               0),
                 module("CUSTOMER_MANAGEMENT",   "Müştəri İdarəetməsi",        1),
                 module("CONTRACTOR_MANAGEMENT", "Podratçı İdarəetməsi",       2),
                 module("ROLE_PERMISSION",        "Rol və İcazə İdarəetməsi",   3),
-                module("EMPLOYEE_MANAGEMENT",    "İşçi İdarəetməsi",           4),
+                module("EMPLOYEE_MANAGEMENT",    "İstifadəçi İdarəetməsi",     4),
                 module("GARAGE",                 "Qaraj Modulu",               5),
                 module("REQUESTS",               "Sorğular Modulu",            6),
                 module("PROJECT_MANAGER",        "Layihə Meneceri",            7),
@@ -107,6 +108,7 @@ public class DataSeeder implements CommandLineRunner {
         grant(salesRole, "REQUESTS", "GET", "POST", "PUT", "DELETE", "SEND_COORDINATOR");
         grant(salesRole, "PROJECTS", "GET");
         grant(salesRole, "GARAGE", "GET");
+        grant(salesRole, "DASHBOARD", "GET");
         roleRepository.save(salesRole);
 
         // 3. Layihə Meneceri
@@ -118,6 +120,7 @@ public class DataSeeder implements CommandLineRunner {
         grant(pmRole, "INVESTORS", "GET");
         grant(pmRole, "GARAGE", "GET");
         grant(pmRole, "PROJECTS", "GET");
+        grant(pmRole, "DASHBOARD", "GET");
         roleRepository.save(pmRole);
 
         // 4. Koordinator
@@ -129,6 +132,7 @@ public class DataSeeder implements CommandLineRunner {
         grant(coordRole, "CONTRACTOR_MANAGEMENT", "GET");
         grant(coordRole, "OPERATORS", "GET");
         grant(coordRole, "PROJECT_MANAGER", "GET");
+        grant(coordRole, "DASHBOARD", "GET");
         roleRepository.save(coordRole);
 
         // 5. Maliyyəçi
@@ -137,6 +141,7 @@ public class DataSeeder implements CommandLineRunner {
         grant(financeRole, "PROJECTS", "GET");
         grant(financeRole, "REQUESTS", "GET");
         grant(financeRole, "AUDIT_LOG", "GET");
+        grant(financeRole, "DASHBOARD", "GET");
         roleRepository.save(financeRole);
 
         // 6. Texnik
@@ -145,6 +150,7 @@ public class DataSeeder implements CommandLineRunner {
         grant(techRole, "SERVICE_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
         grant(techRole, "REQUESTS", "GET");
         grant(techRole, "OPERATORS", "GET");
+        grant(techRole, "DASHBOARD", "GET");
         roleRepository.save(techRole);
 
         // ── İstifadəçilər (hər rol üçün bir test useri) ──
@@ -186,6 +192,8 @@ public class DataSeeder implements CommandLineRunner {
         grant(role, "ACCOUNTING", "GET", "POST", "PUT", "DELETE", "CHECK_DOCUMENTS");
         grant(role, "HR_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
         grant(role, "ROLE_PERMISSION", "GET", "POST", "PUT", "DELETE");
+        grant(role, "EMPLOYEE_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
+        grant(role, "DASHBOARD", "GET");
         grant(role, "OPERATIONS_APPROVAL", "GET", "PUT");
         grant(role, "CONFIG", "GET", "POST", "PUT", "DELETE", "PING");
         grant(role, "AUDIT_LOG", "GET");

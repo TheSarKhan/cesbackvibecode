@@ -28,10 +28,33 @@ public class JwtUtil {
         return Jwts.builder()
                 .subject(email)
                 .claim("userId", userId)
+                .claim("type", "USER")
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessTokenExpiry))
                 .signWith(getKey())
                 .compact();
+    }
+
+    // ─── Investor portal token-i (izolyasiyalı) ──────────────────────────────
+    // claim-lər: { sub: accountEmail, type: "INVESTOR", investorId }
+    public String generateInvestorAccessToken(Long investorId, String accountEmail) {
+        return Jwts.builder()
+                .subject(accountEmail)
+                .claim("investorId", investorId)
+                .claim("type", "INVESTOR")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + accessTokenExpiry))
+                .signWith(getKey())
+                .compact();
+    }
+
+    /** Token tipi: "USER" / "INVESTOR" (köhnə token-lərdə yoxdursa null). */
+    public String extractType(String token) {
+        return extractClaims(token).get("type", String.class);
+    }
+
+    public Long extractInvestorId(String token) {
+        return extractClaims(token).get("investorId", Long.class);
     }
 
     public Claims extractClaims(String token) {

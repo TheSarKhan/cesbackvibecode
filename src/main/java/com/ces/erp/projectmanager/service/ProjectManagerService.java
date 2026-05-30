@@ -61,6 +61,7 @@ public class ProjectManagerService implements ApprovalHandler {
     private final ContractorRepository contractorRepository;
     private final InvestorRepository investorRepository;
     private final EquipmentRepository equipmentRepository;
+    private final com.ces.erp.garage.service.EquipmentService equipmentService;
     private final ProjectRepository projectRepository;
     private final RequestDocumentRepository requestDocumentRepository;
     private final AuditService auditService;
@@ -441,8 +442,8 @@ public class ProjectManagerService implements ApprovalHandler {
 
     private void releaseEquipment(Equipment eq) {
         if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
-            eq.setStatus(EquipmentStatus.AVAILABLE);
-            equipmentRepository.save(eq);
+            equipmentService.changeStatus(eq, EquipmentStatus.AVAILABLE,
+                    "Layihə meneceri texnikanı azad etdi", equipmentService.currentUserOrNull());
         }
     }
 }

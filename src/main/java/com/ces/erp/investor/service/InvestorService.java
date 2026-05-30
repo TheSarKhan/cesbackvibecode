@@ -18,6 +18,7 @@ import com.ces.erp.common.exception.DuplicateResourceException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.coordinator.dto.ProjectHistoryItem;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
+import com.ces.erp.investor.dto.InvestorPortalAccountRequest;
 import com.ces.erp.investor.dto.InvestorRequest;
 import com.ces.erp.investor.dto.InvestorResponse;
 import com.ces.erp.investor.entity.Investor;
@@ -25,6 +26,7 @@ import com.ces.erp.investor.repository.InvestorRepository;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,7 @@ public class InvestorService implements ApprovalHandler {
     private final PayableRepository payableRepository;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+    private final PasswordEncoder passwordEncoder;
 
     @Override public String getEntityType() { return "INVESTOR"; }
     @Override public String getModuleCode()  { return "INVESTORS"; }
@@ -151,6 +154,40 @@ public class InvestorService implements ApprovalHandler {
                     return PayableResponse.from(p, invoices);
                 })
                 .toList();
+    }
+
+    // ─── Portal hesab idarəsi (admin, birbaşa — approval-sız) ────────────────
+
+    @Transactional
+    public InvestorResponse updatePortalAccount(Long id, InvestorPortalAccountRequest req) {
+        Investor investor = findOrThrow(id);
+        String email = (req.getAccountEmail() != null && !req.getAccountEmail().isBlank())
+                ? req.getAccountEmail().trim() : null;
+
+        if (email != null && investorRepository
+                .existsByAccountEmailIgnoreCaseAndIdNotAndDeletedFalse(email, id)) {
+            throw new DuplicateResourceException("Bu hesab maili artıq istifadədədir");
+        }
+        // Email yoxdursa portal aktiv ola bilməz
+        if (email == null && req.isPortalEnabled()) {
+            throw new BusinessException("Portal aktiv etmək üçün hesab maili tələb olunur");
+        }
+
+        investor.setAccountEmail(email);
+        investor.setPortalEnabled(req.isPortalEnabled());
+        Investor saved = investorRepository.save(investor);
+        auditService.log("İNVESTOR", saved.getId(), saved.getCompanyName(), "YENİLƏNDİ",
+                "Portal hesabı yeniləndi (aktiv: " + req.isPortalEnabled() + ")");
+        return InvestorResponse.from(saved);
+    }
+
+    @Transactional
+    public void setPassword(Long id, String rawPassword) {
+        Investor investor = findOrThrow(id);
+        investor.setPasswordHash(passwordEncoder.encode(rawPassword));
+        investorRepository.save(investor);
+        auditService.log("İNVESTOR", investor.getId(), investor.getCompanyName(), "YENİLƏNDİ",
+                "Portal şifrəsi admin tərəfindən təyin edildi");
     }
 
     private Investor findOrThrow(Long id) {

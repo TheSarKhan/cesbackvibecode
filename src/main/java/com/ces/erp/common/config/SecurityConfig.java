@@ -1,5 +1,6 @@
 package com.ces.erp.common.config;
 
+import com.ces.erp.common.security.InvestorJwtFilter;
 import com.ces.erp.common.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -26,10 +27,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final InvestorJwtFilter investorJwtFilter;
     private final UserDetailsService userDetailsService;
 
     private static final String[] PUBLIC_URLS = {
             "/api/auth/**",
+            "/api/investor-auth/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/api-docs/**",
@@ -43,10 +46,13 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_URLS).permitAll()
+                        .requestMatchers("/api/portal/**").hasRole("INVESTOR")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
+                // İnvestor filter-i əvvəl işləyir: INVESTOR token-ini tutur, qalanını JwtAuthFilter-ə ötürür
+                .addFilterBefore(investorJwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

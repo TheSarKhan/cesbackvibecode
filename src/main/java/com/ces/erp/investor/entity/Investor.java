@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "investors")
@@ -48,4 +49,18 @@ public class Investor extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    // ─── Portal girişi (mobil investor tətbiqi) ──────────────────────────────
+    // Investor şirkət-içi User DEYİL — ayrı kimlik doğrulaması ilə işləyir.
+
+    @Column(unique = true)
+    private String accountEmail;   // portal giriş maili (admin təyin edir, könüllü)
+
+    private String passwordHash;   // BCrypt — heç bir API cavabında qaytarılmır
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean portalEnabled = false;
+
+    private LocalDateTime lastLoginAt;
 }
