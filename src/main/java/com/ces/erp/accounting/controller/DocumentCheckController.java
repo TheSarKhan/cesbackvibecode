@@ -89,10 +89,14 @@ public class DocumentCheckController {
 
     @PostMapping("/{requestId}/complete-check")
     @PreAuthorize("hasAuthority('ACCOUNTING:CHECK_DOCUMENTS')")
-    @Operation(summary = "Sənəd yoxlamasını tamamla (ACCOUNTING_DOCS_CHECK → EXECUTION_READY)")
+    @Operation(summary = "Sənəd yoxlamasını OK ver — Əməliyyatların təsdiqinə göndərir (təsdiqdə layihə ACTIVE)")
     public ResponseEntity<ApiResponse<RequestDocumentCheckResponse>> completeCheck(@PathVariable Long requestId) {
-        return ResponseEntity.ok(ApiResponse.success("Sənəd yoxlaması tamamlandı",
-                service.completeCheck(requestId)));
+        // Əvvəlcə validasiya (status + məcburi sənədlər) — submit anında dərhal xəta versin.
+        service.assertReadyForActivation(requestId);
+        // Sonra təsdiq qapısı — proxy sərhədini keçmək üçün BİRBAŞA annotasiyalı metod çağırılır.
+        // Aspect əməliyyatı sıraya salıb PendingApprovalException (202) atır.
+        return ResponseEntity.ok(ApiResponse.success("Təsdiqə göndərildi",
+                service.submitForActivation(requestId)));
     }
 
     @PostMapping("/{requestId}/send-back")

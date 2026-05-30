@@ -30,9 +30,6 @@ import com.ces.erp.project.repository.ProjectPaymentEntryRepository;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.project.repository.ProjectRevenueRepository;
 import com.ces.erp.accounting.repository.InvoiceRepository;
-import com.ces.erp.accounting.service.ReceivableService;
-import com.ces.erp.customer.entity.CustomerDocument;
-import com.ces.erp.customer.repository.CustomerDocumentRepository;
 import com.ces.erp.accounting.entity.Invoice;
 import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.enums.InvoiceType;
@@ -63,9 +60,7 @@ public class ProjectService {
     private final com.ces.erp.garage.service.EquipmentService equipmentService;
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
-    private final ReceivableService receivableService;
     private final InvoiceRepository invoiceRepository;
-    private final CustomerDocumentRepository customerDocumentRepository;
 
     // ─── List ─────────────────────────────────────────────────────────────────
 
@@ -98,59 +93,10 @@ public class ProjectService {
         return ProjectResponse.from(p, plan);
     }
 
-    // ─── Müqavilə upload ──────────────────────────────────────────────────────
-
-    @Transactional
-    public ProjectResponse uploadContract(Long id, MultipartFile file, LocalDate startDate) {
-        Project p = findOrThrow(id);
-        if (p.getStatus() == ProjectStatus.COMPLETED) {
-            throw new BusinessException("Bağlanmış layihəyə müqavilə yüklənə bilməz");
-        }
-        boolean firstContract = !p.isHasContract();
-
-        String path = fileStorageService.store(file, "project-contracts");
-        p.setContractFilePath(path);
-        p.setContractFileName(file.getOriginalFilename());
-        p.setHasContract(true);
-
-        // PENDING → icra mərhələsinə (ACTIVE) keçir və başlanğıc tarixini təyin et.
-        // Layihə artıq ACTIVE-dirsə (təhvil-təslim olub) status/tarix toxunulmur — yalnız müqavilə əlavə olunur.
-        LocalDate effectiveStart = startDate != null ? startDate
-                : (p.getStartDate() != null ? p.getStartDate() : LocalDate.now());
-        if (p.getStatus() == ProjectStatus.PENDING) {
-            p.setStatus(ProjectStatus.ACTIVE);
-            p.setStartDate(effectiveStart);
-        }
-
-        projectRepository.save(p);
-        receivableService.createFromProject(p);
-        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YARADILDI", "Yeni layihə yaradıldı");
-
-        // Müqaviləni müştərinin sənədlər bölməsinə yalnız ilk dəfə əlavə et (təkrar yükləmədə dublikat olmasın)
-        var customer = p.getRequest() != null ? p.getRequest().getCustomer() : null;
-        if (firstContract && customer != null) {
-            String originalName = file.getOriginalFilename();
-            String fileType = originalName != null && originalName.contains(".")
-                    ? originalName.substring(originalName.lastIndexOf('.') + 1).toUpperCase()
-                    : "FILE";
-            String projectLabel = p.getRequest().getProjectName() != null && !p.getRequest().getProjectName().isBlank()
-                    ? p.getRequest().getProjectName()
-                    : p.getProjectCode();
-            CustomerDocument doc = CustomerDocument.builder()
-                    .customer(customer)
-                    .filePath(path)
-                    .documentName(p.getProjectCode() + " – " + projectLabel + " (Müqavilə)")
-                    .fileType(fileType)
-                    .documentDate(effectiveStart)
-                    .build();
-            customerDocumentRepository.save(doc);
-        }
-
-        CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
-        return ProjectResponse.from(p, plan);
-    }
-
-    // ─── Müqavilə yüklə ──────────────────────────────────────────────────────
+    // ─── Müqavilə endirmə ─────────────────────────────────────────────────────
+    // QEYD: Müqavilə YÜKLƏMƏ silindi — layihə artıq müqavilə ilə deyil, mühasibat OK +
+    // Əməliyyatların təsdiqi ilə ACTIVE olur (bax DocumentCheckService.submitForActivation).
+    // Mövcud layihələrin müqaviləsini endirmək üçün resolveContract saxlanılır.
 
     @Transactional(readOnly = true)
     public Path resolveContract(Long id) {

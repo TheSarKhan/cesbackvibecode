@@ -581,15 +581,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
         changeRequestStatus(request, RequestStatus.DELIVERED, "Təhvil-təslim tamamlandı");
 
-        // Project-i ACTIVE et (yaradılıbsa)
-        projectRepository.findByRequestIdAndDeletedFalse(requestId).ifPresent(project -> {
-            if (project.getStatus() == ProjectStatus.PENDING) {
-                project.setStatus(ProjectStatus.ACTIVE);
-                if (plan.getStartDate() != null) project.setStartDate(plan.getStartDate());
-                if (plan.getEndDate() != null) project.setEndDate(plan.getEndDate());
-                projectRepository.save(project);
-            }
-        });
+        // QEYD: Təhvil-təslim layihəni AKTİVLƏŞDİRMİR — bu yalnız mühasibat OK + Əməliyyatların
+        // təsdiqi ilə olur (DocumentCheckService). Burada yalnız təhvil qeydi + texnika statusu (gateway).
 
         return CoordinatorPlanResponse.from(plan);
     }
