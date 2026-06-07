@@ -44,12 +44,30 @@ public class DataSeeder implements CommandLineRunner {
         if (moduleRepository.count() == 0) {
             log.info("Modullar seed edilir...");
             seedModules();
+        } else {
+            ensureCoreModules();
         }
         if (!userRepository.existsByEmailAndDeletedFalse("admin@ces.az")) {
             log.info("Rollar və istifadəçilər seed edilir...");
             seedDepartmentsRolesUsers();
             log.info("Sistem seed tamamlandı.");
         }
+    }
+
+    /**
+     * Mövcud bazaya seedModules-da olan, lakin DB-də olmayan core modulları idempotent əlavə edir.
+     * Beləcə yeni modul (məs. DASHBOARD, PROJECT_MANAGER) köhnə install-larda da icazə kataloqunda
+     * düzgün adla görünür və PermissionScanner auto-discovery üçün modul adı tapır.
+     */
+    private void ensureCoreModules() {
+        ensureModule("DASHBOARD",        "İdarə paneli",              0);
+        ensureModule("PROJECT_MANAGER",  "Layihə Meneceri",           7);
+    }
+
+    private void ensureModule(String code, String nameAz, int order) {
+        if (moduleRepository.existsByCode(code)) return;
+        moduleRepository.save(module(code, nameAz, order));
+        log.info("{} modulu mövcud bazaya əlavə edildi.", code);
     }
 
     // ─── Sistem modulları ─────────────────────────────────────────────────────
