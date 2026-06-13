@@ -16,6 +16,8 @@ import com.ces.erp.department.repository.DepartmentRepository;
 import com.ces.erp.role.entity.Role;
 import com.ces.erp.role.repository.RoleRepository;
 import com.ces.erp.user.dto.UserApprovalRequest;
+import com.ces.erp.user.dto.UserContactRequest;
+import com.ces.erp.user.dto.UserPasswordRequest;
 import com.ces.erp.user.dto.UserRequest;
 import com.ces.erp.user.dto.UserResponse;
 import com.ces.erp.user.entity.User;
@@ -183,6 +185,57 @@ public class UserService implements ApprovalHandler {
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", id));
         user.setActive(!user.isActive());
         userRepository.save(user);
+    }
+
+    // ───── Self-service (/me) ─────────────────────────────────────
+
+    public UserResponse getCurrent(Long currentUserId) {
+        User user = userRepository.findByIdAndDeletedFalse(currentUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", currentUserId));
+        return UserResponse.from(user);
+    }
+
+    @Transactional
+    public UserResponse updateMyContact(Long currentUserId, UserContactRequest request) {
+        User user = userRepository.findByIdAndDeletedFalse(currentUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", currentUserId));
+
+        String newEmail = request.getEmail() != null ? request.getEmail().trim() : null;
+        if (newEmail == null || newEmail.isBlank()) {
+            throw new BusinessException("Email boş ola bilməz");
+        }
+        if (!newEmail.equalsIgnoreCase(user.getEmail())
+                && userRepository.existsByEmailAndDeletedFalse(newEmail)) {
+            throw new DuplicateResourceException("Bu email artıq istifadə edilir");
+        }
+
+        String newPhone = request.getPhone() != null ? request.getPhone().trim() : null;
+        if (newPhone != null && newPhone.isBlank()) newPhone = null;
+
+        user.setEmail(newEmail);
+        user.setPhone(newPhone);
+        User saved = userRepository.save(user);
+        auditService.log("İSTİFADƏÇİ", saved.getId(), saved.getFullName(),
+                "ƏLAQƏ_YENİLƏNDİ", "İstifadəçi öz əlaqə məlumatlarını yenilədi");
+        return UserResponse.from(saved);
+    }
+
+    @Transactional
+    public void updateMyPassword(Long currentUserId, UserPasswordRequest request) {
+        User user = userRepository.findByIdAndDeletedFalse(currentUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", currentUserId));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BusinessException("Cari şifrə yanlışdır");
+        }
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new BusinessException("Yeni şifrə cari şifrə ilə eyni ola bilməz");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        auditService.log("İSTİFADƏÇİ", user.getId(), user.getFullName(),
+                "ŞİFRƏ_YENİLƏNDİ", "İstifadəçi öz şifrəsini dəyişdi");
     }
 
     @Transactional

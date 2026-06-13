@@ -27,15 +27,19 @@ public class EquipmentRequest {
     @Pattern(regexp = ".*\\p{L}.*", message = "Növ ən azı bir hərf içərməlidir")
     private String type;
 
+    @NotBlank(message = "Seriya nömrəsi boş ola bilməz")
     @Size(max = 100, message = "Seriya nömrəsi maksimum 100 simvol ola bilər")
     private String serialNumber;
 
+    @NotBlank(message = "Brend boş ola bilməz")
     @Size(max = 100, message = "Brend maksimum 100 simvol ola bilər")
     private String brand;
 
+    @NotBlank(message = "Model boş ola bilməz")
     @Size(max = 100, message = "Model maksimum 100 simvol ola bilər")
     private String model;
 
+    @NotNull(message = "İstehsal ili tələb olunur")
     @Min(value = 1900, message = "İstehsal ili 1900-dən kiçik ola bilməz")
     @Max(value = 2099, message = "İstehsal ili 2099-dan böyük ola bilməz")
     private Integer manufactureYear;
@@ -54,20 +58,25 @@ public class EquipmentRequest {
     @DecimalMin(value = "0", message = "Çəki mənfi ola bilməz")
     private BigDecimal weightTon;
 
+    @NotNull(message = "Cari bazar dəyəri tələb olunur")
     @DecimalMin(value = "0", message = "Bazar dəyəri mənfi ola bilməz")
     @Digits(integer = 12, fraction = 2, message = "Bazar dəyəri düzgün formatda deyil")
     private BigDecimal currentMarketValue;
 
+    @NotNull(message = "Amortizasiya faizi tələb olunur")
     @DecimalMin(value = "0", message = "Amortizasiya mənfi ola bilməz")
     @DecimalMax(value = "100", message = "Amortizasiya 100%-dən çox ola bilməz")
     private BigDecimal depreciationRate;
 
+    @NotNull(message = "Saat/KM göstəricisi tələb olunur")
     @DecimalMin(value = "0", message = "Saat/KM göstəricisi mənfi ola bilməz")
     private BigDecimal hourKmCounter;
 
+    @NotNull(message = "Moto saatlar tələb olunur")
     @DecimalMin(value = "0", message = "Moto saatlar mənfi ola bilməz")
     private BigDecimal motoHours;
 
+    @NotBlank(message = "Saxlanma yeri boş ola bilməz")
     @Size(max = 200, message = "Saxlanma yeri maksimum 200 simvol ola bilər")
     private String storageLocation;
 
@@ -104,5 +113,6 @@ public class EquipmentRequest {
     @Size(max = 1000, message = "Qeyd maksimum 1000 simvol ola bilər")
     private String notes;
 
+    @NotEmpty(message = "Ən azı bir təhlükəsizlik avadanlığı seçilməlidir")
     private List<Long> safetyEquipmentIds;
 }

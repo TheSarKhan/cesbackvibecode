@@ -2,7 +2,10 @@ package com.ces.erp.user.controller;
 
 import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
+import com.ces.erp.common.security.UserPrincipal;
 import com.ces.erp.user.dto.UserApprovalRequest;
+import com.ces.erp.user.dto.UserContactRequest;
+import com.ces.erp.user.dto.UserPasswordRequest;
 import com.ces.erp.user.dto.UserRequest;
 import com.ces.erp.user.dto.UserResponse;
 import com.ces.erp.user.service.UserService;
@@ -12,6 +15,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,6 +33,32 @@ public class UserController {
     @Operation(summary = "Bütün istifadəçiləri gətir")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(userService.getAll()));
+    }
+
+    // ───── Self-service (cari istifadəçi) ──────────────────
+
+    @GetMapping("/me")
+    @Operation(summary = "Cari istifadəçi profili")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrent(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success(userService.getCurrent(principal.getId())));
+    }
+
+    @PutMapping("/me/contact")
+    @Operation(summary = "Cari istifadəçi əlaqə məlumatlarını yenilə")
+    public ResponseEntity<ApiResponse<UserResponse>> updateMyContact(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody UserContactRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Əlaqə məlumatları yeniləndi",
+                userService.updateMyContact(principal.getId(), request)));
+    }
+
+    @PutMapping("/me/password")
+    @Operation(summary = "Cari istifadəçi şifrəsini dəyiş")
+    public ResponseEntity<ApiResponse<Void>> updateMyPassword(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody UserPasswordRequest request) {
+        userService.updateMyPassword(principal.getId(), request);
+        return ResponseEntity.ok(ApiResponse.ok("Şifrə yeniləndi"));
     }
 
     @GetMapping("/paged")
