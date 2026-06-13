@@ -18,6 +18,7 @@ import com.ces.erp.garage.entity.EquipmentStatusLog;
 import com.ces.erp.garage.repository.*;
 import com.ces.erp.garage.repository.EquipmentStatusLogRepository;
 import com.ces.erp.enums.EquipmentStatus;
+import com.ces.erp.investor.service.PortalNotificationService;
 import com.ces.erp.enums.OwnershipType;
 import com.ces.erp.user.entity.User;
 import com.ces.erp.user.repository.UserRepository;
@@ -49,6 +50,7 @@ public class EquipmentService implements ApprovalHandler {
     private final EquipmentImageRepository imageRepository;
     private final EquipmentProjectHistoryRepository projectHistoryRepository;
     private final EquipmentStatusLogRepository statusLogRepository;
+    private final PortalNotificationService portalNotificationService;
     private final ContractorRepository contractorRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
@@ -256,6 +258,11 @@ public class EquipmentService implements ApprovalHandler {
         auditService.log("TEXNİKA", equipment.getId(), equipment.getName() + " (" + equipment.getEquipmentCode() + ")",
                 "YENİLƏNDİ", "Status dəyişdi: " + oldStatus.name() + " → " + newStatus.name());
         notificationService.notifyEquipmentChanged("STATUS_CHANGED", equipment.getId());
+
+        // İnvestor portal push — texnika icarəyə verildikdə (best-effort, izolə)
+        if (newStatus == EquipmentStatus.RENTED) {
+            portalNotificationService.onEquipmentRented(equipment);
+        }
     }
 
     /** SecurityContext-dən cari User (varsa); axın çağırıçıları üçün — yoxdursa null (sistem-tetikli). */

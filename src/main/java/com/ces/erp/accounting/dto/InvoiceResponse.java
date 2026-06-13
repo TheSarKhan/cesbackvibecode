@@ -36,6 +36,8 @@ public class InvoiceResponse {
     // Type A
     private String etaxesId;
     private String equipmentName;
+    private Long equipmentId;       // Texnikaya ID bağlantısı (qazanc hesabatı üçün)
+    private String equipmentCode;
     private String companyName;
 
     // Type B2
@@ -143,6 +145,8 @@ public class InvoiceResponse {
                 .invoiceDate(inv.getInvoiceDate())
                 .etaxesId(inv.getEtaxesId())
                 .equipmentName(inv.getEquipmentName())
+                .equipmentId(inv.getEquipment() != null ? inv.getEquipment().getId() : null)
+                .equipmentCode(inv.getEquipment() != null ? inv.getEquipment().getEquipmentCode() : null)
                 .companyName(inv.getCompanyName())
                 .serviceDescription(inv.getServiceDescription())
                 .projectId(projectId)

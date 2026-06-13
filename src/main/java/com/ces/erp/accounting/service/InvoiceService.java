@@ -198,8 +198,13 @@ public class InvoiceService implements ApprovalHandler {
         }
 
         if (req.getProjectId() != null) {
-            inv.setProject(projectRepository.findById(req.getProjectId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Layihə", req.getProjectId())));
+            var proj = projectRepository.findById(req.getProjectId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Layihə", req.getProjectId()));
+            inv.setProject(proj);
+            // Texnikanı layihə → tələb → seçilmiş texnika zəncirindən ID ilə bağla (qazanc hesabatı üçün)
+            if (proj.getRequest() != null && proj.getRequest().getSelectedEquipment() != null) {
+                inv.setEquipment(proj.getRequest().getSelectedEquipment());
+            }
         }
         if (req.getContractorId() != null) {
             inv.setContractor(contractorRepository.findById(req.getContractorId())
@@ -508,6 +513,10 @@ public class InvoiceService implements ApprovalHandler {
                     && plan.getContractorPayment().compareTo(BigDecimal.ZERO) > 0) {
                 // Fallback: dailyRate yoxdursa cəmi ödənişdən istifadə et
                 expenseAmount = plan.getContractorPayment();
+            } else if (plan.getEquipmentPrice() != null
+                    && plan.getEquipmentPrice().compareTo(BigDecimal.ZERO) > 0) {
+                // Fallback: günlük dərəcə/ödəniş yoxdursa "texnika xərci" (equipmentPrice)
+                expenseAmount = plan.getEquipmentPrice();
             }
         }
 
@@ -520,6 +529,7 @@ public class InvoiceService implements ApprovalHandler {
                 .amount(expenseAmount)
                 .invoiceDate(incomeInvoice.getInvoiceDate())
                 .project(project)
+                .equipment(eq)
                 .equipmentName(eq.getName())
                 .periodMonth(incomeInvoice.getPeriodMonth())
                 .periodYear(incomeInvoice.getPeriodYear())
@@ -532,6 +542,11 @@ public class InvoiceService implements ApprovalHandler {
         } else {
             builder.type(InvoiceType.INVESTOR_EXPENSE)
                    .companyName(eq.getOwnerInvestorName());
+            // İnvestor FK-nı VÖEN ilə bağla — portal dashboard/invoices i.investor.id ilə süzür
+            if (eq.getOwnerInvestorVoen() != null) {
+                investorRepository.findByVoenAndDeletedFalse(eq.getOwnerInvestorVoen())
+                        .ifPresent(builder::investor);
+            }
         }
 
         Invoice expense = builder.build();
@@ -706,7 +721,9 @@ public class InvoiceService implements ApprovalHandler {
     }
 
     private synchronized String generateAccountingId(int year, InvoiceType type) {
-        String prefix = (type == InvoiceType.INCOME ? "INV-" : "POD-") + year + "-";
+        // INCOME və İNVESTOR ödəmələri → "INV-"; podratçı/şirkət xərcləri → "POD-"
+        boolean inv = (type == InvoiceType.INCOME || type == InvoiceType.INVESTOR_EXPENSE);
+        String prefix = (inv ? "INV-" : "POD-") + year + "-";
         java.util.Optional<String> maxId = invoiceRepository.findMaxAccountingIdForYear(prefix);
         int seq = 1;
         if (maxId.isPresent() && maxId.get() != null) {
