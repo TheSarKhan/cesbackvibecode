@@ -11,19 +11,32 @@ import java.util.List;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
-    List<AuditLog> findTop10ByOrderByPerformedAtDesc();
+    @Query("SELECT a FROM AuditLog a ORDER BY a.performedAt DESC LIMIT 10")
+    List<AuditLog> findRecent();
 
     @Query("SELECT a FROM AuditLog a WHERE a.entityType = :entityType AND a.entityId = :entityId ORDER BY a.performedAt DESC")
     List<AuditLog> findByEntityTypeAndEntityId(String entityType, Long entityId);
 
-    @Query("""
+    @Query(value = """
         SELECT a FROM AuditLog a
         WHERE (:entityType IS NULL OR a.entityType = :entityType)
           AND (:action     IS NULL OR a.action = :action)
-          AND (:q          IS NULL OR LOWER(a.entityLabel) LIKE CONCAT('%', :q, '%') OR LOWER(a.performedBy) LIKE CONCAT('%', :q, '%'))
+          AND (:q          IS NULL
+               OR LOWER(a.entityLabel) LIKE CONCAT('%', CAST(:q AS string), '%')
+               OR LOWER(a.performedBy) LIKE CONCAT('%', CAST(:q AS string), '%'))
           AND a.performedAt >= :from
           AND a.performedAt <= :to
         ORDER BY a.performedAt DESC
+        """,
+        countQuery = """
+        SELECT COUNT(a) FROM AuditLog a
+        WHERE (:entityType IS NULL OR a.entityType = :entityType)
+          AND (:action     IS NULL OR a.action = :action)
+          AND (:q          IS NULL
+               OR LOWER(a.entityLabel) LIKE CONCAT('%', CAST(:q AS string), '%')
+               OR LOWER(a.performedBy) LIKE CONCAT('%', CAST(:q AS string), '%'))
+          AND a.performedAt >= :from
+          AND a.performedAt <= :to
         """)
     Page<AuditLog> findFiltered(
             @Param("entityType") String entityType,

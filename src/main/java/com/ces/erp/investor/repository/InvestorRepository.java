@@ -27,6 +27,14 @@ public interface InvestorRepository extends JpaRepository<Investor, Long> {
 
     Optional<Investor> findByIdAndDeletedFalse(Long id);
 
+    // Texnikanın owner_investor_voen-i ilə investor FK bağlamaq üçün (VÖEN unikaldır)
+    Optional<Investor> findByVoenAndDeletedFalse(String voen);
+
+    // Portal girişi üçün — hesab maili ilə (case-insensitive)
+    Optional<Investor> findByAccountEmailIgnoreCaseAndDeletedFalse(String accountEmail);
+
+    boolean existsByAccountEmailIgnoreCaseAndIdNotAndDeletedFalse(String accountEmail, Long id);
+
     boolean existsByVoenAndDeletedFalse(String voen);
 
     boolean existsByVoenAndIdNotAndDeletedFalse(String voen, Long id);

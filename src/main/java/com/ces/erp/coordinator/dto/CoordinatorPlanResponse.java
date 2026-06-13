@@ -55,11 +55,14 @@ public class CoordinatorPlanResponse {
     private Long planId;
     private Long operatorId;
     private String operatorName;
-    private BigDecimal equipmentPrice;
+    private BigDecimal equipmentPrice;           // bizim podratçı/investora ödəyəcəyimiz (cost)
+    private BigDecimal customerEquipmentPrice;   // sifarişçiyə təklif (revenue)
     private BigDecimal contractorDailyRate;
     private BigDecimal contractorPayment;
     private BigDecimal operatorPayment;
     private BigDecimal transportationPrice;
+    private Long transportContractorId;
+    private String transportContractorName;
     private BigDecimal totalAmount;
     private BigDecimal companyProfit;
     private LocalDate startDate;
@@ -68,6 +71,54 @@ public class CoordinatorPlanResponse {
     private String notes;
     private List<DocumentDto> documents;
     private LocalDateTime planCreatedAt;
+
+    // Mərhələ B (icra) status sahələri
+    private boolean equipmentDocsVerified;
+    private LocalDateTime equipmentDocsCheckedAt;
+    private LocalDateTime dispatchedAt;
+    private LocalDateTime deliveredAt;
+    private String deliveryNotes;
+
+    // Qalib shortlist sətri (PM-də göstərilir)
+    private Long winnerItemId;
+    private String winnerPartyType;       // CONTRACTOR / INVESTOR
+    private String winnerPartyName;       // Podratçı və ya İnvestor adı
+    private String winnerEquipmentName;
+    private String winnerEquipmentCode;
+
+    // Shortlist sətirləri (koordinator UI-da göstərmək üçün — PM tərəfindən yaradılır)
+    private List<ShortlistRowDto> shortlistItems;
+
+    @Data
+    @Builder
+    public static class ShortlistRowDto {
+        private Long id;
+        private String partyType;        // CONTRACTOR / INVESTOR
+        private Long contractorId;
+        private String contractorName;
+        private String contractorVoen;
+        private String contractorPhone;
+        private String contractorContactPerson;
+        private String contractorAddress;
+        private Long investorId;
+        private String investorName;
+        private String investorVoen;
+        private String investorPhone;
+        private String investorContactPerson;
+        private String investorAddress;
+        private Long equipmentId;
+        private String equipmentName;
+        private String equipmentCode;
+        private String equipmentType;
+        private String equipmentBrand;
+        private String equipmentModel;
+        private Integer equipmentYear;
+        private String equipmentPlateNumber;
+        private String equipmentOwnership;
+        private BigDecimal negotiatedPrice;
+        private Integer rank;
+        private String notes;
+    }
 
     @Data
     @Builder
@@ -148,18 +199,19 @@ public class CoordinatorPlanResponse {
             );
         }
 
-        BigDecimal eqUnitPrice = plan.getEquipmentPrice() != null ? plan.getEquipmentPrice() : BigDecimal.ZERO;
-        BigDecimal transPrice = plan.getTransportationPrice() != null ? plan.getTransportationPrice() : BigDecimal.ZERO;
-        BigDecimal contrPayment = plan.getContractorPayment() != null ? plan.getContractorPayment() : BigDecimal.ZERO;
-        BigDecimal opPayment = plan.getOperatorPayment() != null ? plan.getOperatorPayment() : BigDecimal.ZERO;
+        // Yeni model — qiymətlər vahid başına (günlük/aylıq). Daşınma birdəfəlikdir.
+        BigDecimal eqCostUnit    = plan.getEquipmentPrice() != null ? plan.getEquipmentPrice() : BigDecimal.ZERO;
+        BigDecimal eqRevenueUnit = plan.getCustomerEquipmentPrice() != null ? plan.getCustomerEquipmentPrice() : BigDecimal.ZERO;
+        BigDecimal transPrice    = plan.getTransportationPrice() != null ? plan.getTransportationPrice() : BigDecimal.ZERO;
 
-        // Texnika cəmi: MONTHLY üçün sabit qiymət, DAILY üçün gün × vahid qiymət
-        int days = plan.getDayCount() != null ? plan.getDayCount() : 0;
-        BigDecimal eqTotal = (r.getProjectType() == ProjectType.MONTHLY || days == 0)
-                ? eqUnitPrice
-                : eqUnitPrice.multiply(BigDecimal.valueOf(days));
-        BigDecimal total = eqTotal.add(transPrice);
-        BigDecimal profit = total.subtract(contrPayment).subtract(opPayment);
+        int units = plan.getDayCount() != null && plan.getDayCount() > 0 ? plan.getDayCount() : 1;
+        BigDecimal multiplier = BigDecimal.valueOf(units);
+
+        BigDecimal eqRevenueTotal = eqRevenueUnit.multiply(multiplier);
+        BigDecimal eqCostTotal    = eqCostUnit.multiply(multiplier);
+
+        BigDecimal total  = eqRevenueTotal.add(transPrice);     // sifarişçiyə təklif (cəm)
+        BigDecimal profit = total.subtract(eqCostTotal);         // şirkət xeyri (cəm)
 
         List<DocumentDto> docs = plan.getDocuments().stream()
                 .filter(d -> !d.isDeleted())
@@ -183,10 +235,33 @@ public class CoordinatorPlanResponse {
             base.setDayCount(plan.getDayCount());
         }
         base.setEquipmentPrice(plan.getEquipmentPrice());
+        base.setCustomerEquipmentPrice(plan.getCustomerEquipmentPrice());
         base.setContractorDailyRate(plan.getContractorDailyRate());
         base.setContractorPayment(plan.getContractorPayment());
         base.setOperatorPayment(plan.getOperatorPayment());
         base.setTransportationPrice(plan.getTransportationPrice());
+        if (plan.getTransportContractor() != null) {
+            base.setTransportContractorId(plan.getTransportContractor().getId());
+            base.setTransportContractorName(plan.getTransportContractor().getCompanyName());
+        }
+        base.setEquipmentDocsVerified(plan.isEquipmentDocsVerified());
+        base.setEquipmentDocsCheckedAt(plan.getEquipmentDocsCheckedAt());
+        base.setDispatchedAt(plan.getDispatchedAt());
+        base.setDeliveredAt(plan.getDeliveredAt());
+        base.setDeliveryNotes(plan.getDeliveryNotes());
+
+        if (plan.getWinnerItem() != null) {
+            var w = plan.getWinnerItem();
+            base.setWinnerItemId(w.getId());
+            base.setWinnerPartyType(w.getPartyType() != null ? w.getPartyType().name() : null);
+            base.setWinnerPartyName(w.getContractor() != null
+                    ? w.getContractor().getCompanyName()
+                    : (w.getInvestor() != null ? w.getInvestor().getCompanyName() : null));
+            if (w.getEquipment() != null) {
+                base.setWinnerEquipmentName(w.getEquipment().getName());
+                base.setWinnerEquipmentCode(w.getEquipment().getEquipmentCode());
+            }
+        }
         base.setTotalAmount(total);
         base.setCompanyProfit(profit);
         base.setStartDate(plan.getStartDate());

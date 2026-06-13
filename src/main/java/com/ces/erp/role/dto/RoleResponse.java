@@ -1,7 +1,6 @@
 package com.ces.erp.role.dto;
 
 import com.ces.erp.role.entity.Role;
-import com.ces.erp.role.entity.RolePermission;
 import lombok.Builder;
 import lombok.Data;
 
@@ -19,7 +18,8 @@ public class RoleResponse {
     private String departmentName;
     private boolean active;
     private LocalDateTime createdAt;
-    private List<PermissionResponse> permissions;
+    private List<Long> grantedPermissionIds;   // rol redaktə ekranında checkbox-ları doldurmaq üçün
+    private List<String> permissions;           // verilmiş icazə code-ları (göstərim/diff üçün)
     private List<ApprovalDeptInfo> approvalDepartments;
 
     @Data
@@ -29,41 +29,11 @@ public class RoleResponse {
         private String name;
     }
 
-    @Data
-    @Builder
-    public static class PermissionResponse {
-        private Long moduleId;
-        private String moduleCode;
-        private String moduleNameAz;
-        private boolean canGet;
-        private boolean canPost;
-        private boolean canPut;
-        private boolean canDelete;
-        private boolean canSendToCoordinator;
-        private boolean canSubmitOffer;
-        private boolean canSendToAccounting;
-        private boolean canReturnToProject;
-
-        public static PermissionResponse from(RolePermission p) {
-            return PermissionResponse.builder()
-                    .moduleId(p.getModule().getId())
-                    .moduleCode(p.getModule().getCode())
-                    .moduleNameAz(p.getModule().getNameAz())
-                    .canGet(p.isCanGet())
-                    .canPost(p.isCanPost())
-                    .canPut(p.isCanPut())
-                    .canDelete(p.isCanDelete())
-                    .canSendToCoordinator(p.isCanSendToCoordinator())
-                    .canSubmitOffer(p.isCanSubmitOffer())
-                    .canSendToAccounting(p.isCanSendToAccounting())
-                    .canReturnToProject(p.isCanReturnToProject())
-                    .build();
-        }
-    }
-
     public static RoleResponse from(Role role) {
-        List<PermissionResponse> perms = role.getPermissions() == null ? List.of() :
-                role.getPermissions().stream().map(PermissionResponse::from).toList();
+        List<Long> grantedIds = role.getGrantedPermissions() == null ? List.of() :
+                role.getGrantedPermissions().stream().map(p -> p.getId()).sorted().toList();
+        List<String> codes = role.getGrantedPermissions() == null ? List.of() :
+                role.getGrantedPermissions().stream().map(p -> p.getCode()).sorted().toList();
 
         List<ApprovalDeptInfo> approvalDepts = role.getApprovalDepartments() == null ? List.of() :
                 role.getApprovalDepartments().stream()
@@ -78,7 +48,8 @@ public class RoleResponse {
                 .departmentName(role.getDepartment() != null ? role.getDepartment().getName() : null)
                 .active(role.isActive())
                 .createdAt(role.getCreatedAt())
-                .permissions(perms)
+                .grantedPermissionIds(grantedIds)
+                .permissions(codes)
                 .approvalDepartments(approvalDepts)
                 .build();
     }

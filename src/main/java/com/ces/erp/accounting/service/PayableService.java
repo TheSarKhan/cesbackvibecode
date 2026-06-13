@@ -29,6 +29,7 @@ public class PayableService {
     private final PayableRepository payableRepository;
     private final PayablePaymentRepository payablePaymentRepository;
     private final InvoiceRepository invoiceRepository;
+    private final com.ces.erp.investor.service.PortalNotificationService portalNotificationService;
 
     // ─── Sync / Create ────────────────────────────────────────────────────────
 
@@ -146,6 +147,9 @@ public class PayableService {
         payablePaymentRepository.save(payment);
 
         recalculateStatus(p);
+
+        // İnvestor portal push — ödəniş daxil olduqda (best-effort, izolə)
+        portalNotificationService.onPaymentReceived(p, req.getAmount());
 
         return PayablePaymentResponse.from(payment);
     }

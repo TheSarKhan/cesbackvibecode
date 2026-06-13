@@ -46,8 +46,14 @@ public class PendingOperation extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String oldSnapshot;
 
+    // applyEdit-in işlətdiyi əsl yük (request DTO JSON)
     @Column(columnDefinition = "TEXT")
     private String newSnapshot;
+
+    // Yalnız diff göstərimi üçün oxunaqlı "sonrakı" snapshot (getSnapshot ilə eyni formada).
+    // applyEdit BUNU işlətmir — yoxdursa newSnapshot göstərilir.
+    @Column(columnDefinition = "TEXT")
+    private String newSnapshotView;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -121,6 +121,25 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             """)
     List<Invoice> findAllByInvestorCompanyName(@Param("companyName") String companyName);
 
+    // Portal üçün — TƏHLÜKƏSİZ scoping: investor FK (investor_id) ilə, ad ilə deyil.
+    @Query("""
+            SELECT i FROM Invoice i
+            LEFT JOIN FETCH i.project
+            WHERE i.investor.id = :investorId AND i.deleted = false
+            ORDER BY i.invoiceDate DESC, i.createdAt DESC
+            """)
+    List<Invoice> findAllByInvestorId(@Param("investorId") Long investorId);
+
+    // Portal qazanc hesabatı — texnikaya aid investor xərc (= investor qazanc) qaimələri, ID ilə
+    @Query("""
+            SELECT i FROM Invoice i
+            WHERE i.equipment.id = :equipmentId
+              AND i.type = 'INVESTOR_EXPENSE'
+              AND i.deleted = false
+            ORDER BY i.periodYear ASC, i.periodMonth ASC, i.invoiceDate ASC
+            """)
+    List<Invoice> findInvestorEarningsByEquipmentId(@Param("equipmentId") Long equipmentId);
+
     @Query("""
             SELECT DISTINCT i FROM Invoice i
             LEFT JOIN i.project p

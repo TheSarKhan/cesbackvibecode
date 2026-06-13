@@ -1,11 +1,14 @@
 package com.ces.erp.user.dto;
 
+import com.ces.erp.role.entity.Role;
 import com.ces.erp.user.entity.User;
 import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Builder
@@ -17,6 +20,10 @@ public class UserResponse {
     private String phone;
     private Long departmentId;
     private String departmentName;
+    // Çoxlu rol
+    private List<Long> roleIds;
+    private List<String> roleNames;
+    // Convenience (geriyə uyğunluq / display) — ilk rol
     private Long roleId;
     private String roleName;
     private boolean active;
@@ -24,24 +31,14 @@ public class UserResponse {
     private List<ApprovalDeptInfo> approvalDepartments;
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt;
-    private List<PermissionInfo> permissions;
+    // Effektiv icazə code-ları (bütün rolların birləşməsi); super admin üçün boş — frontend flag-a baxır
+    private List<String> permissions;
 
     @Data
     @Builder
     public static class ApprovalDeptInfo {
         private Long id;
         private String name;
-    }
-
-    @Data
-    @Builder
-    public static class PermissionInfo {
-        private String moduleCode;
-        private String moduleName;
-        private boolean canGet;
-        private boolean canPost;
-        private boolean canPut;
-        private boolean canDelete;
     }
 
     public static UserResponse from(User user) {
@@ -53,19 +50,15 @@ public class UserResponse {
                                 .build())
                         .toList();
 
-        List<PermissionInfo> permissions = List.of();
-        if (user.getRole() != null && user.getRole().getPermissions() != null) {
-            permissions = user.getRole().getPermissions().stream()
-                    .map(p -> PermissionInfo.builder()
-                            .moduleCode(p.getModule().getCode())
-                            .moduleName(p.getModule().getNameAz())
-                            .canGet(p.isCanGet())
-                            .canPost(p.isCanPost())
-                            .canPut(p.isCanPut())
-                            .canDelete(p.isCanDelete())
-                            .build())
-                    .toList();
-        }
+        List<Role> roles = user.getRoles() == null ? List.of() : user.getRoles().stream().toList();
+
+        Set<String> codes = new LinkedHashSet<>();
+        roles.forEach(r -> {
+            if (r.getGrantedPermissions() != null)
+                r.getGrantedPermissions().forEach(p -> codes.add(p.getCode()));
+        });
+
+        Role primary = roles.stream().findFirst().orElse(null);
 
         return UserResponse.builder()
                 .id(user.getId())
@@ -74,14 +67,16 @@ public class UserResponse {
                 .phone(user.getPhone())
                 .departmentId(user.getDepartment() != null ? user.getDepartment().getId() : null)
                 .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
-                .roleId(user.getRole() != null ? user.getRole().getId() : null)
-                .roleName(user.getRole() != null ? user.getRole().getName() : null)
+                .roleIds(roles.stream().map(Role::getId).toList())
+                .roleNames(roles.stream().map(Role::getName).toList())
+                .roleId(primary != null ? primary.getId() : null)
+                .roleName(primary != null ? primary.getName() : null)
                 .active(user.isActive())
                 .hasApproval(user.isHasApproval())
                 .approvalDepartments(approvalDepts)
                 .createdAt(user.getCreatedAt())
                 .lastLoginAt(user.getLastLoginAt())
-                .permissions(permissions)
+                .permissions(codes.stream().sorted().toList())
                 .build();
     }
 }

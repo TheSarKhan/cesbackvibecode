@@ -26,6 +26,11 @@ public class InvestorResponse {
     private String notes;
     private LocalDateTime createdAt;
 
+    // Portal hesabı (passwordHash heç vaxt daxil edilmir)
+    private String accountEmail;
+    private boolean portalEnabled;
+    private LocalDateTime lastLoginAt;
+
     public static InvestorResponse from(Investor i) {
         return InvestorResponse.builder()
                 .id(i.getId())
@@ -40,6 +45,9 @@ public class InvestorResponse {
                 .riskLevel(i.getRiskLevel())
                 .notes(i.getNotes())
                 .createdAt(i.getCreatedAt())
+                .accountEmail(i.getAccountEmail())
+                .portalEnabled(i.isPortalEnabled())
+                .lastLoginAt(i.getLastLoginAt())
                 .build();
     }
 }

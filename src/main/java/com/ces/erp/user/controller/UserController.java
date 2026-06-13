@@ -28,8 +28,15 @@ public class UserController {
 
     private final UserService userService;
 
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Cari istifadəçinin profili və güncəl icazələri")
+    public ResponseEntity<ApiResponse<UserResponse>> me(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success(userService.getMe(principal.getUsername())));
+    }
+
     @GetMapping
-    @PreAuthorize("hasAuthority('ROLE_PERMISSION:GET')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_MANAGEMENT:GET')")
     @Operation(summary = "Bütün istifadəçiləri gətir")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(userService.getAll()));
@@ -62,7 +69,7 @@ public class UserController {
     }
 
     @GetMapping("/paged")
-    @PreAuthorize("hasAuthority('ROLE_PERMISSION:GET')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_MANAGEMENT:GET')")
     @Operation(summary = "İstifadəçiləri səhifələnmiş gətir")
     public ResponseEntity<ApiResponse<PagedResponse<UserResponse>>> getAllPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -73,21 +80,21 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('ROLE_PERMISSION:GET')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_MANAGEMENT:GET')")
     @Operation(summary = "İstifadəçini ID ilə gətir")
     public ResponseEntity<ApiResponse<UserResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(userService.getById(id)));
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('ROLE_PERMISSION:POST')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_MANAGEMENT:POST')")
     @Operation(summary = "Yeni istifadəçi yarat")
     public ResponseEntity<ApiResponse<UserResponse>> create(@Valid @RequestBody UserRequest request) {
         return ResponseEntity.ok(ApiResponse.success("İstifadəçi yaradıldı", userService.create(request)));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ROLE_PERMISSION:PUT')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_MANAGEMENT:PUT')")
     @Operation(summary = "İstifadəçini yenilə")
     public ResponseEntity<ApiResponse<UserResponse>> update(@PathVariable Long id,
                                                              @Valid @RequestBody UserRequest request) {
@@ -95,7 +102,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}/approval")
-    @PreAuthorize("hasAuthority('ROLE_PERMISSION:PUT')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_MANAGEMENT:PUT')")
     @Operation(summary = "Approval icazəsini təyin et / dəyişdir")
     public ResponseEntity<ApiResponse<UserResponse>> updateApproval(@PathVariable Long id,
                                                                       @RequestBody UserApprovalRequest request) {
@@ -103,7 +110,7 @@ public class UserController {
     }
 
     @PatchMapping("/{id}/toggle-active")
-    @PreAuthorize("hasAuthority('ROLE_PERMISSION:PUT')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_MANAGEMENT:PUT')")
     @Operation(summary = "İstifadəçini aktiv/passiv et")
     public ResponseEntity<ApiResponse<Void>> toggleActive(@PathVariable Long id) {
         userService.toggleActive(id);
@@ -111,7 +118,7 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ROLE_PERMISSION:DELETE')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_MANAGEMENT:DELETE')")
     @Operation(summary = "İstifadəçini sil")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         userService.delete(id);

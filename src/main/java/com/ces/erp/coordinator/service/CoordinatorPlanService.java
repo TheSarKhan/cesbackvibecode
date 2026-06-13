@@ -23,6 +23,7 @@ import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.approval.repository.PendingOperationRepository;
 import com.ces.erp.enums.OperationStatus;
 import com.ces.erp.config.repository.ConfigItemRepository;
+import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.garage.entity.EquipmentDocument;
 import com.ces.erp.garage.repository.EquipmentDocumentRepository;
@@ -30,6 +31,14 @@ import com.ces.erp.garage.repository.EquipmentRepository;
 import com.ces.erp.operator.repository.OperatorRepository;
 import com.ces.erp.project.entity.Project;
 import com.ces.erp.project.repository.ProjectRepository;
+import com.ces.erp.contractor.entity.Contractor;
+import com.ces.erp.investor.entity.Investor;
+import com.ces.erp.investor.repository.InvestorRepository;
+import com.ces.erp.projectmanager.entity.PartyType;
+import com.ces.erp.projectmanager.entity.RequestShortlist;
+import com.ces.erp.projectmanager.entity.ShortlistItem;
+import com.ces.erp.projectmanager.repository.RequestShortlistRepository;
+import com.ces.erp.projectmanager.repository.ShortlistItemRepository;
 import com.ces.erp.request.entity.TechRequest;
 import com.ces.erp.request.repository.TechRequestRepository;
 import com.ces.erp.user.repository.UserRepository;
@@ -40,7 +49,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +61,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final CoordinatorPlanRepository planRepository;
     private final CoordinatorDocumentRepository documentRepository;
     private final EquipmentRepository equipmentRepository;
+    private final com.ces.erp.garage.service.EquipmentService equipmentService;
     private final EquipmentDocumentRepository equipmentDocumentRepository;
     private final OperatorRepository operatorRepository;
     private final UserRepository userRepository;
@@ -58,6 +70,13 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final NotificationService notificationService;
     private final PendingOperationRepository pendingOperationRepository;
     private final ConfigItemRepository configItemRepository;
+    private final ContractorRepository contractorRepository;
+    private final InvestorRepository investorRepository;
+    private final ShortlistItemRepository shortlistItemRepository;
+    private final RequestShortlistRepository requestShortlistRepository;
+    private final com.ces.erp.request.repository.RequestStatusLogRepository statusLogRepository;
+    private final com.ces.erp.common.audit.AuditService auditService;
+    private final com.ces.erp.request.service.RequestTransitionService transitionService;
 
     @Override public String getEntityType() { return "COORDINATOR_SUBMIT"; }
     @Override public String getModuleCode()  { return "COORDINATOR"; }
@@ -76,12 +95,27 @@ public class CoordinatorPlanService implements ApprovalHandler {
     }
     @Override public void applyDelete(Long id) { /* istifadə edilmir */ }
 
+    // Yeni flowda koordinator iki mərhələdə işləyir:
+    // Mərhələ A: COORDINATOR_NEGOTIATING (danışıq), COORDINATOR_PROPOSED (geri PM-ə)
+    // Mərhələ B: EXECUTION_READY, OPERATOR_ASSIGNED, EQUIPMENT_DISPATCHED, DELIVERED (icra)
     private static final List<RequestStatus> COORDINATOR_STATUSES = List.of(
-            RequestStatus.SENT_TO_COORDINATOR,
-            RequestStatus.OFFER_SENT,
-            RequestStatus.ACCEPTED,
+            RequestStatus.COORDINATOR_NEGOTIATING,
+            RequestStatus.COORDINATOR_PROPOSED,
+            RequestStatus.EXECUTION_READY,
+            RequestStatus.OPERATOR_ASSIGNED,
+            RequestStatus.EQUIPMENT_DISPATCHED,
+            RequestStatus.DELIVERED,
             RequestStatus.REJECTED
     );
+
+    @Transactional(readOnly = true)
+    public Map<RequestStatus, Long> getStats() {
+        Map<RequestStatus, Long> result = new EnumMap<>(RequestStatus.class);
+        for (RequestStatus s : COORDINATOR_STATUSES) result.put(s, 0L);
+        requestRepository.countGroupedByStatusIn(COORDINATOR_STATUSES)
+                .forEach(row -> result.put(row.getStatus(), row.getCnt()));
+        return result;
+    }
 
     public List<CoordinatorPlanResponse> getRequests() {
         return requestRepository.findAllByStatusInAndDeletedFalse(COORDINATOR_STATUSES).stream()
@@ -129,9 +163,54 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
     public CoordinatorPlanResponse getPlan(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
-        return planRepository.findByRequestId(requestId)
+        CoordinatorPlanResponse resp = planRepository.findByRequestId(requestId)
                 .map(CoordinatorPlanResponse::from)
                 .orElseGet(() -> CoordinatorPlanResponse.fromRequest(request));
+        resp.setShortlistItems(loadShortlistRows(requestId));
+        return resp;
+    }
+
+    private List<CoordinatorPlanResponse.ShortlistRowDto> loadShortlistRows(Long requestId) {
+        var items = shortlistItemRepository.findAllByShortlist_Request_IdAndDeletedFalseOrderByRankAscIdAsc(requestId);
+        return items.stream().map(it -> {
+            var b = CoordinatorPlanResponse.ShortlistRowDto.builder()
+                    .id(it.getId())
+                    .partyType(it.getPartyType() != null ? it.getPartyType().name() : null)
+                    .negotiatedPrice(it.getNegotiatedPrice())
+                    .rank(it.getRank())
+                    .notes(it.getNotes());
+            if (it.getContractor() != null) {
+                var c = it.getContractor();
+                b.contractorId(c.getId())
+                 .contractorName(c.getCompanyName())
+                 .contractorVoen(c.getVoen())
+                 .contractorPhone(c.getPhone())
+                 .contractorContactPerson(c.getContactPerson())
+                 .contractorAddress(c.getAddress());
+            }
+            if (it.getInvestor() != null) {
+                var iv = it.getInvestor();
+                b.investorId(iv.getId())
+                 .investorName(iv.getCompanyName())
+                 .investorVoen(iv.getVoen())
+                 .investorPhone(iv.getContactPhone())
+                 .investorContactPerson(iv.getContactPerson())
+                 .investorAddress(iv.getAddress());
+            }
+            if (it.getEquipment() != null) {
+                var eq = it.getEquipment();
+                b.equipmentId(eq.getId())
+                 .equipmentName(eq.getName())
+                 .equipmentCode(eq.getEquipmentCode())
+                 .equipmentType(eq.getType())
+                 .equipmentBrand(eq.getBrand())
+                 .equipmentModel(eq.getModel())
+                 .equipmentYear(eq.getManufactureYear())
+                 .equipmentPlateNumber(eq.getPlateNumber())
+                 .equipmentOwnership(eq.getOwnershipType() != null ? eq.getOwnershipType().name() : null);
+            }
+            return b.build();
+        }).toList();
     }
 
     @Transactional
@@ -144,7 +223,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
         CoordinatorPlan plan = planRepository.findByRequestId(requestId)
                 .orElseGet(() -> CoordinatorPlan.builder().request(request).build());
 
-        if (req.getOperatorId() != null) {
+        // Operator yalnız icra fazasında təyin edilir; danışıq fazasında ignore et
+        if (req.getOperatorId() != null && request.getStatus() != RequestStatus.COORDINATOR_NEGOTIATING) {
             var operator = operatorRepository.findByIdActive(req.getOperatorId())
                     .orElseThrow(() -> new ResourceNotFoundException("Operator", req.getOperatorId()));
             boolean busy = planRepository.isOperatorBusyInOtherProject(
@@ -154,11 +234,83 @@ public class CoordinatorPlanService implements ApprovalHandler {
                 throw new BusinessException("Bu operator artıq başqa aktiv layihəyə təyin edilib");
             }
             plan.setOperator(operator);
-        } else {
-            plan.setOperator(null);
         }
+
+        // Shortlist sətirləri — update (mövcud itemId) və create (itemId null)
+        if (req.getShortlistRows() != null && !req.getShortlistRows().isEmpty()) {
+            // Koordinator yalnız danışıq mərhələsində yeni sətr əlavə edə bilər
+            boolean canAddNew = request.getStatus() == RequestStatus.COORDINATOR_NEGOTIATING;
+
+            // Shortlist konteynerini al və ya yarat (yeni sətr üçün lazımdır)
+            RequestShortlist sl = requestShortlistRepository.findByRequestIdAndDeletedFalse(requestId)
+                    .orElseGet(() -> requestShortlistRepository.save(
+                            RequestShortlist.builder().request(request).build()));
+
+            for (var row : req.getShortlistRows()) {
+                if (row.getItemId() != null) {
+                    // UPDATE — mövcud sətir
+                    shortlistItemRepository.findById(row.getItemId()).ifPresent(item -> {
+                        if (row.getNegotiatedPrice() != null) item.setNegotiatedPrice(row.getNegotiatedPrice());
+                        if (row.getRank() != null) item.setRank(row.getRank());
+                        if (row.getNotes() != null) item.setNotes(row.getNotes());
+                        shortlistItemRepository.save(item);
+                    });
+                } else if (canAddNew && row.getPartyType() != null) {
+                    // CREATE — yeni sətir
+                    PartyType pt;
+                    try {
+                        pt = PartyType.valueOf(row.getPartyType());
+                    } catch (IllegalArgumentException e) {
+                        throw new BusinessException("Naməlum tərəf tipi: " + row.getPartyType());
+                    }
+                    Contractor contractor = null;
+                    Investor investor = null;
+                    if (pt == PartyType.CONTRACTOR) {
+                        if (row.getContractorId() == null) {
+                            throw new BusinessException("Podratçı sətrində Podratçı seçilməlidir");
+                        }
+                        contractor = contractorRepository.findById(row.getContractorId())
+                                .orElseThrow(() -> new ResourceNotFoundException("Podratçı", row.getContractorId()));
+                    } else if (pt == PartyType.INVESTOR) {
+                        if (row.getInvestorId() == null) {
+                            throw new BusinessException("Investor sətrində Investor seçilməlidir");
+                        }
+                        investor = investorRepository.findById(row.getInvestorId())
+                                .orElseThrow(() -> new ResourceNotFoundException("Investor", row.getInvestorId()));
+                    }
+                    Equipment eq = row.getEquipmentId() != null
+                            ? equipmentRepository.findById(row.getEquipmentId())
+                                .orElseThrow(() -> new ResourceNotFoundException("Texnika", row.getEquipmentId()))
+                            : null;
+                    ShortlistItem item = ShortlistItem.builder()
+                            .shortlist(sl)
+                            .partyType(pt)
+                            .contractor(contractor)
+                            .investor(investor)
+                            .equipment(eq)
+                            .negotiatedPrice(row.getNegotiatedPrice())
+                            .rank(row.getRank())
+                            .notes(row.getNotes())
+                            .build();
+                    shortlistItemRepository.save(item);
+                }
+            }
+        }
+
+        // Qalib shortlist sətri (texnika avtomatik ondan götürülür)
+        if (req.getWinnerItemId() != null) {
+            ShortlistItem winner = shortlistItemRepository.findById(req.getWinnerItemId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Shortlist sətri", req.getWinnerItemId()));
+            plan.setWinnerItem(winner);
+            // Texnikanı qalib sətrdən sinxronlaşdır
+            if (winner.getEquipment() != null) {
+                plan.setSelectedEquipment(winner.getEquipment());
+            }
+        }
+
         plan.setDayCount(req.getDayCount());
         plan.setEquipmentPrice(req.getEquipmentPrice());
+        plan.setCustomerEquipmentPrice(req.getCustomerEquipmentPrice());
 
         // Podratçı/İnvestor ödənişi: aylıq → sabit dərəcə, günlük → dərəcə × gün sayı
         BigDecimal dailyRate = req.getContractorDailyRate() != null ? req.getContractorDailyRate() : BigDecimal.ZERO;
@@ -177,6 +329,12 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
         plan.setOperatorPayment(req.getOperatorPayment());
         plan.setTransportationPrice(req.getTransportationPrice());
+        if (req.getTransportContractorId() != null) {
+            plan.setTransportContractor(contractorRepository.findById(req.getTransportContractorId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Daşınma podratçısı", req.getTransportContractorId())));
+        } else {
+            plan.setTransportContractor(null);
+        }
         plan.setStartDate(req.getStartDate());
         plan.setEndDate(req.getEndDate());
         if (req.getSafetyEquipmentIds() != null) {
@@ -185,27 +343,34 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         plan.setNotes(req.getNotes());
 
-        return CoordinatorPlanResponse.from(planRepository.save(plan));
+        CoordinatorPlanResponse resp = CoordinatorPlanResponse.from(planRepository.save(plan));
+        resp.setShortlistItems(loadShortlistRows(requestId));
+        return resp;
     }
 
     public void validateBeforeSubmit(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
-        if (request.getStatus() != RequestStatus.SENT_TO_COORDINATOR) {
-            throw new BusinessException("Plan yalnız SENT_TO_COORDINATOR statusunda göndərilə bilər");
+        if (request.getStatus() != RequestStatus.COORDINATOR_NEGOTIATING) {
+            throw new BusinessException("Plan yalnız COORDINATOR_NEGOTIATING statusunda göndərilə bilər");
         }
         CoordinatorPlan existing = planRepository.findByRequestId(requestId)
                 .orElseThrow(() -> new BusinessException("Əvvəlcə koordinator planını doldurun"));
-        if (existing.getSelectedEquipment() == null) {
-            throw new BusinessException("Texnika seçilməlidir");
+        if (existing.getWinnerItem() == null) {
+            throw new BusinessException("Shortlist-dən qalib sətir seçilməlidir");
         }
-        if (existing.getEquipmentPrice() == null || existing.getEquipmentPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
-            throw new BusinessException("Texnika qiyməti daxil edilməlidir");
+        if (existing.getWinnerItem().getEquipment() == null) {
+            throw new BusinessException("Qalib sətrdə texnika qeyd edilməlidir");
         }
-        if (existing.getStartDate() == null || existing.getEndDate() == null) {
-            throw new BusinessException("Başlanğıc və bitmə tarixi daxil edilməlidir");
+        // Şirkət texnikasında ödəniş yoxdur — yalnız xarici (podratçı/investor) üçün xərc tələb olunur
+        boolean winnerIsCompany = existing.getWinnerItem() != null
+                && existing.getWinnerItem().getPartyType() == com.ces.erp.projectmanager.entity.PartyType.COMPANY;
+        if (!winnerIsCompany) {
+            if (existing.getEquipmentPrice() == null || existing.getEquipmentPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                throw new BusinessException("Podratçıya ödənəcək texnika xərci daxil edilməlidir");
+            }
         }
-        if (existing.getEndDate().isBefore(existing.getStartDate())) {
-            throw new BusinessException("Bitmə tarixi başlanğıc tarixindən əvvəl ola bilməz");
+        if (existing.getCustomerEquipmentPrice() == null || existing.getCustomerEquipmentPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Sifarişçiyə təklif ediləcək texnika qiyməti daxil edilməlidir");
         }
     }
 
@@ -213,8 +378,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
     @RequiresApproval(module = "COORDINATOR", entityType = "COORDINATOR_SUBMIT")
     public CoordinatorPlanResponse submitPlan(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
-        request.setStatus(RequestStatus.OFFER_SENT);
-        requestRepository.save(request);
+        // Yeni flowda koordinator təklifi PM-ə qaytarır (mərkəzi gateway ilə)
+        transitionService.transition(request, RequestStatus.COORDINATOR_PROPOSED, "Koordinator təklifi göndərildi", null);
 
         // Seçilmiş texnikanın statusunu İcarədə et
         planRepository.findByRequestId(requestId).ifPresent(plan -> {
@@ -222,8 +387,8 @@ public class CoordinatorPlanService implements ApprovalHandler {
                     ? plan.getSelectedEquipment()
                     : request.getSelectedEquipment();
             if (eq != null) {
-                eq.setStatus(EquipmentStatus.RENTED);
-                equipmentRepository.save(eq);
+                equipmentService.changeStatus(eq, EquipmentStatus.RENTED,
+                        "Koordinator təklifi göndərildi — texnika icarəyə alındı", equipmentService.currentUserOrNull());
             }
         });
 
@@ -236,48 +401,81 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
     // ─── Qəbul / Rədd ────────────────────────────────────────────────────────
 
+    // Yeni flowda təklifin qəbulu Layihə Meneceri tərəfindən edilir.
+    // Bu metodlar Dalğa 2-də ProjectManagerService-ə köçürüləcək — hələlik
+    // backward-compat üçün saxlanılır, lakin işlədilmir.
     @Transactional
     public void acceptOffer(Long requestId) {
-        TechRequest request = findRequestOrThrow(requestId);
-        if (request.getStatus() != RequestStatus.OFFER_SENT) {
-            throw new BusinessException("Təklif yalnız OFFER_SENT statusunda qəbul edilə bilər");
-        }
-        request.setStatus(RequestStatus.ACCEPTED);
-        requestRepository.save(request);
-
-        // Layihə artıq yaradılmayıbsa — PENDING layihə yarat
-        if (!projectRepository.existsByRequestIdAndDeletedFalse(requestId)) {
-            int nextNum = projectRepository.findMaxProjectCodeNumber() + 1;
-            Project project = Project.builder()
-                    .projectCode("PRJ-" + String.format("%04d", nextNum))
-                    .request(request)
-                    .status(ProjectStatus.PENDING)
-                    .build();
-            projectRepository.save(project);
-        }
+        throw new BusinessException("Yeni flowda təklifin qəbulu Layihə Meneceri tərəfindən edilir");
     }
 
     @Transactional
     public void rejectOffer(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
         RequestStatus currentStatus = request.getStatus();
-        if (currentStatus != RequestStatus.OFFER_SENT && currentStatus != RequestStatus.SENT_TO_COORDINATOR) {
-            throw new BusinessException("Sorğu yalnız OFFER_SENT və ya SENT_TO_COORDINATOR statusunda rədd edilə bilər");
+        // Yeni flowda hər mərhələdə imtina mümkündür
+        if (currentStatus == RequestStatus.DELIVERED || currentStatus == RequestStatus.REJECTED) {
+            throw new BusinessException("Bu statusda olan sorğu rədd edilə bilməz");
         }
-        request.setStatus(RequestStatus.REJECTED);
-        requestRepository.save(request);
+        transitionService.transition(request, RequestStatus.REJECTED, "Koordinator tərəfindən rədd edildi", null);
 
-        // Texnikanı yenidən Mövcud et — yalnız OFFER_SENT statusunda texnika İcarədə sayılırdı
-        if (currentStatus == RequestStatus.OFFER_SENT) {
-            planRepository.findByRequestId(requestId).ifPresent(plan -> {
-                Equipment eq = plan.getSelectedEquipment() != null
-                        ? plan.getSelectedEquipment()
-                        : request.getSelectedEquipment();
-                if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
-                    eq.setStatus(EquipmentStatus.AVAILABLE);
-                    equipmentRepository.save(eq);
-                }
-            });
+        // Əgər texnika icarədə idi (Mərhələ B), onu Mövcud-a qaytar
+        planRepository.findByRequestId(requestId).ifPresent(plan -> {
+            Equipment eq = plan.getSelectedEquipment() != null
+                    ? plan.getSelectedEquipment()
+                    : request.getSelectedEquipment();
+            if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
+                equipmentService.changeStatus(eq, EquipmentStatus.AVAILABLE,
+                        "Sorğu rədd edildi — texnika azad edildi", equipmentService.currentUserOrNull());
+            }
+        });
+    }
+
+    /**
+     * Geri qaytarma — koordinator öz təklifini geri alıb yenidən danışığa qayıdır.
+     * COORDINATOR_PROPOSED → COORDINATOR_NEGOTIATING. Səbəb məcburi; texnika AVAILABLE-ə qaytarılır.
+     */
+    @Transactional
+    public CoordinatorPlanResponse withdrawOffer(Long requestId, String reason) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.COORDINATOR_PROPOSED) {
+            throw new BusinessException("Təklif yalnız COORDINATOR_PROPOSED statusunda geri alına bilər");
+        }
+        transitionService.transition(request, RequestStatus.COORDINATOR_NEGOTIATING, reason, null);
+        releaseSelectedEquipment(request);
+        return planRepository.findByRequestId(requestId).map(CoordinatorPlanResponse::from).orElse(null);
+    }
+
+    /**
+     * Geri qaytarma — operatoru dəyişmək üçün icra mərhələsinə qayıt.
+     * OPERATOR_ASSIGNED → EXECUTION_READY. Səbəb məcburi; plandakı operator təyini sıfırlanır.
+     */
+    @Transactional
+    public CoordinatorPlanResponse resetOperator(Long requestId, String reason) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.OPERATOR_ASSIGNED) {
+            throw new BusinessException("Operatoru dəyişmək yalnız OPERATOR_ASSIGNED statusunda mümkündür");
+        }
+        transitionService.transition(request, RequestStatus.EXECUTION_READY, reason, null);
+        planRepository.findByRequestId(requestId).ifPresent(plan -> {
+            plan.setOperator(null);
+            planRepository.save(plan);
+        });
+        return planRepository.findByRequestId(requestId).map(CoordinatorPlanResponse::from).orElse(null);
+    }
+
+    /** Seçilmiş texnikanı (plandakı və ya sorğudakı) RENTED → AVAILABLE qaytarır. */
+    private void releaseSelectedEquipment(TechRequest request) {
+        planRepository.findByRequestId(request.getId()).ifPresentOrElse(plan -> {
+            Equipment eq = plan.getSelectedEquipment() != null ? plan.getSelectedEquipment() : request.getSelectedEquipment();
+            releaseEquipment(eq);
+        }, () -> releaseEquipment(request.getSelectedEquipment()));
+    }
+
+    private void releaseEquipment(Equipment eq) {
+        if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
+            equipmentService.changeStatus(eq, EquipmentStatus.AVAILABLE,
+                    "Təklif geri alındı — texnika azad edildi", equipmentService.currentUserOrNull());
         }
     }
 
@@ -301,6 +499,97 @@ public class CoordinatorPlanService implements ApprovalHandler {
         plan.setSelectedEquipment(equipment);
 
         return CoordinatorPlanResponse.from(planRepository.save(plan));
+    }
+
+    // ─── Mərhələ B: İcra (operator → yükləmə → təhvil-təslim) ───────────────
+
+    @Transactional
+    public CoordinatorPlanResponse assignOperator(Long requestId, Long operatorId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.EXECUTION_READY) {
+            throw new BusinessException("Operator təyini yalnız EXECUTION_READY statusunda mümkündür");
+        }
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+
+        var operator = operatorRepository.findByIdActive(operatorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Operator", operatorId));
+        boolean busy = planRepository.isOperatorBusyInOtherProject(operatorId, requestId,
+                List.of(ProjectStatus.PENDING, ProjectStatus.ACTIVE));
+        if (busy) {
+            throw new BusinessException("Bu operator artıq başqa aktiv layihəyə təyin edilib");
+        }
+        plan.setOperator(operator);
+        planRepository.save(plan);
+
+        changeRequestStatus(request, RequestStatus.OPERATOR_ASSIGNED, "Operator təyin edildi: " + operator.getFirstName());
+        return CoordinatorPlanResponse.from(plan);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse verifyEquipmentDocs(Long requestId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.EXECUTION_READY
+                && request.getStatus() != RequestStatus.OPERATOR_ASSIGNED) {
+            throw new BusinessException("Sənəd yoxlaması yalnız icra mərhələsində mümkündür");
+        }
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+        plan.setEquipmentDocsVerified(true);
+        plan.setEquipmentDocsCheckedAt(java.time.LocalDateTime.now());
+        planRepository.save(plan);
+        auditService.log("KOORDİNATOR", request.getId(), request.getRequestCode(),
+                "SƏNƏD_YOXLANDI", "Texnika sənədləri yoxlanıldı");
+        return CoordinatorPlanResponse.from(plan);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse dispatch(Long requestId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.OPERATOR_ASSIGNED) {
+            throw new BusinessException("Yükləmə yalnız OPERATOR_ASSIGNED statusunda mümkündür");
+        }
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+        if (!plan.isEquipmentDocsVerified()) {
+            throw new BusinessException("Yükləmə üçün texnika sənədləri əvvəlcə yoxlanmalıdır");
+        }
+        plan.setDispatchedAt(java.time.LocalDateTime.now());
+        planRepository.save(plan);
+
+        // Texnikanı icarədə işarələ
+        Equipment eq = plan.getSelectedEquipment();
+        if (eq != null && eq.getStatus() != EquipmentStatus.RENTED) {
+            equipmentService.changeStatus(eq, EquipmentStatus.RENTED,
+                    "Texnika yükləndi və göndərildi", equipmentService.currentUserOrNull());
+        }
+        changeRequestStatus(request, RequestStatus.EQUIPMENT_DISPATCHED, "Texnika yükləndi və göndərildi");
+        return CoordinatorPlanResponse.from(plan);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse deliver(Long requestId, String notes) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.EQUIPMENT_DISPATCHED) {
+            throw new BusinessException("Təhvil-təslim yalnız EQUIPMENT_DISPATCHED statusunda mümkündür");
+        }
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+        plan.setDeliveredAt(java.time.LocalDateTime.now());
+        if (notes != null && !notes.isBlank()) plan.setDeliveryNotes(notes);
+        planRepository.save(plan);
+
+        changeRequestStatus(request, RequestStatus.DELIVERED, "Təhvil-təslim tamamlandı");
+
+        // QEYD: Təhvil-təslim layihəni AKTİVLƏŞDİRMİR — bu yalnız mühasibat OK + Əməliyyatların
+        // təsdiqi ilə olur (DocumentCheckService). Burada yalnız təhvil qeydi + texnika statusu (gateway).
+
+        return CoordinatorPlanResponse.from(plan);
+    }
+
+    /** Bütün koordinator status keçidləri mərkəzi gateway-dən keçir (validasiya + log + audit). */
+    private void changeRequestStatus(TechRequest r, RequestStatus newStatus, String reason) {
+        transitionService.transition(r, newStatus, reason, null);
     }
 
     // ─── Sənədlər ─────────────────────────────────────────────────────────────

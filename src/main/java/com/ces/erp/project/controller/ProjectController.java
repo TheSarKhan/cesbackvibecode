@@ -63,19 +63,8 @@ public class ProjectController {
     }
 
     // ─── Müqavilə ─────────────────────────────────────────────────────────────
-
-    @PostMapping("/{id}/contract")
-    @PreAuthorize("hasAuthority('PROJECTS:POST')")
-    @Operation(summary = "Müqavilə sənədini yüklə — layihəni ACTIVE edir")
-    public ResponseEntity<ApiResponse<ProjectResponse>> uploadContract(
-            @PathVariable Long id,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "startDate", required = false) String startDateStr) {
-        LocalDate startDate = startDateStr != null && !startDateStr.isBlank()
-                ? LocalDate.parse(startDateStr) : null;
-        return ResponseEntity.ok(ApiResponse.success("Müqavilə yükləndi. Layihə aktiv oldu.",
-                projectService.uploadContract(id, file, startDate)));
-    }
+    // QEYD: Müqavilə YÜKLƏMƏ endpoint-i silindi — layihə mühasibat OK + Əməliyyatların təsdiqi
+    // ilə ACTIVE olur. Mövcud müqaviləni endirmək üçün yalnız GET saxlanılır.
 
     @GetMapping("/{id}/contract")
     @PreAuthorize("hasAuthority('PROJECTS:GET')")

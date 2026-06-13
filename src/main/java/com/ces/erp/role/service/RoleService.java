@@ -5,40 +5,36 @@ import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
-import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
-import com.ces.erp.common.security.UserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.ces.erp.department.entity.Department;
 import com.ces.erp.department.repository.DepartmentRepository;
+import com.ces.erp.permission.entity.Permission;
+import com.ces.erp.permission.entity.Permission;
+import com.ces.erp.permission.repository.PermissionRepository;
 import com.ces.erp.role.dto.RoleRequest;
 import com.ces.erp.user.entity.User;
 import com.ces.erp.user.repository.UserRepository;
 import com.ces.erp.role.dto.RoleResponse;
 import com.ces.erp.role.entity.Role;
-import com.ces.erp.role.entity.RolePermission;
-import com.ces.erp.role.repository.RolePermissionRepository;
 import com.ces.erp.role.repository.RoleRepository;
-import com.ces.erp.systemmodule.entity.SystemModule;
-import com.ces.erp.systemmodule.repository.SystemModuleRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class RoleService implements ApprovalHandler {
 
     private final RoleRepository roleRepository;
-    private final RolePermissionRepository rolePermissionRepository;
     private final DepartmentRepository departmentRepository;
-    private final SystemModuleRepository systemModuleRepository;
+    private final PermissionRepository permissionRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
@@ -51,6 +47,47 @@ public class RoleService implements ApprovalHandler {
     @Override public Object getSnapshot(Long id) {
         return RoleResponse.from(roleRepository.findByIdWithPermissions(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol", id)));
+    }
+
+    /**
+     * EDIT təsdiq diff-i üçün "sonrakı" snapshot — getSnapshot (RoleResponse) ilə eyni formada:
+     * permissionIds → icazə code-ları, departmentId → şöbə adı; dəyişməyən sahə (active)
+     * cari rolun dəyərini saxlayır. Beləcə diff hizalanır və xam rəqəm ID görünmür.
+     */
+    @Override
+    public Object getAfterSnapshot(Long id, Object request) {
+        if (!(request instanceof RoleRequest req)) return null;
+        Role role = roleRepository.findByIdAndDeletedFalse(id).orElse(null);
+        if (role == null) return null;
+
+        String deptName = req.getDepartmentId() != null
+                ? departmentRepository.findByIdAndDeletedFalse(req.getDepartmentId()).map(Department::getName).orElse(null)
+                : null;
+
+        List<Permission> perms = (req.getPermissionIds() == null || req.getPermissionIds().isEmpty())
+                ? List.of() : permissionRepository.findAllById(req.getPermissionIds());
+        List<String> codes = perms.stream().map(Permission::getCode).sorted().toList();
+        List<Long> permIds = perms.stream().map(Permission::getId).sorted().toList();
+
+        List<RoleResponse.ApprovalDeptInfo> approvalDepts =
+                (req.getApprovalDepartmentIds() == null || req.getApprovalDepartmentIds().isEmpty())
+                ? List.of()
+                : departmentRepository.findAllById(req.getApprovalDepartmentIds()).stream()
+                        .map(d -> RoleResponse.ApprovalDeptInfo.builder().id(d.getId()).name(d.getName()).build())
+                        .toList();
+
+        return RoleResponse.builder()
+                .id(role.getId())
+                .name(req.getName())
+                .description(req.getDescription())
+                .departmentId(req.getDepartmentId())
+                .departmentName(deptName)
+                .active(role.isActive())
+                .createdAt(role.getCreatedAt())
+                .grantedPermissionIds(permIds)
+                .permissions(codes)
+                .approvalDepartments(approvalDepts)
+                .build();
     }
     @Override
     public void applyEdit(Long id, String json) {
@@ -66,32 +103,20 @@ public class RoleService implements ApprovalHandler {
         try { delete(id); } finally { ApprovalContext.clear(); }
     }
 
-    private boolean isSuperAdmin() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return false;
-        if (!(auth.getPrincipal() instanceof UserPrincipal principal)) return false;
-        return "Super Admin".equals(principal.getRoleName());
-    }
-
     public List<RoleResponse> getAll() {
-        boolean superAdmin = isSuperAdmin();
         return roleRepository.findAllByDeletedFalse().stream()
-                .filter(r -> superAdmin || !"Super Admin".equals(r.getName()))
                 .map(RoleResponse::from)
                 .toList();
     }
 
     public PagedResponse<RoleResponse> getAllPaged(int page, int size, String search, Long departmentId) {
         String q = (search != null && !search.isBlank()) ? search : null;
-        String excludeName = isSuperAdmin() ? null : "Super Admin";
         var pageable = PageRequest.of(page, size, Sort.by("name").ascending());
-        return PagedResponse.from(roleRepository.findAllFiltered(q, departmentId, excludeName, pageable), RoleResponse::from);
+        return PagedResponse.from(roleRepository.findAllFiltered(q, departmentId, pageable), RoleResponse::from);
     }
 
     public List<RoleResponse> getByDepartment(Long departmentId) {
-        boolean superAdmin = isSuperAdmin();
         return roleRepository.findAllByDepartmentIdAndDeletedFalse(departmentId).stream()
-                .filter(r -> superAdmin || !"Super Admin".equals(r.getName()))
                 .map(RoleResponse::from)
                 .toList();
     }
@@ -113,9 +138,9 @@ public class RoleService implements ApprovalHandler {
                 .department(dept)
                 .build();
 
-        role = roleRepository.save(role);
-        savePermissions(role, request);
+        applyPermissions(role, request.getPermissionIds());
         saveApprovalDepartments(role, request.getApprovalDepartmentIds());
+        role = roleRepository.save(role);
         auditService.log("ROL", role.getId(), role.getName(), "YARADILDI", "Yeni rol yaradıldı");
         return RoleResponse.from(roleRepository.findByIdWithPermissions(role.getId()).orElseThrow());
     }
@@ -133,12 +158,9 @@ public class RoleService implements ApprovalHandler {
         role.setDescription(request.getDescription());
         role.setDepartment(dept);
 
-        // İcazələri sıfırla və yenidən yaz
-        rolePermissionRepository.deleteAllByRoleId(id);
-        rolePermissionRepository.flush();
-        roleRepository.save(role);
-        savePermissions(role, request);
+        applyPermissions(role, request.getPermissionIds());
         saveApprovalDepartments(role, request.getApprovalDepartmentIds());
+        roleRepository.save(role);
         auditService.log("ROL", role.getId(), role.getName(), "YENİLƏNDİ", "Rol məlumatları yeniləndi");
         return RoleResponse.from(roleRepository.findByIdWithPermissions(role.getId()).orElseThrow());
     }
@@ -162,29 +184,14 @@ public class RoleService implements ApprovalHandler {
         roleRepository.save(role);
     }
 
-    private void savePermissions(Role role, RoleRequest request) {
-        if (request.getPermissions() == null || request.getPermissions().isEmpty()) return;
-
-        List<RolePermission> permissions = request.getPermissions().stream()
-                .map(pr -> {
-                    SystemModule module = systemModuleRepository.findById(pr.getModuleId())
-                            .orElseThrow(() -> new BusinessException("Modul tapılmadı. ID: " + pr.getModuleId()));
-                    return RolePermission.builder()
-                            .role(role)
-                            .module(module)
-                            .canGet(pr.isCanGet())
-                            .canPost(pr.isCanPost())
-                            .canPut(pr.isCanPut())
-                            .canDelete(pr.isCanDelete())
-                            .canSendToCoordinator(pr.isCanSendToCoordinator())
-                            .canSubmitOffer(pr.isCanSubmitOffer())
-                            .canSendToAccounting(pr.isCanSendToAccounting())
-                            .canReturnToProject(pr.isCanReturnToProject())
-                            .build();
-                })
-                .toList();
-
-        rolePermissionRepository.saveAll(permissions);
+    /** Verilmiş icazə ID-lərini rolun grantedPermissions dəstinə yazır (əvvəlkini əvəz edir). */
+    private void applyPermissions(Role role, List<Long> permissionIds) {
+        Set<Permission> granted = new LinkedHashSet<>();
+        if (permissionIds != null && !permissionIds.isEmpty()) {
+            granted.addAll(permissionRepository.findAllById(permissionIds));
+        }
+        role.getGrantedPermissions().clear();
+        role.getGrantedPermissions().addAll(granted);
     }
 
     private void saveApprovalDepartments(Role role, List<Long> approvalDepartmentIds) {
@@ -193,6 +200,5 @@ public class RoleService implements ApprovalHandler {
             List<Department> depts = departmentRepository.findAllById(approvalDepartmentIds);
             role.getApprovalDepartments().addAll(depts);
         }
-        roleRepository.save(role);
     }
 }

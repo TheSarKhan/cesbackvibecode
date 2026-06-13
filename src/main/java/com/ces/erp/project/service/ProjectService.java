@@ -30,9 +30,6 @@ import com.ces.erp.project.repository.ProjectPaymentEntryRepository;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.project.repository.ProjectRevenueRepository;
 import com.ces.erp.accounting.repository.InvoiceRepository;
-import com.ces.erp.accounting.service.ReceivableService;
-import com.ces.erp.customer.entity.CustomerDocument;
-import com.ces.erp.customer.repository.CustomerDocumentRepository;
 import com.ces.erp.accounting.entity.Invoice;
 import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.enums.InvoiceType;
@@ -60,11 +57,10 @@ public class ProjectService {
     private final CoordinatorPlanRepository planRepository;
     private final EquipmentProjectHistoryRepository equipmentHistoryRepository;
     private final EquipmentRepository equipmentRepository;
+    private final com.ces.erp.garage.service.EquipmentService equipmentService;
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
-    private final ReceivableService receivableService;
     private final InvoiceRepository invoiceRepository;
-    private final CustomerDocumentRepository customerDocumentRepository;
 
     // ─── List ─────────────────────────────────────────────────────────────────
 
@@ -97,52 +93,10 @@ public class ProjectService {
         return ProjectResponse.from(p, plan);
     }
 
-    // ─── Müqavilə upload ──────────────────────────────────────────────────────
-
-    @Transactional
-    public ProjectResponse uploadContract(Long id, MultipartFile file, LocalDate startDate) {
-        Project p = findOrThrow(id);
-        if (p.getStatus() != ProjectStatus.PENDING) {
-            throw new BusinessException("Müqavilə yalnız PENDING statuslu layihəyə yüklənə bilər");
-        }
-
-        String path = fileStorageService.store(file, "project-contracts");
-        p.setContractFilePath(path);
-        p.setContractFileName(file.getOriginalFilename());
-        p.setHasContract(true);
-        p.setStatus(ProjectStatus.ACTIVE);
-        LocalDate effectiveStart = startDate != null ? startDate : LocalDate.now();
-        p.setStartDate(effectiveStart);
-
-        projectRepository.save(p);
-        receivableService.createFromProject(p);
-        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YARADILDI", "Yeni layihə yaradıldı");
-
-        // Müqaviləni müştərinin sənədlər bölməsinə avtomatik əlavə et
-        var customer = p.getRequest() != null ? p.getRequest().getCustomer() : null;
-        if (customer != null) {
-            String originalName = file.getOriginalFilename();
-            String fileType = originalName != null && originalName.contains(".")
-                    ? originalName.substring(originalName.lastIndexOf('.') + 1).toUpperCase()
-                    : "FILE";
-            String projectLabel = p.getRequest().getProjectName() != null && !p.getRequest().getProjectName().isBlank()
-                    ? p.getRequest().getProjectName()
-                    : p.getProjectCode();
-            CustomerDocument doc = CustomerDocument.builder()
-                    .customer(customer)
-                    .filePath(path)
-                    .documentName(p.getProjectCode() + " – " + projectLabel + " (Müqavilə)")
-                    .fileType(fileType)
-                    .documentDate(effectiveStart)
-                    .build();
-            customerDocumentRepository.save(doc);
-        }
-
-        CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
-        return ProjectResponse.from(p, plan);
-    }
-
-    // ─── Müqavilə yüklə ──────────────────────────────────────────────────────
+    // ─── Müqavilə endirmə ─────────────────────────────────────────────────────
+    // QEYD: Müqavilə YÜKLƏMƏ silindi — layihə artıq müqavilə ilə deyil, mühasibat OK +
+    // Əməliyyatların təsdiqi ilə ACTIVE olur (bax DocumentCheckService.submitForActivation).
+    // Mövcud layihələrin müqaviləsini endirmək üçün resolveContract saxlanılır.
 
     @Transactional(readOnly = true)
     public Path resolveContract(Long id) {
@@ -352,8 +306,8 @@ public class ProjectService {
 
             // Texnikanı avtomatik "Yolda" statusuna keçir
             if (eq.getStatus() == EquipmentStatus.RENTED) {
-                eq.setStatus(EquipmentStatus.IN_TRANSIT);
-                equipmentRepository.save(eq);
+                equipmentService.changeStatus(eq, EquipmentStatus.IN_TRANSIT,
+                        "Layihə tamamlandı — texnika geri yoldadır", equipmentService.currentUserOrNull());
             }
 
             // Podratçı/İnvestor ödəniş qaiməsini avtomatik yarat (əgər artıq yoxdursa)

@@ -40,6 +40,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
+        // İnvestor portal token-i bu yola DÜŞMƏSİN — onu InvestorJwtFilter emal edir.
+        if ("INVESTOR".equals(jwtUtil.extractType(token))) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String email = jwtUtil.extractEmail(token);
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {

@@ -41,13 +41,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findAllByDepartmentIdAndDeletedFalse(Long departmentId);
 
-    List<User> findAllByRoleIdAndDeletedFalse(Long roleId);
+    @Query("SELECT u FROM User u JOIN u.roles r WHERE r.id = :roleId AND u.deleted = false")
+    List<User> findAllByRoleIdAndDeletedFalse(@Param("roleId") Long roleId);
 
     Optional<User> findByIdAndDeletedFalse(Long id);
 
     boolean existsByEmailAndDeletedFalse(String email);
 
-    @Query("SELECT u FROM User u LEFT JOIN FETCH u.role r LEFT JOIN FETCH r.permissions p LEFT JOIN FETCH p.module WHERE u.email = :email AND u.deleted = false")
+    @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.grantedPermissions WHERE u.email = :email AND u.deleted = false")
     Optional<User> findByEmailWithPermissions(@Param("email") String email);
 
     List<User> findAllByDeletedTrue();

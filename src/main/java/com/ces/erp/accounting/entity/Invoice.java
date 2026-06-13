@@ -82,6 +82,10 @@ public class Invoice extends BaseEntity {
     @JoinColumn(name = "customer_id")
     private Customer customer;          // İstəyə bağlı
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "equipment_id")
+    private com.ces.erp.garage.entity.Equipment equipment; // Qazanc hesabatı üçün texnikaya ID bağlantısı (layihə zəncirindən doldurulur)
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 

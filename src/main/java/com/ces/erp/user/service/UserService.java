@@ -29,7 +29,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -51,6 +53,56 @@ public class UserService implements ApprovalHandler {
     @Override public Object getSnapshot(Long id) {
         return UserResponse.from(userRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", id)));
+    }
+
+    /**
+     * EDIT təsdiq diff-i üçün "sonrakı" snapshot — getSnapshot (UserResponse) ilə eyni formada:
+     * roleIds → rol adları, departmentId → şöbə adı; parol heç vaxt daxil edilmir.
+     */
+    @Override
+    public Object getAfterSnapshot(Long id, Object request) {
+        if (!(request instanceof UserRequest req)) return null;
+        User user = userRepository.findByIdAndDeletedFalse(id).orElse(null);
+        if (user == null) return null;
+
+        String deptName = req.getDepartmentId() != null
+                ? departmentRepository.findByIdAndDeletedFalse(req.getDepartmentId()).map(Department::getName).orElse(null)
+                : null;
+
+        List<Role> roles = req.getRoleIds() == null ? List.of()
+                : req.getRoleIds().stream()
+                    .map(rid -> roleRepository.findByIdAndDeletedFalse(rid).orElse(null))
+                    .filter(java.util.Objects::nonNull).toList();
+        Set<String> codes = new LinkedHashSet<>();
+        roles.forEach(r -> {
+            if (r.getGrantedPermissions() != null) r.getGrantedPermissions().forEach(p -> codes.add(p.getCode()));
+        });
+        Role primary = roles.stream().findFirst().orElse(null);
+
+        List<UserResponse.ApprovalDeptInfo> approvalDepts = user.getApprovalDepartments() == null ? List.of()
+                : user.getApprovalDepartments().stream()
+                    .map(ad -> UserResponse.ApprovalDeptInfo.builder()
+                            .id(ad.getDepartment().getId()).name(ad.getDepartment().getName()).build())
+                    .toList();
+
+        return UserResponse.builder()
+                .id(user.getId())
+                .fullName(req.getFullName())
+                .email(req.getEmail())
+                .phone(req.getPhone())
+                .departmentId(req.getDepartmentId())
+                .departmentName(deptName)
+                .roleIds(roles.stream().map(Role::getId).toList())
+                .roleNames(roles.stream().map(Role::getName).toList())
+                .roleId(primary != null ? primary.getId() : null)
+                .roleName(primary != null ? primary.getName() : null)
+                .active(user.isActive())
+                .hasApproval(user.isHasApproval())
+                .approvalDepartments(approvalDepts)
+                .createdAt(user.getCreatedAt())
+                .lastLoginAt(user.getLastLoginAt())
+                .permissions(codes.stream().sorted().toList())
+                .build();
     }
     @Override
     public void applyEdit(Long id, String json) {
@@ -78,6 +130,15 @@ public class UserService implements ApprovalHandler {
         return PagedResponse.from(userRepository.findAllFiltered(q, departmentId, pageable), UserResponse::from);
     }
 
+    // Cari istifadəçinin öz profili — rol/icazə təzələnməsi üçün (logout etmədən).
+    // grantedPermissions eager fetch ilə yüklənir; istənilən authenticated user çağıra bilər.
+    @Transactional(readOnly = true)
+    public UserResponse getMe(String email) {
+        User user = userRepository.findByEmailWithPermissions(email)
+                .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi tapılmadı"));
+        return UserResponse.from(user);
+    }
+
     public UserResponse getById(Long id) {
         User user = userRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("İstifadəçi", id));
@@ -96,17 +157,14 @@ public class UserService implements ApprovalHandler {
         Department dept = departmentRepository.findByIdAndDeletedFalse(request.getDepartmentId())
                 .orElseThrow(() -> new ResourceNotFoundException("Şöbə", request.getDepartmentId()));
 
-        Role role = roleRepository.findByIdAndDeletedFalse(request.getRoleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Rol", request.getRoleId()));
-
         User user = User.builder()
                 .fullName(request.getFullName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone())
                 .department(dept)
-                .role(role)
                 .build();
+        user.getRoles().addAll(resolveRoles(request.getRoleIds()));
 
         User saved = userRepository.save(user);
         auditService.log("İSTİFADƏÇİ", saved.getId(), saved.getFullName(), "YARADILDI", "Yeni istifadəçi qeydiyyatı");
@@ -132,14 +190,12 @@ public class UserService implements ApprovalHandler {
         Department dept = departmentRepository.findByIdAndDeletedFalse(request.getDepartmentId())
                 .orElseThrow(() -> new ResourceNotFoundException("Şöbə", request.getDepartmentId()));
 
-        Role role = roleRepository.findByIdAndDeletedFalse(request.getRoleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Rol", request.getRoleId()));
-
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
         user.setDepartment(dept);
-        user.setRole(role);
+        user.getRoles().clear();
+        user.getRoles().addAll(resolveRoles(request.getRoleIds()));
 
         // Şifrə verilmiş olarsa yenilə
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
@@ -177,6 +233,19 @@ public class UserService implements ApprovalHandler {
         }
 
         return UserResponse.from(userRepository.save(user));
+    }
+
+    /** roleId siyahısını Role dəstinə çevirir (ən azı 1 tələb olunur). */
+    private Set<Role> resolveRoles(List<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            throw new BusinessException("Ən azı bir rol seçilməlidir");
+        }
+        Set<Role> roles = new LinkedHashSet<>();
+        for (Long roleId : roleIds) {
+            roles.add(roleRepository.findByIdAndDeletedFalse(roleId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Rol", roleId)));
+        }
+        return roles;
     }
 
     @Transactional

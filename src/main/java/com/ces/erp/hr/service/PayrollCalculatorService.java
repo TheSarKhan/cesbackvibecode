@@ -1,7 +1,6 @@
 package com.ces.erp.hr.service;
 
 import com.ces.erp.hr.entity.PayrollEntry;
-import com.ces.erp.hr.entity.TaxRateConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -9,30 +8,39 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 /**
- * Aylıq əməkhaqqı hesablama düsturları.
+ * Aylıq əməkhaqqı hesablaması — generic {@link DeductionCalculator} motoru üzərində.
  *
- * <p>Hesablama ardıcıllığı bir PayrollEntry üzərində:
+ * <p>Bütün dərəcələr/hədlər DB-dən ({@link ResolvedDeductionConfig}) gəlir; bu sinifdə hardcoded
+ * vergi düsturu yoxdur. Tutulma növləri kodlarına görə sabit {@link PayrollEntry} sütunlarına
+ * map olunur (geriyə uyğunluq üçün).
+ *
+ * <p>Hesablama ardıcıllığı:
  * <ol>
- *   <li>Gross total = (baseSalary × actualDays/workingDays) + overtimePay + bonus + vacationPay - penalty</li>
- *   <li>İşçidən tutulanlar: pensiya, işsizlik, tibbi sığorta (gross əsasında, threshold-lu)</li>
- *   <li>Gəlir vergisi base: gross (və ya gross - sosial töhfələr - qeyri-vergi minimumu)</li>
- *   <li>Gəlir vergisi: threshold-dan yuxarı hissəyə tətbiq olunur</li>
- *   <li>Net = gross - cəmi tutulmuşdur</li>
- *   <li>İşəgötürən töhfələri: pensiya, işsizlik, tibbi (eyni qaydada)</li>
- *   <li>Şirkət cəmi xərci = gross + employer contributions</li>
+ *   <li>Gross = (baseSalary × actualDays/workingDays) + overtimePay + bonus + vacationPay − penalty</li>
+ *   <li>Bütün tutulmalar baza = gross üzərində hesablanır</li>
+ *   <li>Net = gross − (net-dən çıxılan işçi tutulmaları cəmi)</li>
+ *   <li>Şirkət xərci = gross + işəgötürən töhfələri</li>
  * </ol>
  */
 @Service
 @RequiredArgsConstructor
 public class PayrollCalculatorService {
 
+    // Tutulma növü kodları → sabit PayrollEntry sütunları
+    public static final String CODE_INCOME_TAX  = "GELIR_VERGISI";
+    public static final String CODE_PENSION     = "DSMF";
+    public static final String CODE_UNEMPLOYMENT = "ISH";
+    public static final String CODE_MEDICAL     = "ITS";
+
     private static final int SCALE = 2;
     private static final RoundingMode ROUNDING = RoundingMode.HALF_UP;
+
+    private final DeductionCalculator deductionCalculator;
 
     /**
      * Bütün məbləğləri yenidən hesablayır və PayrollEntry-ni yeniləyir.
      */
-    public void recalculate(PayrollEntry e, TaxRateConfig cfg) {
+    public void recalculate(PayrollEntry e, ResolvedDeductionConfig cfg) {
         BigDecimal baseSalary = nz(e.getBaseSalary());
         int workingDays = e.getWorkingDaysInMonth() != null && e.getWorkingDaysInMonth() > 0
                 ? e.getWorkingDaysInMonth() : 22;
@@ -56,125 +64,30 @@ public class PayrollCalculatorService {
         if (gross.signum() < 0) gross = BigDecimal.ZERO;
         gross = gross.setScale(SCALE, ROUNDING);
 
-        // İşçidən tutulanlar (xam dəyərlər — yuvarlaqlaşdırma yalnız sonda)
-        BigDecimal employeePension = bracketedRaw(gross,
-                cfg.getEmployeePensionThreshold(),
-                cfg.getEmployeePensionRateBelow(),
-                cfg.getEmployeePensionRateAbove());
-
-        BigDecimal employeeUnemployment = gross.multiply(cfg.getEmployeeUnemploymentRate());
-
-        BigDecimal employeeMedical = bracketedRaw(gross,
-                cfg.getEmployeeMedicalThreshold(),
-                cfg.getEmployeeMedicalRateBelow(),
-                cfg.getEmployeeMedicalRateAbove());
-
-        // Gəlir vergisi
-        BigDecimal taxBase = gross;
-        if (cfg.isDeductSocialFromTaxBase()) {
-            taxBase = taxBase.subtract(employeePension)
-                    .subtract(employeeUnemployment)
-                    .subtract(employeeMedical);
-        }
-        if (cfg.getNonTaxableMinimum() != null && cfg.getNonTaxableMinimum().signum() > 0) {
-            taxBase = taxBase.subtract(cfg.getNonTaxableMinimum());
-        }
-        if (taxBase.signum() < 0) taxBase = BigDecimal.ZERO;
-
-        BigDecimal incomeTax = progressiveIncomeTaxRaw(taxBase);
-
-        // Cəmi tutulmuş və net — xam dəyərlərin cəmindən hesablanır,
-        // sonra yuvarlaqlaşdırılır (kumulyativ 0.01 fərq olmasın deyə)
-        BigDecimal totalDeductionsRaw = incomeTax
-                .add(employeePension)
-                .add(employeeUnemployment)
-                .add(employeeMedical);
-
-        BigDecimal netPayRaw = gross.subtract(totalDeductionsRaw);
-        if (netPayRaw.signum() < 0) netPayRaw = BigDecimal.ZERO;
-
-        // İşəgötürən töhfələri
-        BigDecimal employerPension = bracketedRaw(gross,
-                cfg.getEmployerPensionThreshold(),
-                cfg.getEmployerPensionRateBelow(),
-                cfg.getEmployerPensionRateAbove());
-
-        BigDecimal employerUnemployment = gross.multiply(cfg.getEmployerUnemploymentRate());
-
-        BigDecimal employerMedical = bracketedRaw(gross,
-                cfg.getEmployerMedicalThreshold(),
-                cfg.getEmployerMedicalRateBelow(),
-                cfg.getEmployerMedicalRateAbove());
-
-        BigDecimal totalEmployerRaw = employerPension
-                .add(employerUnemployment)
-                .add(employerMedical);
-
-        BigDecimal totalCompanyCostRaw = gross.add(totalEmployerRaw);
+        DeductionCalculator.Result r = deductionCalculator.compute(gross, cfg.deductions());
 
         e.setGrossTotal(gross);
-        e.setIncomeTax(round(incomeTax));
-        e.setEmployeePension(round(employeePension));
-        e.setEmployeeUnemployment(round(employeeUnemployment));
-        e.setEmployeeMedical(round(employeeMedical));
-        e.setTotalDeductions(round(totalDeductionsRaw));
-        e.setNetPay(round(netPayRaw));
-        e.setEmployerPension(round(employerPension));
-        e.setEmployerUnemployment(round(employerUnemployment));
-        e.setEmployerMedical(round(employerMedical));
-        e.setTotalEmployerContributions(round(totalEmployerRaw));
-        e.setTotalCompanyCost(round(totalCompanyCostRaw));
+
+        // İşçidən tutulanlar (kodlara görə map)
+        e.setIncomeTax(r.employee(CODE_INCOME_TAX));
+        e.setEmployeePension(r.employee(CODE_PENSION));
+        e.setEmployeeUnemployment(r.employee(CODE_UNEMPLOYMENT));
+        e.setEmployeeMedical(r.employee(CODE_MEDICAL));
+        e.setTotalDeductions(r.totalEmployeeDeductions());
+        e.setNetPay(r.netPay());
+
+        // İşəgötürən töhfələri
+        e.setEmployerPension(r.employer(CODE_PENSION));
+        e.setEmployerUnemployment(r.employer(CODE_UNEMPLOYMENT));
+        e.setEmployerMedical(r.employer(CODE_MEDICAL));
+        e.setTotalEmployerContributions(r.totalEmployerContributions());
+
+        e.setTotalCompanyCost(round(gross.add(r.totalEmployerContributions())));
     }
 
     private BigDecimal round(BigDecimal v) {
-        return v == null ? BigDecimal.ZERO : v.setScale(SCALE, ROUNDING);
+        return (v == null ? BigDecimal.ZERO : v).setScale(SCALE, ROUNDING);
     }
 
-    /**
-     * Azərbaycan 2026 progressiv gəlir vergisi (qeyri-neft-qaz, qeyri-dövlət sektoru):
-     *   ≤ 200 AZN        → 0
-     *   ≤ 2500 AZN       → (taxBase − 200) × 3%
-     *   ≤ 8000 AZN       → 75 + (taxBase − 2500) × 10%
-     *   > 8000 AZN       → 625 + (taxBase − 8000) × 14%
-     */
-    private BigDecimal progressiveIncomeTaxRaw(BigDecimal taxBase) {
-        if (taxBase == null || taxBase.signum() <= 0) return BigDecimal.ZERO;
-
-        BigDecimal b1 = new BigDecimal("200");
-        BigDecimal b2 = new BigDecimal("2500");
-        BigDecimal b3 = new BigDecimal("8000");
-
-        if (taxBase.compareTo(b1) <= 0) {
-            return BigDecimal.ZERO;
-        } else if (taxBase.compareTo(b2) <= 0) {
-            return taxBase.subtract(b1).multiply(new BigDecimal("0.03"));
-        } else if (taxBase.compareTo(b3) <= 0) {
-            return new BigDecimal("75")
-                    .add(taxBase.subtract(b2).multiply(new BigDecimal("0.10")));
-        } else {
-            return new BigDecimal("625")
-                    .add(taxBase.subtract(b3).multiply(new BigDecimal("0.14")));
-        }
-    }
-
-    /**
-     * Bracketed (threshold) hesablama:
-     *   amount ≤ threshold:           amount × rateBelow
-     *   amount > threshold:           threshold × rateBelow + (amount - threshold) × rateAbove
-     */
-    private BigDecimal bracketedRaw(BigDecimal amount, BigDecimal threshold, BigDecimal rateBelow, BigDecimal rateAbove) {
-        if (amount == null || amount.signum() <= 0) return BigDecimal.ZERO;
-        BigDecimal t = threshold == null ? BigDecimal.ZERO : threshold;
-        BigDecimal rb = rateBelow == null ? BigDecimal.ZERO : rateBelow;
-        BigDecimal ra = rateAbove == null ? BigDecimal.ZERO : rateAbove;
-
-        if (amount.compareTo(t) <= 0) {
-            return amount.multiply(rb);
-        }
-        BigDecimal belowPart = t.multiply(rb);
-        BigDecimal abovePart = amount.subtract(t).multiply(ra);
-        return belowPart.add(abovePart);
-    }
-
-    private BigDecimal nz(BigDecimal v) { return v == null ? BigDecimal.ZERO : v; }
+    private static BigDecimal nz(BigDecimal v) { return v == null ? BigDecimal.ZERO : v; }
 }

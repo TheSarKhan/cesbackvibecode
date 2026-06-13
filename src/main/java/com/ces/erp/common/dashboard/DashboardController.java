@@ -16,7 +16,7 @@ public class DashboardController {
     private final DashboardService dashboardService;
 
     @GetMapping("/stats")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('DASHBOARD:GET')")
     public ResponseEntity<ApiResponse<DashboardStatsResponse>> getStats() {
         return ResponseEntity.ok(ApiResponse.success("OK", dashboardService.getStats()));
     }

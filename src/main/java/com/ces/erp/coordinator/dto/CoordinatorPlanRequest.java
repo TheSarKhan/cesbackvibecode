@@ -9,14 +9,28 @@ import java.util.List;
 @Data
 public class CoordinatorPlanRequest {
 
+    // ─── Mərhələ A — Danışıq ──────────────────────────────────────────────
+    // Operator burda təyin EDİLMİR — yalnız icra fazasında (assignOperator).
+    // Lakin köhnə klientlər üçün backward-compat olaraq saxlanılır.
     private Long operatorId;
 
+    // Qalib shortlist sətri (yeni flow-da məcburi sahə)
+    private Long winnerItemId;
+
+    // Shortlist sətirlərinin danışıq qiyməti və rank-ı — koordinator
+    // shortlist redaktoru kimi istifadə edir
+    private List<ShortlistRowInput> shortlistRows;
+
     private Integer dayCount;
+    // Podratçı/investora ödəyəcəyimiz texnika xərci (cost) — adətən winner.negotiatedPrice
     private BigDecimal equipmentPrice;
-    private BigDecimal contractorDailyRate;  // günlük dərəcə (frontend-dən gəlir)
-    private BigDecimal contractorPayment;    // cəmi (dayCount * dailyRate — backend hesablayır, ya da manual)
+    // Sifarişçiyə təklif edilən texnika qiyməti (revenue) — koordinator təyin edir
+    private BigDecimal customerEquipmentPrice;
+    private BigDecimal contractorDailyRate;
+    private BigDecimal contractorPayment;
     private BigDecimal operatorPayment;
     private BigDecimal transportationPrice;
+    private Long transportContractorId;
 
     private LocalDate startDate;
     private LocalDate endDate;
@@ -24,4 +38,16 @@ public class CoordinatorPlanRequest {
     private List<Long> safetyEquipmentIds;
 
     private String notes;
+
+    @Data
+    public static class ShortlistRowInput {
+        private Long itemId;             // null → yeni sətir yarat, var → mövcud sətri yenilə
+        private String partyType;        // CONTRACTOR / INVESTOR (yeni sətirdə məcburi)
+        private Long contractorId;
+        private Long investorId;
+        private Long equipmentId;
+        private BigDecimal negotiatedPrice;
+        private Integer rank;
+        private String notes;
+    }
 }

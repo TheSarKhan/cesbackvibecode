@@ -57,7 +57,8 @@ public class PendingOperationResponse {
                 .processedAt(op.getProcessedAt())
                 .rejectReason(op.getRejectReason())
                 .oldSnapshot(parseJson(op.getOldSnapshot()))
-                .newSnapshot(parseJson(op.getNewSnapshot()))
+                // Diff üçün oxunaqlı view varsa onu göstər; yoxdursa əsl newSnapshot
+                .newSnapshot(parseJson(op.getNewSnapshotView() != null ? op.getNewSnapshotView() : op.getNewSnapshot()))
                 .createdAt(op.getCreatedAt())
                 .build();
     }

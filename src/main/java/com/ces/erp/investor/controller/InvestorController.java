@@ -5,8 +5,10 @@ import com.ces.erp.accounting.dto.PayableResponse;
 import com.ces.erp.common.dto.ApiResponse;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.coordinator.dto.ProjectHistoryItem;
+import com.ces.erp.investor.dto.InvestorPortalAccountRequest;
 import com.ces.erp.investor.dto.InvestorRequest;
 import com.ces.erp.investor.dto.InvestorResponse;
+import com.ces.erp.investor.dto.InvestorSetPasswordRequest;
 import com.ces.erp.investor.service.InvestorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -103,5 +105,25 @@ public class InvestorController {
     @Operation(summary = "İnvestora edilmiş ödənişlər")
     public ResponseEntity<ApiResponse<List<PayableResponse>>> getPayables(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(investorService.getPayables(id)));
+    }
+
+    // ─── Portal hesab idarəsi (admin) ─────────────────────────────────────────
+
+    @PutMapping("/{id}/portal-account")
+    @PreAuthorize("hasAuthority('INVESTORS:PUT')")
+    @Operation(summary = "Portal hesab maili + aktiv/passiv təyini")
+    public ResponseEntity<ApiResponse<InvestorResponse>> updatePortalAccount(
+            @PathVariable Long id, @Valid @RequestBody InvestorPortalAccountRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Portal hesabı yeniləndi",
+                investorService.updatePortalAccount(id, request)));
+    }
+
+    @PostMapping("/{id}/set-password")
+    @PreAuthorize("hasAuthority('INVESTORS:PUT')")
+    @Operation(summary = "Portal şifrəsini təyin et / sıfırla (admin)")
+    public ResponseEntity<ApiResponse<Void>> setPassword(
+            @PathVariable Long id, @Valid @RequestBody InvestorSetPasswordRequest request) {
+        investorService.setPassword(id, request.getPassword());
+        return ResponseEntity.ok(ApiResponse.ok("Şifrə təyin edildi"));
     }
 }

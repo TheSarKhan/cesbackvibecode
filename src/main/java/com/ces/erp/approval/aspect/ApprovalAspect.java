@@ -98,13 +98,22 @@ public class ApprovalAspect {
             log.error("Old snapshot alınarkən xəta: {}", e.getMessage());
         }
 
-        // New snapshot (yalnız EDIT üçün)
+        // New snapshot (yalnız EDIT üçün):
+        //   newJson  → request DTO (applyEdit BUNU işlədir — dəyişdirmək olmaz!)
+        //   viewJson → oxunaqlı "sonrakı" snapshot (getSnapshot formasında) — yalnız diff göstərimi üçün
         String newJson = null;
+        String viewJson = null;
         if (!isDelete && args.length > 1 && args[1] != null) {
             try {
                 newJson = objectMapper.writeValueAsString(args[1]);
             } catch (Exception e) {
                 log.error("New snapshot alınarkən xəta: {}", e.getMessage());
+            }
+            try {
+                Object after = handler.getAfterSnapshot(entityId, args[1]);
+                if (after != null) viewJson = objectMapper.writeValueAsString(after);
+            } catch (Exception e) {
+                log.error("New snapshot view alınarkən xəta: {}", e.getMessage());
             }
         }
 
@@ -120,6 +129,7 @@ public class ApprovalAspect {
                 .performerDepartment(dept)
                 .oldSnapshot(oldJson)
                 .newSnapshot(newJson)
+                .newSnapshotView(viewJson)
                 .build();
 
         // REQUIRES_NEW transaksiyada saxla — kənar rollback-dən qorunur
