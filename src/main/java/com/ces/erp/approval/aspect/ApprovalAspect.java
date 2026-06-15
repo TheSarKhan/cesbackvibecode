@@ -16,6 +16,7 @@ import com.ces.erp.enums.OperationStatus;
 import com.ces.erp.enums.OperationType;
 import com.ces.erp.user.entity.User;
 import com.ces.erp.user.repository.UserRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,8 +28,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Aspect
@@ -47,6 +50,68 @@ public class ApprovalAspect {
 
     private Map<String, ApprovalHandler> getRegistry() {
         return handlers.stream().collect(Collectors.toMap(ApprovalHandler::getEntityType, h -> h));
+    }
+
+    /**
+     * Edit-də əslində dəyişiklik baş veribmi yoxlayır. Request DTO-nun null olmayan hər sahəsini
+     * old snapshot-da müvafiq sahə ilə müqayisə edir. Sahə adları üst-üstə düşürsə
+     * (məs request.firstName ↔ snapshot.firstName), sadə dəyər müqayisəsi olur.
+     * `xxxId` formatlı sahə üçün snapshot-da `xxx.id` nested forması da yoxlanır
+     * (məs request.positionId ↔ snapshot.position.id). Tapılmayan sahələr
+     * "dəyişiklik var" hesab olunur (ehtiyatlı default).
+     */
+    private boolean hasMeaningfulChange(String oldJson, Object newRequest) {
+        if (oldJson == null || newRequest == null) return true;
+        try {
+            JsonNode oldNode = objectMapper.readTree(oldJson);
+            JsonNode reqNode = objectMapper.valueToTree(newRequest);
+            if (!reqNode.isObject() || !oldNode.isObject()) return true;
+
+            Iterator<Map.Entry<String, JsonNode>> fields = reqNode.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = fields.next();
+                String field = entry.getKey();
+                JsonNode reqVal = entry.getValue();
+
+                // null/missing request dəyəri — istifadəçi bu sahəni dəyişmək niyyətində deyil
+                if (reqVal == null || reqVal.isNull()) continue;
+
+                JsonNode oldVal = oldNode.get(field);
+
+                // xxxId → snapshot.xxx.id (nested obyekt) yanaşması
+                if ((oldVal == null || oldVal.isNull()) && field.endsWith("Id") && field.length() > 2) {
+                    String nestedName = field.substring(0, field.length() - 2);
+                    JsonNode nested = oldNode.get(nestedName);
+                    if (nested != null && nested.isObject() && nested.has("id")) {
+                        oldVal = nested.get("id");
+                    }
+                }
+
+                if (oldVal == null || oldVal.isNull()) {
+                    // request-də dəyər, snapshot-da yoxdur — dəyişiklikdir
+                    return true;
+                }
+
+                if (!sameValue(reqVal, oldVal)) {
+                    return true;
+                }
+            }
+            return false; // bütün request sahələri snapshot ilə üst-üstə düşür
+        } catch (Exception e) {
+            log.warn("hasMeaningfulChange müqayisə xətası: {}", e.getMessage());
+            return true; // ehtiyatlı: müqayisə uğursuz olarsa təsdiq növbəsinə sal
+        }
+    }
+
+    private boolean sameValue(JsonNode a, JsonNode b) {
+        if (a.isNumber() && b.isNumber()) {
+            return a.decimalValue().compareTo(b.decimalValue()) == 0;
+        }
+        if (a.isValueNode() && b.isValueNode()) {
+            return Objects.equals(a.asText(), b.asText());
+        }
+        // mürəkkəb tip — JSON struktur müqayisəsi
+        return a.equals(b);
     }
 
     @Around("@annotation(requiresApproval)")
@@ -73,11 +138,24 @@ public class ApprovalAspect {
             return pjp.proceed();
         }
 
-        // Silmə əməliyyatı üçün: hər hansı pending varsa blok et
-        // Edit əməliyyatı üçün: sıraya daxil olmağa icazə ver
-        if (isDelete && pendingOperationRepository.existsByEntityTypeAndEntityIdAndStatusAndDeletedFalse(
-                requiresApproval.entityType(), entityId, OperationStatus.PENDING)) {
-            throw new BusinessException("Bu entity üçün gözləyən əməliyyat mövcuddur. Əvvəlcə onu təsdiq edin.");
+        // DELETE üçün mövcud PENDING op-a smart davranış:
+        //   • Eyni entity üçün PENDING DELETE varsa → idempotent: mövcud op-u qaytar
+        //   • Eyni entity üçün PENDING EDIT varsa → EDIT-i avtomatik rədd et, sonra yeni DELETE-i növbəyə qoy
+        // EDIT üçün məhdudiyyət yoxdur — istənilən vaxt yeni edit növbəyə əlavə oluna bilər.
+        if (isDelete) {
+            var existingOpt = approvalPersistenceService
+                    .findExistingPending(requiresApproval.entityType(), entityId);
+            if (existingOpt.isPresent()) {
+                PendingOperationResponse existing = existingOpt.get();
+                if (existing.getOperationType() == OperationType.DELETE) {
+                    // Eyni delete istəyi artıq növbədədir — idempotent qaytar
+                    throw new PendingApprovalException(existing);
+                }
+                // EDIT pending varsa onu avtomatik rədd et (delete daha güclüdür)
+                approvalPersistenceService.autoRejectExistingOperation(
+                        existing.getId(), performer, "Silmə əməliyyatı ilə əvəzləndi");
+                log.debug("Edit pending op #{} avtomatik rədd edildi (delete üzərində yazdı)", existing.getId());
+            }
         }
 
         // Handler tap
@@ -114,6 +192,13 @@ public class ApprovalAspect {
                 if (after != null) viewJson = objectMapper.writeValueAsString(after);
             } catch (Exception e) {
                 log.error("New snapshot view alınarkən xəta: {}", e.getMessage());
+            }
+
+            // Edit halında dəyişiklik yoxdursa — təsdiq növbəsinə salma, proceed et
+            if (!hasMeaningfulChange(oldJson, args[1])) {
+                log.debug("Edit-də heç bir dəyişiklik tapılmadı, təsdiq atılmır: {} #{}",
+                        requiresApproval.entityType(), entityId);
+                return pjp.proceed();
             }
         }
 

@@ -1,6 +1,10 @@
 package com.ces.erp.hr.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
+import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.hr.dto.AttendanceRequest;
 import com.ces.erp.hr.dto.AttendanceResponse;
@@ -18,11 +22,37 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class AttendanceService {
+public class AttendanceService implements ApprovalHandler {
 
     private final AttendanceRecordRepository repo;
     private final EmployeeRepository employeeRepository;
     private final AuditService auditService;
+
+    @Override public String getEntityType() { return "ATTENDANCE"; }
+    @Override public String getModuleCode()  { return "HR"; }
+    @Override public String getLabel(Long id) {
+        AttendanceRecord rec = loadActive(id);
+        Employee emp = rec.getEmployee();
+        return (emp != null ? emp.getFullName() : "Davamiyyət") + " — " + rec.getDate();
+    }
+    @Override public Object getSnapshot(Long id) { return AttendanceResponse.from(loadActive(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        // upsert tip endpoint olduğu üçün ayrıca edit dəstəklənmir.
+        throw new BusinessException("Davamiyyət üçün ayrıca edit dəstəklənmir");
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
+
+    private AttendanceRecord loadActive(Long id) {
+        return repo.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Davamiyyət qeydi", id));
+    }
 
     public List<AttendanceResponse> getByEmployee(Long employeeId, LocalDate start, LocalDate end) {
         if (start == null) start = LocalDate.now().withDayOfMonth(1);
@@ -60,9 +90,9 @@ public class AttendanceService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "ATTENDANCE", isDelete = true)
     public void delete(Long id) {
-        AttendanceRecord rec = repo.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Davamiyyət qeydi", id));
+        AttendanceRecord rec = loadActive(id);
         rec.softDelete();
         repo.save(rec);
     }

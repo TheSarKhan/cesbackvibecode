@@ -1,5 +1,8 @@
 package com.ces.erp.hr.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
@@ -28,11 +31,32 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class LeaveService {
+public class LeaveService implements ApprovalHandler {
 
     private final LeaveRequestRepository repo;
     private final EmployeeRepository employeeRepository;
     private final AuditService auditService;
+
+    @Override public String getEntityType() { return "LEAVE"; }
+    @Override public String getModuleCode()  { return "HR"; }
+    @Override public String getLabel(Long id) {
+        LeaveRequest l = loadActive(id);
+        Employee emp = l.getEmployee();
+        return (emp != null ? emp.getFullName() : "Məzuniyyət") + " — " + l.getStartDate() + " → " + l.getEndDate();
+    }
+    @Override public Object getSnapshot(Long id) { return LeaveRequestResponse.from(loadActive(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        // LeaveRequest üçün açıq edit endpoint yoxdur; pattern uyğunluğu üçün boş saxlanılır.
+        throw new BusinessException("Məzuniyyət üçün edit dəstəklənmir");
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     public PagedResponse<LeaveRequestResponse> getPaged(int page, int size, Long employeeId, LeaveStatus status) {
         Page<LeaveRequest> result = repo.searchPaged(employeeId, status, PageRequest.of(page, size));
@@ -142,6 +166,7 @@ public class LeaveService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "LEAVE", isDelete = true)
     public void delete(Long id) {
         LeaveRequest l = loadActive(id);
         l.softDelete();

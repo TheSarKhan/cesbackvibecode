@@ -1,5 +1,6 @@
 package com.ces.erp.hr.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.DuplicateResourceException;
@@ -71,6 +72,7 @@ public class DeductionConfigService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "DEDUCTION_TYPE")
     public DeductionTypeDto updateType(Long id, DeductionTypeDto dto) {
         DeductionType t = typeRepo.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tutulma növü", id));
@@ -85,6 +87,7 @@ public class DeductionConfigService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "DEDUCTION_TYPE", isDelete = true)
     public void deleteType(Long id) {
         DeductionType t = typeRepo.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tutulma növü", id));
@@ -165,6 +168,7 @@ public class DeductionConfigService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "DEDUCTION_VERSION", isDelete = true)
     public void deleteVersion(Long id) {
         DeductionConfigVersion v = versionRepo.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Versiya", id));

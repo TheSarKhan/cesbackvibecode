@@ -1,5 +1,8 @@
 package com.ces.erp.hr.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
@@ -14,6 +17,7 @@ import com.ces.erp.hr.entity.Employee;
 import com.ces.erp.hr.entity.Position;
 import com.ces.erp.hr.repository.EmployeeRepository;
 import com.ces.erp.hr.repository.PositionRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,12 +29,33 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class EmployeeService {
+public class EmployeeService implements ApprovalHandler {
 
     private final EmployeeRepository employeeRepository;
     private final PositionRepository positionRepository;
     private final DepartmentRepository departmentRepository;
     private final AuditService auditService;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "EMPLOYEE"; }
+    @Override public String getModuleCode()  { return "HR"; }
+    @Override public String getLabel(Long id) { return loadActive(id).getFullName(); }
+    @Override public Object getSnapshot(Long id) { return EmployeeResponse.from(loadActive(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            EmployeeRequest req = objectMapper.readValue(json, EmployeeRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     public List<EmployeeResponse> getAll() {
         return employeeRepository.findAllByDeletedFalseOrderByLastNameAsc().stream()
@@ -106,6 +131,7 @@ public class EmployeeService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "EMPLOYEE")
     public EmployeeResponse update(Long id, EmployeeRequest req) {
         Employee e = loadActive(id);
 
@@ -168,6 +194,7 @@ public class EmployeeService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "EMPLOYEE", isDelete = true)
     public void delete(Long id) {
         Employee e = loadActive(id);
         e.softDelete();

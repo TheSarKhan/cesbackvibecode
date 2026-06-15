@@ -1,5 +1,6 @@
 package com.ces.erp.hr.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.dto.PagedResponse;
 import com.ces.erp.common.exception.BusinessException;
@@ -124,6 +125,7 @@ public class PayrollService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "PAYROLL_PERIOD")
     public PayrollPeriodResponse updatePeriod(Long periodId, PayrollPeriodRequest req) {
         PayrollPeriod p = loadActive(periodId);
         ensureEditable(p);
@@ -198,6 +200,7 @@ public class PayrollService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "PAYROLL_PERIOD", isDelete = true)
     public void deletePeriod(Long periodId) {
         PayrollPeriod p = loadActive(periodId);
         if (p.getStatus() == PayrollStatus.PAID) {
@@ -214,6 +217,7 @@ public class PayrollService {
     // ─── Entry əməliyyatları ──
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "PAYROLL_ENTRY")
     public PayrollEntryResponse updateEntry(Long entryId, PayrollEntryRequest req) {
         PayrollEntry e = entryRepository.findByIdAndDeletedFalse(entryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payroll entry", entryId));
@@ -263,6 +267,7 @@ public class PayrollService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "PAYROLL_ENTRY", isDelete = true)
     public void removeEntry(Long entryId) {
         PayrollEntry e = entryRepository.findByIdAndDeletedFalse(entryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payroll entry", entryId));

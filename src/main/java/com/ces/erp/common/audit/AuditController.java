@@ -54,7 +54,7 @@ public class AuditController {
     @GetMapping("/recent")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<AuditLog>>> getRecent() {
-        return ResponseEntity.ok(ApiResponse.success("Tarixçə", auditLogRepository.findTop10ByOrderByPerformedAtDesc()));
+        return ResponseEntity.ok(ApiResponse.success("Tarixçə", auditLogRepository.findRecent()));
     }
 
     @GetMapping("/{entityType}/{entityId}")

@@ -14,6 +14,9 @@ public interface PendingOperationRepository extends JpaRepository<PendingOperati
     boolean existsByEntityTypeAndEntityIdAndStatusAndDeletedFalse(
             String entityType, Long entityId, OperationStatus status);
 
+    Optional<PendingOperation> findFirstByEntityTypeAndEntityIdAndStatusAndDeletedFalseOrderByCreatedAtDesc(
+            String entityType, Long entityId, OperationStatus status);
+
     @Query("""
             SELECT p FROM PendingOperation p
             LEFT JOIN FETCH p.performedBy

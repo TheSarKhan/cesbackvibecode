@@ -1,5 +1,8 @@
 package com.ces.erp.hr.service;
 
+import com.ces.erp.approval.annotation.RequiresApproval;
+import com.ces.erp.approval.context.ApprovalContext;
+import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.DuplicateResourceException;
@@ -8,6 +11,7 @@ import com.ces.erp.hr.dto.TaxRateConfigRequest;
 import com.ces.erp.hr.dto.TaxRateConfigResponse;
 import com.ces.erp.hr.entity.TaxRateConfig;
 import com.ces.erp.hr.repository.TaxRateConfigRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +21,31 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class TaxRateConfigService {
+public class TaxRateConfigService implements ApprovalHandler {
 
     private final TaxRateConfigRepository repo;
     private final AuditService auditService;
+    private final ObjectMapper objectMapper;
+
+    @Override public String getEntityType() { return "TAX_RATE"; }
+    @Override public String getModuleCode()  { return "HR"; }
+    @Override public String getLabel(Long id) { return String.valueOf(loadActive(id).getYear()) + " vergi tarifi"; }
+    @Override public Object getSnapshot(Long id) { return TaxRateConfigResponse.from(loadActive(id)); }
+
+    @Override
+    public void applyEdit(Long id, String json) {
+        try {
+            TaxRateConfigRequest req = objectMapper.readValue(json, TaxRateConfigRequest.class);
+            ApprovalContext.setApplying(true);
+            try { update(id, req); } finally { ApprovalContext.clear(); }
+        } catch (Exception e) { throw new RuntimeException("applyEdit xətası: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public void applyDelete(Long id) {
+        ApprovalContext.setApplying(true);
+        try { delete(id); } finally { ApprovalContext.clear(); }
+    }
 
     public List<TaxRateConfigResponse> getAll() {
         return repo.findAllByDeletedFalseOrderByYearDesc().stream()
@@ -65,6 +90,7 @@ public class TaxRateConfigService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "TAX_RATE")
     public TaxRateConfigResponse update(Long id, TaxRateConfigRequest req) {
         TaxRateConfig c = loadActive(id);
         if (req.getYear() != null && !req.getYear().equals(c.getYear())) {
@@ -98,6 +124,7 @@ public class TaxRateConfigService {
     }
 
     @Transactional
+    @RequiresApproval(module = "HR", entityType = "TAX_RATE", isDelete = true)
     public void delete(Long id) {
         TaxRateConfig c = loadActive(id);
         if (c.isActive()) {
