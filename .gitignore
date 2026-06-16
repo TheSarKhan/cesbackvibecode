@@ -18,6 +18,11 @@ target/
 mvnw
 mvnw.cmd
 
+### Env ###
+.env
+.env.local
+!.env.example
+
 ### Logs ###
 *.log
 

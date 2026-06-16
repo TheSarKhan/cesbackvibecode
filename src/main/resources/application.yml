@@ -2,6 +2,9 @@ server:
   port: 8083
 
 spring:
+  config:
+    # Kök qovluqdakı `.env` faylını properties kimi yükləyir (fayl yoxdursa keçir)
+    import: optional:file:.env[.properties]
   application:
     name: ces-erp
   datasource:
@@ -61,6 +64,12 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  # Mobil tətbiq / xarici client-lərin çağırdığı public API ünvanı (.env-dən override olunur)
+  api:
+    base-url: ${API_BASE_URL:http://localhost:8083}
+  # CORS icazəli origin-lər (vergüllə ayrılır, .env-dən override olunur)
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
   jwt:
     secret: ces-erp-super-secret-key-minimum-256-bit-length-required-here
     access-token-expiry: 86400000
@@ -70,7 +79,7 @@ app:
     # CES_UPLOAD_DIR ENV verilibsə onu istifadə edir (Docker/prod üçün override)
     dir: ${CES_UPLOAD_DIR:${user.home}/ces-uploads}
   frontend:
-    url: http://localhost:3000
+    url: ${APP_FRONTEND_URL:http://localhost:3000}
 
 logging:
   level:
