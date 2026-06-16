@@ -16,17 +16,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT DISTINCT u FROM User u " +
             "LEFT JOIN FETCH u.department " +
-            "LEFT JOIN FETCH u.role r " +
-            "LEFT JOIN FETCH r.permissions p " +
-            "LEFT JOIN FETCH p.module " +
+            "LEFT JOIN FETCH u.roles r " +
+            "LEFT JOIN FETCH r.grantedPermissions " +
             "WHERE u.deleted = false")
     List<User> findAllByDeletedFalse();
 
-    @Query(value = "SELECT u FROM User u " +
+    @Query(value = "SELECT DISTINCT u FROM User u " +
             "LEFT JOIN FETCH u.department " +
-            "LEFT JOIN FETCH u.role r " +
-            "LEFT JOIN FETCH r.permissions p " +
-            "LEFT JOIN FETCH p.module " +
+            "LEFT JOIN FETCH u.roles r " +
+            "LEFT JOIN FETCH r.grantedPermissions " +
             "WHERE u.deleted = false" +
             " AND (CAST(:search AS string) IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))" +
             " OR LOWER(u.email) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))" +

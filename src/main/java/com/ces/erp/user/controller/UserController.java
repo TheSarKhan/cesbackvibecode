@@ -44,12 +44,6 @@ public class UserController {
 
     // ───── Self-service (cari istifadəçi) ──────────────────
 
-    @GetMapping("/me")
-    @Operation(summary = "Cari istifadəçi profili")
-    public ResponseEntity<ApiResponse<UserResponse>> getCurrent(@AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(ApiResponse.success(userService.getCurrent(principal.getId())));
-    }
-
     @PutMapping("/me/contact")
     @Operation(summary = "Cari istifadəçi əlaqə məlumatlarını yenilə")
     public ResponseEntity<ApiResponse<UserResponse>> updateMyContact(
