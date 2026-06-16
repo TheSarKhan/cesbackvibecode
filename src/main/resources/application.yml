@@ -67,9 +67,10 @@ app:
   # Mobil tətbiq / xarici client-lərin çağırdığı public API ünvanı (.env-dən override olunur)
   api:
     base-url: ${API_BASE_URL:http://localhost:8083}
-  # CORS icazəli origin-lər (vergüllə ayrılır, .env-dən override olunur)
+  # CORS icazəli origin-lər (vergüllə ayrılır, .env / ENV ilə override olunur).
+  # Default-a prod domenləri də daxildir ki, env itsə belə CORS sınmasın.
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://ces.invorent.com,https://www.ces.invorent.com,http://localhost:3000,http://localhost:5173}
   jwt:
     secret: ces-erp-super-secret-key-minimum-256-bit-length-required-here
     access-token-expiry: 86400000
