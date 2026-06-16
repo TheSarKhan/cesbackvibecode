@@ -2,14 +2,20 @@ package com.ces.erp.investor.service;
 
 import com.ces.erp.auth.dto.LoginRequest;
 import com.ces.erp.auth.dto.RefreshTokenRequest;
+import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.InvalidTokenException;
+import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.security.JwtUtil;
 import com.ces.erp.investor.dto.InvestorLoginResponse;
 import com.ces.erp.investor.entity.Investor;
 import com.ces.erp.investor.repository.InvestorRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -28,15 +35,20 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class InvestorAuthService {
 
+    private static final Logger logger = LoggerFactory.getLogger(InvestorAuthService.class);
+
     private final InvestorRepository investorRepository;
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
     private final RedisTemplate<String, String> redisTemplate;
+    private final JavaMailSender mailSender;
 
     @Value("${app.jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
 
     private static final String REFRESH_PREFIX = "investor_refresh:";
+    private static final String OTP_PREFIX     = "investor_otp:";
+    private static final String VERIFY_PREFIX  = "investor_verify:";
 
     @Transactional
     public InvestorLoginResponse login(LoginRequest request) {
@@ -80,6 +92,75 @@ public class InvestorAuthService {
 
     public void logout(String refreshToken) {
         redisTemplate.delete(REFRESH_PREFIX + refreshToken);
+    }
+
+    // ───── Şifrəni unutdum (OTP → token → reset) ─────────────────────────────
+
+    /** Investor email-inə 6 rəqəmli OTP göndərir (Redis-də 10 dəq saxlanır). */
+    public void forgotPassword(String email) {
+        String normalized = email.trim().toLowerCase();
+        Investor investor = investorRepository
+                .findByAccountEmailIgnoreCaseAndDeletedFalse(normalized)
+                .orElseThrow(() -> new ResourceNotFoundException("Bu email portal hesabı kimi qeydiyyatda deyil"));
+
+        if (!investor.isPortalEnabled()) {
+            throw new BusinessException("Portal girişi bağlıdır");
+        }
+
+        String otp = String.format("%06d", new Random().nextInt(1000000));
+        redisTemplate.opsForValue().set(OTP_PREFIX + normalized, otp, 600, TimeUnit.SECONDS); // 10 dəqiqə
+
+        SimpleMailMessage msg = new SimpleMailMessage();
+        msg.setTo(investor.getAccountEmail());
+        msg.setSubject("Invorent İnvestor Portalı - Şifrə Yeniləmə Kodu");
+        msg.setText(
+            "Salam " + (investor.getContactPerson() != null ? investor.getContactPerson() : investor.getCompanyName()) + ",\n\n" +
+            "Şifrənizi yeniləmək üçün aşağıdakı 6 rəqəmli kodu istifadə edin:\n\n" +
+            otp + "\n\n" +
+            "Bu kod 10 dəqiqə ərzində etibarlıdır.\n\n" +
+            "Əgər bu sorğunu siz etməmisinizsə, bu emaili nəzərə almayın.\n\n" +
+            "Invorent İnvestor Portalı"
+        );
+
+        try {
+            mailSender.send(msg);
+            logger.info("✓ İnvestor OTP maili göndərildi: {}", normalized);
+        } catch (Exception e) {
+            logger.error("✗ İnvestor OTP maili göndərilmədi: {} | {}", normalized, e.getMessage(), e);
+            throw new BusinessException("Email göndərməkdə xəta baş verdi. Zəhmət olmasa yenidən cəhd edin.");
+        }
+    }
+
+    /** OTP-ni yoxlayır, doğrudursa 30 dəq etibarlı verification token qaytarır. */
+    public String verifyOtp(String email, String otp) {
+        String normalized = email.trim().toLowerCase();
+        String stored = redisTemplate.opsForValue().get(OTP_PREFIX + normalized);
+        if (stored == null || !stored.equals(otp)) {
+            throw new InvalidTokenException("OTP kod etibarsızdır və ya vaxtı keçib");
+        }
+
+        String verificationToken = UUID.randomUUID().toString();
+        redisTemplate.opsForValue().set(VERIFY_PREFIX + verificationToken, normalized, 1800, TimeUnit.SECONDS); // 30 dəqiqə
+        redisTemplate.delete(OTP_PREFIX + normalized);
+        return verificationToken;
+    }
+
+    /** Verification token ilə yeni şifrəni təyin edir. */
+    @Transactional
+    public void resetPassword(String verificationToken, String newPassword) {
+        String email = redisTemplate.opsForValue().get(VERIFY_PREFIX + verificationToken);
+        if (email == null) {
+            throw new InvalidTokenException("Doğrulama token-i etibarsızdır və ya vaxtı keçib");
+        }
+
+        Investor investor = investorRepository
+                .findByAccountEmailIgnoreCaseAndDeletedFalse(email)
+                .orElseThrow(() -> new ResourceNotFoundException("İnvestor tapılmadı"));
+
+        investor.setPasswordHash(passwordEncoder.encode(newPassword));
+        investorRepository.save(investor);
+        redisTemplate.delete(VERIFY_PREFIX + verificationToken);
+        logger.info("✓ İnvestor şifrəsi yeniləndi: {}", email);
     }
 
     private InvestorLoginResponse buildLoginResponse(Investor investor) {
