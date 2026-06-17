@@ -8,6 +8,7 @@ import com.ces.erp.enums.OwnershipType;
 import com.ces.erp.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -116,18 +117,22 @@ public class Equipment extends BaseEntity {
     private String notes;
 
     @OneToMany(mappedBy = "equipment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     @Builder.Default
     private List<EquipmentInspection> inspections = new ArrayList<>();
 
     @OneToMany(mappedBy = "equipment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     @Builder.Default
     private List<EquipmentDocument> documents = new ArrayList<>();
 
     @OneToMany(mappedBy = "equipment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     @Builder.Default
     private List<EquipmentImage> images = new ArrayList<>();
 
     @OneToMany(mappedBy = "equipment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     @Builder.Default
     private List<EquipmentProjectHistory> projectHistory = new ArrayList<>();
 
@@ -135,6 +140,7 @@ public class Equipment extends BaseEntity {
     @JoinTable(name = "equipment_safety_items",
             joinColumns = @JoinColumn(name = "equipment_id"),
             inverseJoinColumns = @JoinColumn(name = "config_item_id"))
+    @BatchSize(size = 50)
     @Builder.Default
     private List<ConfigItem> safetyEquipment = new ArrayList<>();
 }

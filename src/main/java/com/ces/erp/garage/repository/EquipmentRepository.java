@@ -18,7 +18,9 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
 
     Optional<Equipment> findByIdAndDeletedFalse(Long id);
 
-    @EntityGraph(attributePaths = {"responsibleUser", "ownerContractor", "inspections", "documents", "images", "safetyEquipment"})
+    // Yalnız ManyToOne assosiasiyaları fetch edilir; kolleksiyalar @BatchSize ilə
+    // partiyalarla yüklənir. Bir neçə bag-i eyni anda fetch etmək MultipleBagFetchException verir.
+    @EntityGraph(attributePaths = {"responsibleUser", "ownerContractor"})
     @Query("SELECT e FROM Equipment e WHERE e.deleted = false")
     List<Equipment> findAllByDeletedFalse();
 
