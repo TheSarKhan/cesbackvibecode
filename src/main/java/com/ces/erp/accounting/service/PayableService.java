@@ -64,9 +64,11 @@ public class PayableService {
             if (invoice.getType() == InvoiceType.CONTRACTOR_EXPENSE && invoice.getContractor() != null) {
                 builder.contractor(invoice.getContractor());
             } else {
-                // INVESTOR_EXPENSE — companyName sahəsindən investor adını oxu
+                // INVESTOR_EXPENSE — investor adı və VOEN-i qaimədəki investor FK-dən oxu
                 builder.investorName(invoice.getCompanyName());
-                builder.investorVoen(null);
+                if (invoice.getInvestor() != null) {
+                    builder.investorVoen(invoice.getInvestor().getVoen());
+                }
             }
 
             payableRepository.save(builder.build());
@@ -135,6 +137,16 @@ public class PayableService {
         if (invPaid.add(req.getAmount()).compareTo(invoice.getAmount()) > 0) {
             BigDecimal remaining = invoice.getAmount().subtract(invPaid);
             throw new RuntimeException("Ödəniş qaimə məbləğini keçə bilməz. Maksimum: " + remaining + " ₼");
+        }
+
+        // Self-heal: köhnə investor Payable-larında investorVoen NULL qalmış ola bilər
+        // (investor app sorğusu findAllByInvestorVoen ilə işləyir) — qaimədəki investor FK-dən doldur
+        if (p.getContractor() == null
+                && (p.getInvestorVoen() == null || p.getInvestorVoen().isBlank())
+                && invoice.getInvestor() != null
+                && invoice.getInvestor().getVoen() != null) {
+            p.setInvestorVoen(invoice.getInvestor().getVoen());
+            payableRepository.save(p);
         }
 
         PayablePayment payment = PayablePayment.builder()
