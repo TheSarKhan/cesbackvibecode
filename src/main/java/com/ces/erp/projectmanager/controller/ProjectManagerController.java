@@ -116,6 +116,17 @@ public class ProjectManagerController {
                 service.saveCustomerAgreement(requestId, request)));
     }
 
+    @PutMapping("/requests/{requestId}/items/{itemId}/customer-agreement")
+    @PreAuthorize("hasAuthority('PROJECT_MANAGER:PUT')")
+    @Operation(summary = "Çoxlu texnika — bir xətt üçün sifarişçi razılaşmasını saxla")
+    public ResponseEntity<ApiResponse<PmRequestResponse>> saveCustomerAgreementItem(
+            @PathVariable Long requestId,
+            @PathVariable Long itemId,
+            @RequestBody CustomerAgreementRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Razılaşma qeyd edildi",
+                service.saveCustomerAgreementItem(requestId, itemId, request)));
+    }
+
     @PutMapping("/requests/{requestId}/customer-contact")
     @PreAuthorize("hasAuthority('PROJECT_MANAGER:PUT')")
     @Operation(summary = "LM 1.3 — Sifarişçi ofisindəki əlaqə şəxsini qeyd et")
@@ -124,6 +135,17 @@ public class ProjectManagerController {
             @RequestBody CustomerContactRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Əlaqə məlumatı saxlandı",
                 service.saveCustomerContact(requestId, request)));
+    }
+
+    @PutMapping("/requests/{requestId}/required-documents")
+    @PreAuthorize("hasAuthority('PROJECT_MANAGER:PUT')")
+    @Operation(summary = "LM — texnika üçün tələb olunan əlavə sənədləri dəqiqləşdir")
+    public ResponseEntity<ApiResponse<PmRequestResponse>> saveRequiredDocuments(
+            @PathVariable Long requestId,
+            @RequestBody java.util.Map<String, java.util.List<Long>> body) {
+        java.util.List<Long> ids = body != null ? body.get("documentItemIds") : null;
+        return ResponseEntity.ok(ApiResponse.success("Tələb olunan sənədlər saxlandı",
+                service.saveRequiredDocuments(requestId, ids)));
     }
 
     @PostMapping("/requests/{requestId}/approve")
@@ -179,6 +201,34 @@ public class ProjectManagerController {
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserPrincipal principal) {
         documentService.uploadDocument(requestId, RequestDocumentType.PRICE_PROTOCOL, file, principal.getId());
+        return ResponseEntity.ok(ApiResponse.success("Protokol yükləndi", service.getRequest(requestId)));
+    }
+
+    // ─── Çoxlu texnika: xətt üzrə sənəd yükləmə ───────────────────────────────
+
+    @PostMapping(value = "/requests/{requestId}/items/{itemId}/upload-contract",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('PROJECT_MANAGER:POST')")
+    @Operation(summary = "Bir texnika xətti üçün müqavilə faylı yüklə")
+    public ResponseEntity<ApiResponse<PmRequestResponse>> uploadContractItem(
+            @PathVariable Long requestId,
+            @PathVariable Long itemId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        documentService.uploadDocument(requestId, RequestDocumentType.CONTRACT, file, principal.getId(), itemId);
+        return ResponseEntity.ok(ApiResponse.success("Müqavilə yükləndi", service.getRequest(requestId)));
+    }
+
+    @PostMapping(value = "/requests/{requestId}/items/{itemId}/upload-price-protocol",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('PROJECT_MANAGER:POST')")
+    @Operation(summary = "Bir texnika xətti üçün qiymət razılaşma protokolu yüklə")
+    public ResponseEntity<ApiResponse<PmRequestResponse>> uploadPriceProtocolItem(
+            @PathVariable Long requestId,
+            @PathVariable Long itemId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        documentService.uploadDocument(requestId, RequestDocumentType.PRICE_PROTOCOL, file, principal.getId(), itemId);
         return ResponseEntity.ok(ApiResponse.success("Protokol yükləndi", service.getRequest(requestId)));
     }
 

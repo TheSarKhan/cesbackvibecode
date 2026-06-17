@@ -1,5 +1,6 @@
 package com.ces.erp.coordinator.dto;
 
+import com.ces.erp.config.entity.ConfigItem;
 import com.ces.erp.coordinator.entity.CoordinatorPlan;
 import com.ces.erp.enums.ProjectType;
 import com.ces.erp.enums.RequestStatus;
@@ -11,7 +12,10 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Data
 @Builder
@@ -75,6 +79,8 @@ public class CoordinatorPlanResponse {
     // Mərhələ B (icra) status sahələri
     private boolean equipmentDocsVerified;
     private LocalDateTime equipmentDocsCheckedAt;
+    // Yoxlama checklist-i: texnikanın məcburi + LM-in əlavə sənədləri (işarə vəziyyəti ilə)
+    private List<RequiredDocDto> requiredDocuments;
     private LocalDateTime dispatchedAt;
     private LocalDateTime deliveredAt;
     private String deliveryNotes;
@@ -88,6 +94,54 @@ public class CoordinatorPlanResponse {
 
     // Shortlist sətirləri (koordinator UI-da göstərmək üçün — PM tərəfindən yaradılır)
     private List<ShortlistRowDto> shortlistItems;
+
+    // Layihəyə seçilmiş texnika xətləri (çoxlu model)
+    private List<PlanItemDto> items;
+
+    @Data
+    @Builder
+    public static class PlanItemDto {
+        private Long id;
+        private Long shortlistItemId;
+        private String partyType;
+        private String partyName;
+        private Long equipmentId;
+        private String equipmentName;
+        private String equipmentCode;
+        private BigDecimal equipmentPrice;
+        private BigDecimal customerEquipmentPrice;
+        private BigDecimal transportationPrice;
+        // Sifarişçi ilə razılaşma (PM mərhələsi — hər xətt ayrıca)
+        private BigDecimal agreedEquipmentPrice;
+        private BigDecimal agreedTransportPrice;
+        private BigDecimal agreedTotalPrice;
+        private String agreementNote;
+        private Integer dayCount;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private Long operatorId;
+        private String operatorName;
+        private boolean equipmentDocsVerified;
+        private LocalDateTime equipmentDocsCheckedAt;
+        private LocalDateTime dispatchedAt;
+        private LocalDateTime deliveredAt;
+        private String deliveryNotes;
+        private java.util.Set<Long> checkedDocumentItemIds;
+        // İcra üçün: bu xəttin yoxlama checklist-i + təhvil-təslim aktı
+        private List<RequiredDocDto> requiredDocuments;
+        private Long actDocumentId;
+        private String actFileName;
+        // Texnikanın qarajda yüklənmiş faktiki sənədləri (koordinator baxış/yoxlaması üçün)
+        private List<EquipmentDocDto> equipmentDocuments;
+    }
+
+    @Data
+    @Builder
+    public static class EquipmentDocDto {
+        private Long id;
+        private String name;
+        private String type;
+    }
 
     @Data
     @Builder
@@ -143,6 +197,14 @@ public class CoordinatorPlanResponse {
         private String documentType;
         private String uploadedByName;
         private LocalDateTime uploadedAt;
+    }
+
+    @Data
+    @Builder
+    public static class RequiredDocDto {
+        private Long id;
+        private String name;
+        private boolean checked;
     }
 
     public static CoordinatorPlanResponse fromRequest(TechRequest r) {
@@ -246,6 +308,24 @@ public class CoordinatorPlanResponse {
         }
         base.setEquipmentDocsVerified(plan.isEquipmentDocsVerified());
         base.setEquipmentDocsCheckedAt(plan.getEquipmentDocsCheckedAt());
+
+        // Yoxlama checklist-i: texnikanın məcburi sənədləri ∪ LM-in əlavə sənədləri
+        Set<Long> checkedIds = plan.getCheckedDocumentItemIds() != null
+                ? plan.getCheckedDocumentItemIds() : Set.of();
+        Map<Long, String> reqDocMap = new LinkedHashMap<>();
+        if (eq != null && eq.getRequiredDocuments() != null) {
+            for (ConfigItem ci : eq.getRequiredDocuments()) reqDocMap.putIfAbsent(ci.getId(), ci.getKey());
+        }
+        if (r.getExtraRequiredDocuments() != null) {
+            for (ConfigItem ci : r.getExtraRequiredDocuments()) reqDocMap.putIfAbsent(ci.getId(), ci.getKey());
+        }
+        base.setRequiredDocuments(reqDocMap.entrySet().stream()
+                .map(en -> RequiredDocDto.builder()
+                        .id(en.getKey())
+                        .name(en.getValue())
+                        .checked(checkedIds.contains(en.getKey()))
+                        .build())
+                .toList());
         base.setDispatchedAt(plan.getDispatchedAt());
         base.setDeliveredAt(plan.getDeliveredAt());
         base.setDeliveryNotes(plan.getDeliveryNotes());
@@ -272,6 +352,75 @@ public class CoordinatorPlanResponse {
         base.setNotes(plan.getNotes());
         base.setDocuments(docs);
         base.setPlanCreatedAt(plan.getCreatedAt());
+
+        // Çoxlu texnika xətləri
+        base.setItems(plan.getItems().stream()
+                .filter(it -> !it.isDeleted())
+                .map(it -> {
+                    String partyName = it.getContractor() != null ? it.getContractor().getCompanyName()
+                            : it.getInvestor() != null ? it.getInvestor().getCompanyName()
+                            : "Şirkət";
+                    // Bu xəttin yoxlama checklist-i (texnika məcburi ∪ LM əlavə)
+                    Set<Long> itChecked = it.getCheckedDocumentItemIds() != null ? it.getCheckedDocumentItemIds() : Set.of();
+                    Map<Long, String> itReq = new LinkedHashMap<>();
+                    if (it.getEquipment() != null && it.getEquipment().getRequiredDocuments() != null) {
+                        for (ConfigItem ci : it.getEquipment().getRequiredDocuments()) itReq.putIfAbsent(ci.getId(), ci.getKey());
+                    }
+                    if (r.getExtraRequiredDocuments() != null) {
+                        for (ConfigItem ci : r.getExtraRequiredDocuments()) itReq.putIfAbsent(ci.getId(), ci.getKey());
+                    }
+                    List<RequiredDocDto> itReqDocs = itReq.entrySet().stream()
+                            .map(en -> RequiredDocDto.builder().id(en.getKey()).name(en.getValue())
+                                    .checked(itChecked.contains(en.getKey())).build())
+                            .toList();
+                    // Bu xəttin təhvil-təslim aktı
+                    var actDoc = plan.getDocuments().stream()
+                            .filter(d -> !d.isDeleted() && "HANDOVER_ACT".equals(d.getDocumentType())
+                                    && d.getPlanItem() != null && d.getPlanItem().getId().equals(it.getId()))
+                            .findFirst().orElse(null);
+                    return PlanItemDto.builder()
+                            .id(it.getId())
+                            .shortlistItemId(it.getShortlistItem() != null ? it.getShortlistItem().getId() : null)
+                            .partyType(it.getPartyType() != null ? it.getPartyType().name() : null)
+                            .partyName(partyName)
+                            .equipmentId(it.getEquipment() != null ? it.getEquipment().getId() : null)
+                            .equipmentName(it.getEquipment() != null ? it.getEquipment().getName() : null)
+                            .equipmentCode(it.getEquipment() != null ? it.getEquipment().getEquipmentCode() : null)
+                            .equipmentPrice(it.getEquipmentPrice())
+                            .customerEquipmentPrice(it.getCustomerEquipmentPrice())
+                            .transportationPrice(it.getTransportationPrice())
+                            .agreedEquipmentPrice(it.getAgreedEquipmentPrice())
+                            .agreedTransportPrice(it.getAgreedTransportPrice())
+                            .agreedTotalPrice(it.getAgreedTotalPrice())
+                            .agreementNote(it.getAgreementNote())
+                            .dayCount(it.getDayCount())
+                            .startDate(it.getStartDate())
+                            .endDate(it.getEndDate())
+                            .operatorId(it.getOperator() != null ? it.getOperator().getId() : null)
+                            .operatorName(it.getOperator() != null
+                                    ? it.getOperator().getFirstName() + " " + it.getOperator().getLastName() : null)
+                            .equipmentDocsVerified(it.isEquipmentDocsVerified())
+                            .equipmentDocsCheckedAt(it.getEquipmentDocsCheckedAt())
+                            .dispatchedAt(it.getDispatchedAt())
+                            .deliveredAt(it.getDeliveredAt())
+                            .deliveryNotes(it.getDeliveryNotes())
+                            .checkedDocumentItemIds(it.getCheckedDocumentItemIds())
+                            .requiredDocuments(itReqDocs)
+                            .actDocumentId(actDoc != null ? actDoc.getId() : null)
+                            .actFileName(actDoc != null ? actDoc.getDocumentName() : null)
+                            .equipmentDocuments(it.getEquipment() != null && it.getEquipment().getDocuments() != null
+                                    ? it.getEquipment().getDocuments().stream()
+                                        .map(ed -> EquipmentDocDto.builder()
+                                                .id(ed.getId())
+                                                .name(ed.getDocumentName())
+                                                .type(ed.getDocumentType())
+                                                .build())
+                                        .toList()
+                                    : List.of())
+                            .build();
+                })
+                .toList());
+
         return base;
     }
 }

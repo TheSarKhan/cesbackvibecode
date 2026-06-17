@@ -1,6 +1,7 @@
 package com.ces.erp.project.dto;
 
 import com.ces.erp.coordinator.entity.CoordinatorPlan;
+import com.ces.erp.coordinator.entity.CoordinatorPlanItem;
 import com.ces.erp.enums.ProjectStatus;
 import com.ces.erp.enums.ProjectType;
 import com.ces.erp.garage.entity.Equipment;
@@ -95,14 +96,51 @@ ProjectResponse {
     private BigDecimal overtimeRate;
     private BigDecimal overtimePay;
 
+    // ─── Çoxlu texnika xətləri (yeni model) ───────────────────────────────────
+    private List<EquipmentLineDto> equipmentLines;
+
+    @Data
+    @Builder
+    public static class EquipmentLineDto {
+        private Long id;                          // CoordinatorPlanItem id
+        private Long equipmentId;
+        private String equipmentName;
+        private String equipmentCode;
+        private String equipmentType;
+        private String ownershipType;
+        private String partyType;
+        private String contractorName;
+        private String contractorVoen;
+        private String investorName;
+        private String investorVoen;
+        private BigDecimal equipmentPrice;          // sahibə ödəyəcəyimiz (vahid)
+        private BigDecimal customerEquipmentPrice;  // müştəri (vahid)
+        private BigDecimal transportationPrice;
+        private Integer dayCount;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private String operatorName;
+        private boolean equipmentDocsVerified;
+        private java.time.LocalDateTime dispatchedAt;
+        private java.time.LocalDateTime deliveredAt;
+    }
+
     // ─── Builder method ───────────────────────────────────────────────────────
 
     public static ProjectResponse from(Project p, CoordinatorPlan plan) {
         TechRequest r = p.getRequest();
 
-        Equipment eq = plan != null && plan.getSelectedEquipment() != null
-                ? plan.getSelectedEquipment()
-                : (r != null ? r.getSelectedEquipment() : null);
+        // Çoxlu model: xülasə sahələri (tək texnika) ilk xətdən götürülür;
+        // əks halda köhnə legacy zənciri (selectedEquipment).
+        var primary = plan != null
+                ? plan.getItems().stream().filter(i -> !i.isDeleted()).findFirst().orElse(null)
+                : null;
+
+        Equipment eq = primary != null && primary.getEquipment() != null
+                ? primary.getEquipment()
+                : (plan != null && plan.getSelectedEquipment() != null
+                        ? plan.getSelectedEquipment()
+                        : (r != null ? r.getSelectedEquipment() : null));
 
         BigDecimal totalExpense = p.getExpenses().stream()
                 .filter(e -> !e.isDeleted())
@@ -174,16 +212,24 @@ ProjectResponse {
                 .investorName(investorName)
                 .investorVoen(investorVoen)
                 .investorPhone(investorPhone)
-                // Koordinator planı
-                .planEquipmentPrice(plan != null ? plan.getEquipmentPrice() : null)
-                .planEquipmentTotal(plan != null ? computeEquipmentTotal(plan, r) : null)
-                .planTransportationPrice(plan != null ? plan.getTransportationPrice() : null)
+                // Koordinator planı — xülasə (ilk xətt, yoxdursa legacy)
+                .planEquipmentPrice(primary != null ? primary.getEquipmentPrice()
+                        : (plan != null ? plan.getEquipmentPrice() : null))
+                .planEquipmentTotal(primary != null ? computeLineTotal(primary, r)
+                        : (plan != null ? computeEquipmentTotal(plan, r) : null))
+                .planTransportationPrice(primary != null ? primary.getTransportationPrice()
+                        : (plan != null ? plan.getTransportationPrice() : null))
                 .planOperatorPayment(plan != null ? plan.getOperatorPayment() : null)
-                .planDayCount(plan != null ? plan.getDayCount() : null)
-                .planStartDate(plan != null ? plan.getStartDate() : null)
-                .planEndDate(plan != null ? plan.getEndDate() : null)
-                .operatorName(plan != null && plan.getOperator() != null
-                        ? plan.getOperator().getFirstName() + " " + plan.getOperator().getLastName() : null)
+                .planDayCount(primary != null ? primary.getDayCount()
+                        : (plan != null ? plan.getDayCount() : null))
+                .planStartDate(primary != null ? primary.getStartDate()
+                        : (plan != null ? plan.getStartDate() : null))
+                .planEndDate(primary != null ? primary.getEndDate()
+                        : (plan != null ? plan.getEndDate() : null))
+                .operatorName(primary != null && primary.getOperator() != null
+                        ? primary.getOperator().getFirstName() + " " + primary.getOperator().getLastName()
+                        : (plan != null && plan.getOperator() != null
+                                ? plan.getOperator().getFirstName() + " " + plan.getOperator().getLastName() : null))
                 .planNotes(plan != null ? plan.getNotes() : null)
                 // Tarixlər
                 .startDate(p.getStartDate())
@@ -203,12 +249,55 @@ ProjectResponse {
                 .overtimeHours(p.getOvertimeHours())
                 .overtimeRate(p.getOvertimeRate())
                 .overtimePay(p.getOvertimePay())
+                // Çoxlu texnika xətləri
+                .equipmentLines(plan == null ? List.of() : plan.getItems().stream()
+                        .filter(it -> !it.isDeleted())
+                        .map(it -> {
+                            var le = it.getEquipment();
+                            return EquipmentLineDto.builder()
+                                    .id(it.getId())
+                                    .equipmentId(le != null ? le.getId() : null)
+                                    .equipmentName(le != null ? le.getName() : null)
+                                    .equipmentCode(le != null ? le.getEquipmentCode() : null)
+                                    .equipmentType(le != null ? le.getType() : null)
+                                    .ownershipType(le != null ? le.getOwnershipType().name() : null)
+                                    .partyType(it.getPartyType() != null ? it.getPartyType().name() : null)
+                                    .contractorName(it.getContractor() != null ? it.getContractor().getCompanyName() : null)
+                                    .contractorVoen(it.getContractor() != null ? it.getContractor().getVoen() : null)
+                                    .investorName(it.getInvestor() != null ? it.getInvestor().getCompanyName()
+                                            : (le != null ? le.getOwnerInvestorName() : null))
+                                    .investorVoen(it.getInvestor() != null ? it.getInvestor().getVoen()
+                                            : (le != null ? le.getOwnerInvestorVoen() : null))
+                                    .equipmentPrice(it.getEquipmentPrice())
+                                    .customerEquipmentPrice(it.getCustomerEquipmentPrice())
+                                    .transportationPrice(it.getTransportationPrice())
+                                    .dayCount(it.getDayCount())
+                                    .startDate(it.getStartDate())
+                                    .endDate(it.getEndDate())
+                                    .operatorName(it.getOperator() != null
+                                            ? it.getOperator().getFirstName() + " " + it.getOperator().getLastName() : null)
+                                    .equipmentDocsVerified(it.isEquipmentDocsVerified())
+                                    .dispatchedAt(it.getDispatchedAt())
+                                    .deliveredAt(it.getDeliveredAt())
+                                    .build();
+                        })
+                        .toList())
                 .build();
     }
 
     private static BigDecimal computeEquipmentTotal(CoordinatorPlan plan, TechRequest r) {
         BigDecimal unitPrice = plan.getEquipmentPrice() != null ? plan.getEquipmentPrice() : BigDecimal.ZERO;
         int days = plan.getDayCount() != null ? plan.getDayCount() : 0;
+        ProjectType type = r != null ? r.getProjectType() : null;
+        if (type == ProjectType.MONTHLY || days == 0) {
+            return unitPrice;
+        }
+        return unitPrice.multiply(BigDecimal.valueOf(days));
+    }
+
+    private static BigDecimal computeLineTotal(CoordinatorPlanItem item, TechRequest r) {
+        BigDecimal unitPrice = item.getEquipmentPrice() != null ? item.getEquipmentPrice() : BigDecimal.ZERO;
+        int days = item.getDayCount() != null ? item.getDayCount() : 0;
         ProjectType type = r != null ? r.getProjectType() : null;
         if (type == ProjectType.MONTHLY || days == 0) {
             return unitPrice;

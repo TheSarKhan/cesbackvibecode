@@ -143,4 +143,13 @@ public class Equipment extends BaseEntity {
     @BatchSize(size = 50)
     @Builder.Default
     private List<ConfigItem> safetyEquipment = new ArrayList<>();
+
+    // Texnikanın məcburi sənəd tipləri (EQUIPMENT_DOCUMENT_TYPE config siyahısından)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "equipment_required_documents",
+            joinColumns = @JoinColumn(name = "equipment_id"),
+            inverseJoinColumns = @JoinColumn(name = "config_item_id"))
+    @BatchSize(size = 50)
+    @Builder.Default
+    private List<ConfigItem> requiredDocuments = new ArrayList<>();
 }

@@ -14,6 +14,7 @@ import com.ces.erp.coordinator.dto.CoordinatorPlanRequest;
 import com.ces.erp.coordinator.dto.CoordinatorPlanResponse;
 import com.ces.erp.coordinator.entity.CoordinatorDocument;
 import com.ces.erp.coordinator.entity.CoordinatorPlan;
+import com.ces.erp.coordinator.entity.CoordinatorPlanItem;
 import com.ces.erp.coordinator.repository.CoordinatorDocumentRepository;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.EquipmentStatus;
@@ -59,6 +60,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
 
     private final TechRequestRepository requestRepository;
     private final CoordinatorPlanRepository planRepository;
+    private final com.ces.erp.coordinator.repository.CoordinatorPlanItemRepository planItemRepository;
     private final CoordinatorDocumentRepository documentRepository;
     private final EquipmentRepository equipmentRepository;
     private final com.ces.erp.garage.service.EquipmentService equipmentService;
@@ -343,9 +345,59 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         plan.setNotes(req.getNotes());
 
-        CoordinatorPlanResponse resp = CoordinatorPlanResponse.from(planRepository.save(plan));
+        CoordinatorPlan saved = planRepository.save(plan);
+
+        // ─── Yeni model: çoxlu texnika xətləri (legacy körpü yoxdur — downstream item-əsaslı) ───
+        if (req.getItems() != null) {
+            reconcilePlanItems(saved, request, req.getItems());
+        }
+
+        CoordinatorPlanResponse resp = CoordinatorPlanResponse.from(saved);
         resp.setShortlistItems(loadShortlistRows(requestId));
         return resp;
+    }
+
+    /** Seçilmiş texnika xətlərini upsert et, seçimdən çıxanları soft-delete et. */
+    private void reconcilePlanItems(CoordinatorPlan plan, TechRequest request,
+                                    List<CoordinatorPlanRequest.PlanItemInput> inputs) {
+        List<CoordinatorPlanItem> existing = planItemRepository.findAllByPlanIdAndDeletedFalse(plan.getId());
+        java.util.Set<Long> incomingIds = inputs.stream()
+                .map(CoordinatorPlanRequest.PlanItemInput::getId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
+        for (CoordinatorPlanItem old : existing) {
+            if (!incomingIds.contains(old.getId())) {
+                old.softDelete();
+                planItemRepository.save(old);
+            }
+        }
+
+        for (CoordinatorPlanRequest.PlanItemInput in : inputs) {
+            CoordinatorPlanItem item = in.getId() != null
+                    ? planItemRepository.findById(in.getId()).orElse(null)
+                    : null;
+            if (item == null) {
+                item = CoordinatorPlanItem.builder().plan(plan).build();
+            }
+            // Sahib + texnika mənbə shortlist sətrindən sinxronlaşdırılır
+            if (in.getShortlistItemId() != null) {
+                ShortlistItem sit = shortlistItemRepository.findById(in.getShortlistItemId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Shortlist sətri", in.getShortlistItemId()));
+                item.setShortlistItem(sit);
+                item.setPartyType(sit.getPartyType());
+                item.setContractor(sit.getContractor());
+                item.setInvestor(sit.getInvestor());
+                item.setEquipment(sit.getEquipment());
+            }
+            item.setEquipmentPrice(in.getEquipmentPrice());
+            item.setCustomerEquipmentPrice(in.getCustomerEquipmentPrice());
+            item.setTransportationPrice(in.getTransportationPrice());
+            item.setDayCount(in.getDayCount() != null ? in.getDayCount() : request.getDayCount());
+            item.setStartDate(in.getStartDate());
+            item.setEndDate(in.getEndDate());
+            planItemRepository.save(item);
+        }
     }
 
     public void validateBeforeSubmit(Long requestId) {
@@ -355,15 +407,35 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         CoordinatorPlan existing = planRepository.findByRequestId(requestId)
                 .orElseThrow(() -> new BusinessException("Əvvəlcə koordinator planını doldurun"));
+
+        // Yeni model — çoxlu texnika xətləri varsa onları yoxla
+        List<CoordinatorPlanItem> items = planItemRepository.findAllByPlanIdAndDeletedFalse(existing.getId());
+        if (!items.isEmpty()) {
+            for (CoordinatorPlanItem it : items) {
+                if (it.getEquipment() == null) {
+                    throw new BusinessException("Seçilmiş hər sətrdə texnika olmalıdır");
+                }
+                boolean isCompany = it.getPartyType() == com.ces.erp.projectmanager.entity.PartyType.COMPANY;
+                if (!isCompany && (it.getEquipmentPrice() == null
+                        || it.getEquipmentPrice().compareTo(java.math.BigDecimal.ZERO) <= 0)) {
+                    throw new BusinessException("Hər podratçı/investor texnikası üçün ödəniləcək qiymət daxil edilməlidir");
+                }
+                if (it.getCustomerEquipmentPrice() == null
+                        || it.getCustomerEquipmentPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                    throw new BusinessException("Hər texnika üçün müştəriyə təklif qiyməti daxil edilməlidir");
+                }
+            }
+            return;
+        }
+
+        // Legacy — tək qalib model
         if (existing.getWinnerItem() == null) {
-            throw new BusinessException("Shortlist-dən qalib sətir seçilməlidir");
+            throw new BusinessException("Shortlist-dən ən az bir texnika seçilməlidir");
         }
         if (existing.getWinnerItem().getEquipment() == null) {
             throw new BusinessException("Qalib sətrdə texnika qeyd edilməlidir");
         }
-        // Şirkət texnikasında ödəniş yoxdur — yalnız xarici (podratçı/investor) üçün xərc tələb olunur
-        boolean winnerIsCompany = existing.getWinnerItem() != null
-                && existing.getWinnerItem().getPartyType() == com.ces.erp.projectmanager.entity.PartyType.COMPANY;
+        boolean winnerIsCompany = existing.getWinnerItem().getPartyType() == com.ces.erp.projectmanager.entity.PartyType.COMPANY;
         if (!winnerIsCompany) {
             if (existing.getEquipmentPrice() == null || existing.getEquipmentPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
                 throw new BusinessException("Podratçıya ödənəcək texnika xərci daxil edilməlidir");
@@ -381,14 +453,24 @@ public class CoordinatorPlanService implements ApprovalHandler {
         // Yeni flowda koordinator təklifi PM-ə qaytarır (mərkəzi gateway ilə)
         transitionService.transition(request, RequestStatus.COORDINATOR_PROPOSED, "Koordinator təklifi göndərildi", null);
 
-        // Seçilmiş texnikanın statusunu İcarədə et
+        // Seçilmiş texnika(lar)ın statusunu İcarədə et
         planRepository.findByRequestId(requestId).ifPresent(plan -> {
-            Equipment eq = plan.getSelectedEquipment() != null
-                    ? plan.getSelectedEquipment()
-                    : request.getSelectedEquipment();
-            if (eq != null) {
-                equipmentService.changeStatus(eq, EquipmentStatus.RENTED,
-                        "Koordinator təklifi göndərildi — texnika icarəyə alındı", equipmentService.currentUserOrNull());
+            List<CoordinatorPlanItem> items = planItemRepository.findAllByPlanIdAndDeletedFalse(plan.getId());
+            if (!items.isEmpty()) {
+                for (CoordinatorPlanItem it : items) {
+                    if (it.getEquipment() != null) {
+                        equipmentService.changeStatus(it.getEquipment(), EquipmentStatus.RENTED,
+                                "Koordinator təklifi göndərildi — texnika icarəyə alındı", equipmentService.currentUserOrNull());
+                    }
+                }
+            } else {
+                Equipment eq = plan.getSelectedEquipment() != null
+                        ? plan.getSelectedEquipment()
+                        : request.getSelectedEquipment();
+                if (eq != null) {
+                    equipmentService.changeStatus(eq, EquipmentStatus.RENTED,
+                            "Koordinator təklifi göndərildi — texnika icarəyə alındı", equipmentService.currentUserOrNull());
+                }
             }
         });
 
@@ -419,14 +501,16 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         transitionService.transition(request, RequestStatus.REJECTED, "Koordinator tərəfindən rədd edildi", null);
 
-        // Əgər texnika icarədə idi (Mərhələ B), onu Mövcud-a qaytar
+        // Əgər texnika(lar) icarədə idi (Mərhələ B), onları Mövcud-a qaytar
         planRepository.findByRequestId(requestId).ifPresent(plan -> {
-            Equipment eq = plan.getSelectedEquipment() != null
-                    ? plan.getSelectedEquipment()
-                    : request.getSelectedEquipment();
-            if (eq != null && eq.getStatus() == EquipmentStatus.RENTED) {
-                equipmentService.changeStatus(eq, EquipmentStatus.AVAILABLE,
-                        "Sorğu rədd edildi — texnika azad edildi", equipmentService.currentUserOrNull());
+            List<CoordinatorPlanItem> items = planItemRepository.findAllByPlanIdAndDeletedFalse(plan.getId());
+            if (!items.isEmpty()) {
+                items.forEach(it -> releaseEquipment(it.getEquipment()));
+            } else {
+                Equipment eq = plan.getSelectedEquipment() != null
+                        ? plan.getSelectedEquipment()
+                        : request.getSelectedEquipment();
+                releaseEquipment(eq);
             }
         });
     }
@@ -467,8 +551,13 @@ public class CoordinatorPlanService implements ApprovalHandler {
     /** Seçilmiş texnikanı (plandakı və ya sorğudakı) RENTED → AVAILABLE qaytarır. */
     private void releaseSelectedEquipment(TechRequest request) {
         planRepository.findByRequestId(request.getId()).ifPresentOrElse(plan -> {
-            Equipment eq = plan.getSelectedEquipment() != null ? plan.getSelectedEquipment() : request.getSelectedEquipment();
-            releaseEquipment(eq);
+            List<CoordinatorPlanItem> items = planItemRepository.findAllByPlanIdAndDeletedFalse(plan.getId());
+            if (!items.isEmpty()) {
+                items.forEach(it -> releaseEquipment(it.getEquipment()));
+            } else {
+                Equipment eq = plan.getSelectedEquipment() != null ? plan.getSelectedEquipment() : request.getSelectedEquipment();
+                releaseEquipment(eq);
+            }
         }, () -> releaseEquipment(request.getSelectedEquipment()));
     }
 
@@ -535,12 +624,56 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         CoordinatorPlan plan = planRepository.findByRequestId(requestId)
                 .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+
+        // Bütün məcburi sənədlər işarələnməyincə yoxlama tamamlana bilməz
+        java.util.Set<Long> required = requiredDocItemIds(plan);
+        if (!plan.getCheckedDocumentItemIds().containsAll(required)) {
+            throw new BusinessException("Bütün məcburi sənədlər işarələnməlidir");
+        }
+
         plan.setEquipmentDocsVerified(true);
         plan.setEquipmentDocsCheckedAt(java.time.LocalDateTime.now());
         planRepository.save(plan);
         auditService.log("KOORDİNATOR", request.getId(), request.getRequestCode(),
                 "SƏNƏD_YOXLANDI", "Texnika sənədləri yoxlanıldı");
         return CoordinatorPlanResponse.from(plan);
+    }
+
+    /** Yoxlama checklist-i üçün tək sənəd tipini işarələ / işarəni götür. */
+    @Transactional
+    public CoordinatorPlanResponse toggleDocCheck(Long requestId, Long configItemId, boolean checked) {
+        TechRequest request = findRequestOrThrow(requestId);
+        if (request.getStatus() != RequestStatus.EXECUTION_READY
+                && request.getStatus() != RequestStatus.OPERATOR_ASSIGNED) {
+            throw new BusinessException("Sənəd yoxlaması yalnız icra mərhələsində mümkündür");
+        }
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+        if (checked) {
+            plan.getCheckedDocumentItemIds().add(configItemId);
+        } else {
+            plan.getCheckedDocumentItemIds().remove(configItemId);
+            // İşarə götürülürsə yoxlama "tamamlandı" statusu da geri alınır
+            plan.setEquipmentDocsVerified(false);
+            plan.setEquipmentDocsCheckedAt(null);
+        }
+        planRepository.save(plan);
+        return CoordinatorPlanResponse.from(plan);
+    }
+
+    /** Texnikanın məcburi + LM-in əlavə etdiyi tələb olunan sənəd tiplərinin id-ləri. */
+    private java.util.Set<Long> requiredDocItemIds(CoordinatorPlan plan) {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        Equipment eq = plan.getSelectedEquipment() != null
+                ? plan.getSelectedEquipment()
+                : plan.getRequest().getSelectedEquipment();
+        if (eq != null) {
+            eq.getRequiredDocuments().forEach(ci -> ids.add(ci.getId()));
+        }
+        if (plan.getRequest() != null) {
+            plan.getRequest().getExtraRequiredDocuments().forEach(ci -> ids.add(ci.getId()));
+        }
+        return ids;
     }
 
     @Transactional
@@ -575,6 +708,15 @@ public class CoordinatorPlanService implements ApprovalHandler {
         }
         CoordinatorPlan plan = planRepository.findByRequestId(requestId)
                 .orElseThrow(() -> new BusinessException("Koordinator planı tapılmadı"));
+
+        // Təhvil-təslim aktı yüklənməyincə tamamlanmasın
+        boolean hasAct = !documentRepository
+                .findAllByPlanIdAndDocumentTypeAndDeletedFalse(plan.getId(), "HANDOVER_ACT")
+                .isEmpty();
+        if (!hasAct) {
+            throw new BusinessException("Təhvil-təslim aktı yüklənməyib — əvvəlcə aktı yükləyin");
+        }
+
         plan.setDeliveredAt(java.time.LocalDateTime.now());
         if (notes != null && !notes.isBlank()) plan.setDeliveryNotes(notes);
         planRepository.save(plan);
@@ -585,6 +727,176 @@ public class CoordinatorPlanService implements ApprovalHandler {
         // təsdiqi ilə olur (DocumentCheckService). Burada yalnız təhvil qeydi + texnika statusu (gateway).
 
         return CoordinatorPlanResponse.from(plan);
+    }
+
+    // ═══════════════ İcra — hər texnika xətti ayrı (çoxlu model) ═══════════════
+
+    private CoordinatorPlanItem findItemOrThrow(Long requestId, Long itemId) {
+        CoordinatorPlanItem item = planItemRepository.findByIdAndDeletedFalse(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Texnika xətti", itemId));
+        if (item.getPlan() == null || item.getPlan().getRequest() == null
+                || !item.getPlan().getRequest().getId().equals(requestId)) {
+            throw new BusinessException("Bu xətt bu sorğuya aid deyil");
+        }
+        return item;
+    }
+
+    private void requireExecution(TechRequest request) {
+        if (request.getStatus() != RequestStatus.EXECUTION_READY) {
+            throw new BusinessException("Bu əməliyyat yalnız icra mərhələsində (EXECUTION_READY) mümkündür");
+        }
+    }
+
+    private CoordinatorPlanResponse planResponse(Long requestId) {
+        return planRepository.findByRequestId(requestId).map(CoordinatorPlanResponse::from).orElseThrow();
+    }
+
+    /** Bütün xətlər təhvil verildikdə sorğunu aqreqat olaraq DELIVERED-ə keçir. */
+    private void maybeCompleteDelivery(TechRequest request, CoordinatorPlan plan) {
+        List<CoordinatorPlanItem> items = planItemRepository.findAllByPlanIdAndDeletedFalse(plan.getId());
+        if (items.isEmpty()) return;
+        boolean allDelivered = items.stream().allMatch(it -> it.getDeliveredAt() != null);
+        if (allDelivered && request.getStatus() == RequestStatus.EXECUTION_READY) {
+            changeRequestStatus(request, RequestStatus.DELIVERED, "Bütün texnikalar təhvil verildi");
+        }
+    }
+
+    /** Bir xəttin məcburi sənəd tiplərinin id-ləri (texnika + LM-in əlavələri). */
+    private java.util.Set<Long> requiredDocItemIdsForItem(CoordinatorPlanItem item) {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        if (item.getEquipment() != null) {
+            item.getEquipment().getRequiredDocuments().forEach(ci -> ids.add(ci.getId()));
+        }
+        TechRequest req = item.getPlan() != null ? item.getPlan().getRequest() : null;
+        if (req != null) {
+            req.getExtraRequiredDocuments().forEach(ci -> ids.add(ci.getId()));
+        }
+        return ids;
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse assignOperatorItem(Long requestId, Long itemId, Long operatorId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        requireExecution(request);
+        CoordinatorPlanItem item = findItemOrThrow(requestId, itemId);
+        var operator = operatorRepository.findByIdActive(operatorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Operator", operatorId));
+        item.setOperator(operator);
+        planItemRepository.save(item);
+        return planResponse(requestId);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse resetOperatorItem(Long requestId, Long itemId, String reason) {
+        TechRequest request = findRequestOrThrow(requestId);
+        requireExecution(request);
+        CoordinatorPlanItem item = findItemOrThrow(requestId, itemId);
+        if (item.getDispatchedAt() != null) {
+            throw new BusinessException("Texnika göndərildikdən sonra operator dəyişdirilə bilməz");
+        }
+        item.setOperator(null);
+        planItemRepository.save(item);
+        return planResponse(requestId);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse toggleDocCheckItem(Long requestId, Long itemId, Long configItemId, boolean checked) {
+        TechRequest request = findRequestOrThrow(requestId);
+        requireExecution(request);
+        CoordinatorPlanItem item = findItemOrThrow(requestId, itemId);
+        if (checked) {
+            item.getCheckedDocumentItemIds().add(configItemId);
+        } else {
+            item.getCheckedDocumentItemIds().remove(configItemId);
+            item.setEquipmentDocsVerified(false);
+            item.setEquipmentDocsCheckedAt(null);
+        }
+        planItemRepository.save(item);
+        return planResponse(requestId);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse verifyDocsItem(Long requestId, Long itemId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        requireExecution(request);
+        CoordinatorPlanItem item = findItemOrThrow(requestId, itemId);
+        java.util.Set<Long> required = requiredDocItemIdsForItem(item);
+        if (!item.getCheckedDocumentItemIds().containsAll(required)) {
+            throw new BusinessException("Bütün məcburi sənədlər işarələnməlidir");
+        }
+        item.setEquipmentDocsVerified(true);
+        item.setEquipmentDocsCheckedAt(java.time.LocalDateTime.now());
+        planItemRepository.save(item);
+        return planResponse(requestId);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse dispatchItem(Long requestId, Long itemId) {
+        TechRequest request = findRequestOrThrow(requestId);
+        requireExecution(request);
+        CoordinatorPlanItem item = findItemOrThrow(requestId, itemId);
+        if (item.getOperator() == null) {
+            throw new BusinessException("Göndərmədən əvvəl operator təyin edilməlidir");
+        }
+        if (!item.isEquipmentDocsVerified()) {
+            throw new BusinessException("Göndərmədən əvvəl texnika sənədləri yoxlanmalıdır");
+        }
+        item.setDispatchedAt(java.time.LocalDateTime.now());
+        planItemRepository.save(item);
+        return planResponse(requestId);
+    }
+
+    @Transactional
+    public CoordinatorPlanResponse deliverItem(Long requestId, Long itemId, String notes) {
+        TechRequest request = findRequestOrThrow(requestId);
+        requireExecution(request);
+        CoordinatorPlanItem item = findItemOrThrow(requestId, itemId);
+        if (item.getDispatchedAt() == null) {
+            throw new BusinessException("Təhvil-təslimdən əvvəl texnika göndərilməlidir");
+        }
+        boolean hasAct = !documentRepository
+                .findAllByPlanItemIdAndDocumentTypeAndDeletedFalse(item.getId(), "HANDOVER_ACT")
+                .isEmpty();
+        if (!hasAct) {
+            throw new BusinessException("Təhvil-təslim aktı yüklənməyib — əvvəlcə aktı yükləyin");
+        }
+        item.setDeliveredAt(java.time.LocalDateTime.now());
+        if (notes != null && !notes.isBlank()) item.setDeliveryNotes(notes);
+        planItemRepository.save(item);
+        maybeCompleteDelivery(request, item.getPlan());
+        return planResponse(requestId);
+    }
+
+    /** Xəttə sənəd (təhvil-təslim aktı və s.) yüklə. */
+    @Transactional
+    public CoordinatorPlanResponse uploadItemDocument(Long requestId, Long itemId, MultipartFile file,
+                                                      String documentType, Long userId) {
+        CoordinatorPlanItem item = findItemOrThrow(requestId, itemId);
+        CoordinatorPlan plan = item.getPlan();
+        // Eyni tipli köhnə sənədi əvəz et (akt tək olur)
+        if (documentType != null && !documentType.equals("OTHER")) {
+            for (CoordinatorDocument old : documentRepository
+                    .findAllByPlanItemIdAndDocumentTypeAndDeletedFalse(item.getId(), documentType)) {
+                fileStorageService.delete(old.getFilePath());
+                old.softDelete();
+                documentRepository.save(old);
+            }
+        }
+        String path = fileStorageService.store(file, "coordinator-documents");
+        String original = file.getOriginalFilename();
+        String fileType = original != null && original.contains(".")
+                ? original.substring(original.lastIndexOf(".") + 1).toUpperCase() : "FILE";
+        CoordinatorDocument doc = CoordinatorDocument.builder()
+                .plan(plan)
+                .planItem(item)
+                .filePath(path)
+                .documentName(original)
+                .fileType(fileType)
+                .documentType(documentType)
+                .uploadedBy(userId != null ? userRepository.findById(userId).orElse(null) : null)
+                .build();
+        documentRepository.save(doc);
+        return planResponse(requestId);
     }
 
     /** Bütün koordinator status keçidləri mərkəzi gateway-dən keçir (validasiya + log + audit). */
@@ -601,8 +913,12 @@ public class CoordinatorPlanService implements ApprovalHandler {
         CoordinatorPlan plan = planRepository.findByRequestId(requestId)
                 .orElseThrow(() -> new BusinessException("Əvvəlcə koordinator planını yadda saxlayın"));
 
-        // Məcburi sənəd yenidən yüklənirsə — əvvəlkini sil (koordinator + qaraj)
-        if (documentType != null && !documentType.equals("OTHER")) {
+        // Məcburi tək sənəd yenidən yüklənirsə — əvvəlkini sil (koordinator + qaraj).
+        // OTHER və DISPATCH_PHOTO çoxlu fayla icazə verir — köhnələr saxlanılır.
+        boolean replacePrevious = documentType != null
+                && !documentType.equals("OTHER")
+                && !documentType.equals("DISPATCH_PHOTO");
+        if (replacePrevious) {
             List<CoordinatorDocument> oldDocs = documentRepository
                     .findAllByPlanIdAndDocumentTypeAndDeletedFalse(plan.getId(), documentType);
             for (CoordinatorDocument old : oldDocs) {
@@ -676,6 +992,25 @@ public class CoordinatorPlanService implements ApprovalHandler {
                 .orElseThrow(() -> new ResourceNotFoundException("Plan", requestId));
         CoordinatorDocument doc = documentRepository.findByIdAndPlanIdAndDeletedFalse(documentId, plan.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Sənəd", documentId));
+        return fileStorageService.resolve(doc.getFilePath());
+    }
+
+    /**
+     * Texnikanın qarajda yüklənmiş sənədini koordinator yoxlaması üçün aç.
+     * Təhlükəsizlik: sənəd bu sorğunun planındakı texnikalardan birinə aid olmalıdır.
+     */
+    public Path resolveEquipmentDocument(Long requestId, Long documentId) {
+        CoordinatorPlan plan = planRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Plan", requestId));
+        EquipmentDocument doc = equipmentDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Texnika sənədi", documentId));
+        boolean belongs = doc.getEquipment() != null && planItemRepository.findAllByPlanIdAndDeletedFalse(plan.getId())
+                .stream()
+                .anyMatch(it -> it.getEquipment() != null
+                        && it.getEquipment().getId().equals(doc.getEquipment().getId()));
+        if (!belongs) {
+            throw new ResourceNotFoundException("Texnika sənədi", documentId);
+        }
         return fileStorageService.resolve(doc.getFilePath());
     }
 

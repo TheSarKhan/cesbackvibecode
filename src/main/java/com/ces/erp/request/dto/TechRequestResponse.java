@@ -35,6 +35,9 @@ public class TechRequestResponse {
     // Daşınma
     private boolean transportationRequired;
 
+    // Ödəniş növü: CASH | TRANSFER
+    private String paymentMethod;
+
     // Texniki parametrlər
     private List<ParamDto> params;
 
@@ -74,6 +77,7 @@ public class TechRequestResponse {
                 .projectType(r.getProjectType())
                 .dayCount(r.getDayCount())
                 .transportationRequired(r.isTransportationRequired())
+                .paymentMethod(r.getPaymentMethod())
                 .params(params)
                 .selectedEquipmentId(r.getSelectedEquipment() != null ? r.getSelectedEquipment().getId() : null)
                 .selectedEquipmentName(r.getSelectedEquipment() != null ? r.getSelectedEquipment().getName() : null)

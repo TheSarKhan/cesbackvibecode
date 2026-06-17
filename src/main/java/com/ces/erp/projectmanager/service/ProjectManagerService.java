@@ -10,6 +10,8 @@ import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.contractor.entity.Contractor;
 import com.ces.erp.contractor.repository.ContractorRepository;
 import com.ces.erp.coordinator.dto.CoordinatorPlanResponse;
+import com.ces.erp.coordinator.entity.CoordinatorPlanItem;
+import com.ces.erp.coordinator.repository.CoordinatorPlanItemRepository;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.ProjectStatus;
@@ -58,12 +60,14 @@ public class ProjectManagerService implements ApprovalHandler {
     private final RequestShortlistRepository shortlistRepository;
     private final ShortlistItemRepository shortlistItemRepository;
     private final CoordinatorPlanRepository coordinatorPlanRepository;
+    private final CoordinatorPlanItemRepository coordinatorPlanItemRepository;
     private final ContractorRepository contractorRepository;
     private final InvestorRepository investorRepository;
     private final EquipmentRepository equipmentRepository;
     private final com.ces.erp.garage.service.EquipmentService equipmentService;
     private final ProjectRepository projectRepository;
     private final RequestDocumentRepository requestDocumentRepository;
+    private final com.ces.erp.config.repository.ConfigItemRepository configItemRepository;
     private final AuditService auditService;
     private final RequestTransitionService transitionService;
 
@@ -145,12 +149,28 @@ public class ProjectManagerService implements ApprovalHandler {
                     .toList());
         }
 
+        // PM-in dəqiqləşdirdiyi əlavə tələb olunan sənədlər
+        resp.setExtraRequiredDocuments(request.getExtraRequiredDocuments().stream()
+                .map(ci -> PmRequestResponse.DocItemDto.builder().id(ci.getId()).name(ci.getKey()).build())
+                .toList());
+
         // Shortlist
         shortlistRepository.findByRequestIdAndDeletedFalse(requestId).ifPresent(sl -> {
             resp.setShortlistId(sl.getId());
             resp.setShortlistNotes(sl.getNotes());
-            resp.setShortlistItems(shortlistItemRepository.findAllByShortlistIdAndDeletedFalse(sl.getId()).stream()
-                    .map(ShortlistItemDto::from)
+            var items = shortlistItemRepository.findAllByShortlistIdAndDeletedFalse(sl.getId());
+            resp.setShortlistItems(items.stream().map(ShortlistItemDto::from).toList());
+
+            // Shortlist texnikalarının məcburi sənədləri (informativ — union, distinct)
+            java.util.Map<Long, String> eqDocs = new java.util.LinkedHashMap<>();
+            for (var it : items) {
+                if (it.getEquipment() != null && it.getEquipment().getRequiredDocuments() != null) {
+                    it.getEquipment().getRequiredDocuments()
+                            .forEach(ci -> eqDocs.putIfAbsent(ci.getId(), ci.getKey()));
+                }
+            }
+            resp.setEquipmentRequiredDocuments(eqDocs.entrySet().stream()
+                    .map(e -> PmRequestResponse.DocItemDto.builder().id(e.getKey()).name(e.getValue()).build())
                     .toList());
         });
 
@@ -169,6 +189,7 @@ public class ProjectManagerService implements ApprovalHandler {
                 .fileName(d.getFileName())
                 .uploadedByName(d.getUploadedBy() != null ? d.getUploadedBy().getFullName() : null)
                 .uploadedAt(d.getCreatedAt())
+                .planItemId(d.getPlanItem() != null ? d.getPlanItem().getId() : null)
                 .build()).toList());
 
         return resp;
@@ -238,6 +259,57 @@ public class ProjectManagerService implements ApprovalHandler {
     }
 
     /**
+     * Çoxlu texnika — bir texnika xətti üçün sifarişçi razılaşması.
+     * Hər xəttin öz razılaşdırılmış qiyməti, daşınması və qeydi olur. Sorğunun
+     * ümumi agreedTotalPrice-ı bütün xətlərin cəmindən hesablanır (mühasibatlıq xülasəsi üçün).
+     */
+    @Transactional
+    public PmRequestResponse saveCustomerAgreementItem(Long requestId, Long itemId, CustomerAgreementRequest req) {
+        TechRequest r = findOrThrow(requestId);
+        requireStatusIn(r, Set.of(RequestStatus.COORDINATOR_PROPOSED, RequestStatus.PM_PRICE_NEGOTIATION));
+
+        CoordinatorPlanItem item = coordinatorPlanItemRepository.findByIdAndDeletedFalse(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Texnika xətti", itemId));
+        if (item.getPlan() == null || item.getPlan().getRequest() == null
+                || !item.getPlan().getRequest().getId().equals(requestId)) {
+            throw new BusinessException("Bu xətt bu sorğuya aid deyil");
+        }
+
+        if (req.getAgreedEquipmentPrice() != null) item.setAgreedEquipmentPrice(req.getAgreedEquipmentPrice());
+        if (req.getAgreedTransportPrice() != null) item.setAgreedTransportPrice(req.getAgreedTransportPrice());
+
+        java.math.BigDecimal eq = item.getAgreedEquipmentPrice() != null
+                ? item.getAgreedEquipmentPrice() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal tr = item.getAgreedTransportPrice() != null
+                ? item.getAgreedTransportPrice() : java.math.BigDecimal.ZERO;
+        if (req.getAgreedTotalPrice() != null) {
+            item.setAgreedTotalPrice(req.getAgreedTotalPrice());
+        } else {
+            int units = item.getDayCount() != null && item.getDayCount() > 0 ? item.getDayCount()
+                    : (r.getDayCount() != null && r.getDayCount() > 0 ? r.getDayCount() : 1);
+            item.setAgreedTotalPrice(eq.multiply(java.math.BigDecimal.valueOf(units)).add(tr));
+        }
+        if (req.getAgreementNote() != null) {
+            item.setAgreementNote(req.getAgreementNote().isBlank() ? null : req.getAgreementNote().trim());
+        }
+        coordinatorPlanItemRepository.save(item);
+
+        // Sorğu səviyyəsində ümumi razılaşma məbləği = bütün xətlərin cəmi
+        java.math.BigDecimal sum = java.math.BigDecimal.ZERO;
+        for (CoordinatorPlanItem it : coordinatorPlanItemRepository.findAllByPlanIdAndDeletedFalse(item.getPlan().getId())) {
+            if (it.getAgreedTotalPrice() != null) sum = sum.add(it.getAgreedTotalPrice());
+        }
+        r.setAgreedTotalPrice(sum);
+
+        if (r.getStatus() == RequestStatus.COORDINATOR_PROPOSED) {
+            changeStatus(r, RequestStatus.PM_PRICE_NEGOTIATION, "Sifarişçi ilə danışıq başladı");
+        } else {
+            requestRepository.save(r);
+        }
+        return getRequest(requestId);
+    }
+
+    /**
      * LM addımı 1.3 — Sifarişçi ofisindəki əlaqə şəxsini qeyd et.
      * PM sorğunu PM_REVIEW və ya PM_SHORTLIST_READY statusunda iken dəyişə bilər.
      */
@@ -252,6 +324,18 @@ public class ProjectManagerService implements ApprovalHandler {
     }
 
     @Transactional
+    public PmRequestResponse saveRequiredDocuments(Long requestId, List<Long> documentItemIds) {
+        TechRequest r = findOrThrow(requestId);
+        requireStatusIn(r, Set.of(RequestStatus.PM_REVIEW, RequestStatus.PM_SHORTLIST_READY));
+        r.getExtraRequiredDocuments().clear();
+        if (documentItemIds != null && !documentItemIds.isEmpty()) {
+            r.getExtraRequiredDocuments().addAll(configItemRepository.findAllById(documentItemIds));
+        }
+        requestRepository.save(r);
+        return getRequest(requestId);
+    }
+
+    @Transactional
     @RequiresApproval(module = "PROJECT_MANAGER", entityType = "PM_APPROVE")
     public PmRequestResponse approve(Long requestId) {
         approveInternal(requestId);
@@ -261,6 +345,21 @@ public class ProjectManagerService implements ApprovalHandler {
     private void approveInternal(Long requestId) {
         TechRequest r = findOrThrow(requestId);
         requireStatus(r, RequestStatus.PM_PRICE_NEGOTIATION);
+
+        // Bütün texnika xətləri sifarişçi ilə razılaşdırılmalıdır (çoxlu model)
+        List<CoordinatorPlanItem> agreementItems = coordinatorPlanRepository.findByRequestId(requestId)
+                .map(p -> coordinatorPlanItemRepository.findAllByPlanIdAndDeletedFalse(p.getId()))
+                .orElseGet(List::of);
+        if (!agreementItems.isEmpty()) {
+            for (CoordinatorPlanItem it : agreementItems) {
+                if (it.getAgreedTotalPrice() == null) {
+                    String eqName = it.getEquipment() != null ? it.getEquipment().getName() : ("Xətt #" + it.getId());
+                    throw new BusinessException(eqName + " üçün sifarişçi razılaşması daxil edilməlidir");
+                }
+            }
+        } else if (r.getAgreedTotalPrice() == null) {
+            throw new BusinessException("Sifarişçi razılaşması daxil edilməlidir");
+        }
 
         changeStatus(r, RequestStatus.PM_APPROVED, "PM təsdiqlədi");
 
@@ -435,8 +534,13 @@ public class ProjectManagerService implements ApprovalHandler {
     /** Seçilmiş texnikanı (koordinator planındakı və ya sorğudakı) AVAILABLE-ə qaytarır. */
     private void releaseSelectedEquipment(TechRequest r) {
         coordinatorPlanRepository.findByRequestId(r.getId()).ifPresentOrElse(plan -> {
-            Equipment eq = plan.getSelectedEquipment() != null ? plan.getSelectedEquipment() : r.getSelectedEquipment();
-            releaseEquipment(eq);
+            var items = plan.getItems().stream().filter(it -> !it.isDeleted()).toList();
+            if (!items.isEmpty()) {
+                items.forEach(it -> releaseEquipment(it.getEquipment()));
+            } else {
+                Equipment eq = plan.getSelectedEquipment() != null ? plan.getSelectedEquipment() : r.getSelectedEquipment();
+                releaseEquipment(eq);
+            }
         }, () -> releaseEquipment(r.getSelectedEquipment()));
     }
 

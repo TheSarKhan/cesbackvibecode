@@ -63,6 +63,7 @@ public class InvoiceService implements ApprovalHandler {
     private final InvestorRepository investorRepository;
     private final CustomerRepository customerRepository;
     private final CoordinatorPlanRepository coordinatorPlanRepository;
+    private final com.ces.erp.garage.repository.EquipmentRepository equipmentRepository;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final AuditService auditService;
@@ -201,8 +202,12 @@ public class InvoiceService implements ApprovalHandler {
             var proj = projectRepository.findById(req.getProjectId())
                     .orElseThrow(() -> new ResourceNotFoundException("Layihə", req.getProjectId()));
             inv.setProject(proj);
-            // Texnikanı layihə → tələb → seçilmiş texnika zəncirindən ID ilə bağla (qazanc hesabatı üçün)
-            if (proj.getRequest() != null && proj.getRequest().getSelectedEquipment() != null) {
+            // Çoxlu texnika: qaimə konkret texnika xəttinə bağlıdırsa onu götür;
+            // əks halda köhnə davranış (layihə → tələb → seçilmiş texnika).
+            if (req.getEquipmentId() != null) {
+                inv.setEquipment(equipmentRepository.findById(req.getEquipmentId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Texnika", req.getEquipmentId())));
+            } else if (proj.getRequest() != null && proj.getRequest().getSelectedEquipment() != null) {
                 inv.setEquipment(proj.getRequest().getSelectedEquipment());
             }
         }
@@ -336,6 +341,11 @@ public class InvoiceService implements ApprovalHandler {
         if (req.getNotes() != null) inv.setNotes(req.getNotes().isBlank() ? null : req.getNotes().trim());
         // Status SENT-ə keçirsə → avtomatik ID yarat
         if (req.getStatus() != null) {
+            // Təhvil-təslim aktı yüklənmədən gəlir qaiməsi mühasibatlığa göndərilə bilməz
+            if (req.getStatus() == InvoiceStatus.SENT && prevStatus != InvoiceStatus.SENT
+                    && inv.getType() == InvoiceType.INCOME && inv.getAktFilePath() == null) {
+                throw new BusinessException("Təhvil-təslim aktı yüklənmədən qaimə mühasibatlığa göndərilə bilməz");
+            }
             if (req.getStatus() == InvoiceStatus.SENT && inv.getAccountingId() == null) {
                 inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear(), inv.getType()));
             }
@@ -473,9 +483,12 @@ public class InvoiceService implements ApprovalHandler {
         var plan = coordinatorPlanRepository.findByRequestId(project.getRequest().getId()).orElse(null);
         log.info("[autoCreateExpenseInvoice] Plan tapıldı: {}", plan != null ? "BƏLİ (id=" + plan.getId() + ")" : "XEYR");
 
-        Equipment eq = plan != null && plan.getSelectedEquipment() != null
-                ? plan.getSelectedEquipment()
-                : project.getRequest().getSelectedEquipment();
+        // Çoxlu texnika: gəlir qaiməsi konkret texnika xəttinə bağlıdırsa onu işlət
+        Equipment eq = incomeInvoice.getEquipment() != null
+                ? incomeInvoice.getEquipment()
+                : (plan != null && plan.getSelectedEquipment() != null
+                        ? plan.getSelectedEquipment()
+                        : project.getRequest().getSelectedEquipment());
         if (eq == null) {
             log.warn("[autoCreateExpenseInvoice] Texnika tapılmadı (plan və request hər ikisində boş) — keçirik");
             return;
@@ -492,9 +505,18 @@ public class InvoiceService implements ApprovalHandler {
         BigDecimal expenseAmount = BigDecimal.ZERO;
         if (plan != null) {
             boolean isDaily = project.getRequest().getProjectType() == ProjectType.DAILY;
-            // Sahibə (investor/podratçı) gündəlik ödəniş dərəcəsi:
-            // contractorDailyRate, yoxdursa equipmentPrice (= koordinatorda "bizim ödəyəcəyimiz" cost).
-            BigDecimal dailyRate = plan.getContractorDailyRate();
+            // Sahibə (investor/podratçı) gündəlik ödəniş dərəcəsi.
+            // Çoxlu model: bu texnikaya uyğun plan xəttinin cost-u (equipmentPrice).
+            // Yoxdursa köhnə davranış: plan.contractorDailyRate → plan.equipmentPrice.
+            BigDecimal dailyRate = null;
+            var lineItem = plan.getItems().stream()
+                    .filter(i -> !i.isDeleted() && i.getEquipment() != null && eq != null
+                            && i.getEquipment().getId().equals(eq.getId()))
+                    .findFirst().orElse(null);
+            if (lineItem != null) dailyRate = lineItem.getEquipmentPrice();
+            if (dailyRate == null || dailyRate.compareTo(BigDecimal.ZERO) <= 0) {
+                dailyRate = plan.getContractorDailyRate();
+            }
             if (dailyRate == null || dailyRate.compareTo(BigDecimal.ZERO) <= 0) {
                 dailyRate = plan.getEquipmentPrice();
             }
@@ -630,6 +652,11 @@ public class InvoiceService implements ApprovalHandler {
         // Səhv konfiqurasiyaya qarşı son qoruma — amount null-a düşməsin
         if (inv.getAmount() == null) {
             throw new BusinessException("Qaimə məbləği boş ola bilməz. Standart günlər və aylıq dərəcə daxil edin.");
+        }
+
+        // Təhvil-təslim aktı yüklənmədən gəlir qaiməsi yenidən mühasibatlığa göndərilə bilməz
+        if (inv.getType() == InvoiceType.INCOME && inv.getAktFilePath() == null) {
+            throw new BusinessException("Təhvil-təslim aktı yüklənmədən qaimə mühasibatlığa göndərilə bilməz");
         }
 
         // Əgər bu qaimənin hələ accountingId-si yoxdursa yarat (ilk dəfə resubmit olan köhnə qaimələr üçün)

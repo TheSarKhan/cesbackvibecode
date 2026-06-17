@@ -148,6 +148,19 @@ public class CoordinatorPlanController {
                 planService.verifyEquipmentDocs(requestId)));
     }
 
+    @PutMapping("/requests/{requestId}/doc-check")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Yoxlama checklist-ində tək sənəd tipini işarələ / işarəni götür")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> toggleDocCheck(
+            @PathVariable Long requestId,
+            @RequestBody Map<String, Object> body) {
+        Long configItemId = body.get("configItemId") != null
+                ? Long.valueOf(body.get("configItemId").toString()) : null;
+        boolean checked = Boolean.TRUE.equals(body.get("checked"));
+        return ResponseEntity.ok(ApiResponse.success("Yadda saxlandı",
+                planService.toggleDocCheck(requestId, configItemId, checked)));
+    }
+
     @PostMapping("/requests/{requestId}/dispatch")
     @PreAuthorize("hasAuthority('COORDINATOR:DISPATCH')")
     @Operation(summary = "Texnikanı yüklə və göndər (OPERATOR_ASSIGNED → EQUIPMENT_DISPATCHED)")
@@ -164,6 +177,81 @@ public class CoordinatorPlanController {
         String notes = body != null ? body.get("notes") : null;
         return ResponseEntity.ok(ApiResponse.success("Təhvil-təslim tamamlandı",
                 planService.deliver(requestId, notes)));
+    }
+
+    // ─── İcra: hər texnika xətti ayrı (çoxlu model) ──────────────────────────
+
+    @PostMapping("/requests/{requestId}/items/{itemId}/assign-operator")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Xəttə operator təyin et")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> assignOperatorItem(
+            @PathVariable Long requestId, @PathVariable Long itemId, @RequestParam Long operatorId) {
+        return ResponseEntity.ok(ApiResponse.success("Operator təyin edildi",
+                planService.assignOperatorItem(requestId, itemId, operatorId)));
+    }
+
+    @PostMapping("/requests/{requestId}/items/{itemId}/reset-operator")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Xəttin operatorunu sıfırla")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> resetOperatorItem(
+            @PathVariable Long requestId, @PathVariable Long itemId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(ApiResponse.success("Operator sıfırlandı",
+                planService.resetOperatorItem(requestId, itemId, reason)));
+    }
+
+    @PutMapping("/requests/{requestId}/items/{itemId}/doc-check")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Xəttin sənəd checklist-ində işarə qoy/götür")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> toggleDocCheckItem(
+            @PathVariable Long requestId, @PathVariable Long itemId,
+            @RequestBody Map<String, Object> body) {
+        Long configItemId = body.get("configItemId") != null ? Long.valueOf(body.get("configItemId").toString()) : null;
+        boolean checked = Boolean.TRUE.equals(body.get("checked"));
+        return ResponseEntity.ok(ApiResponse.success("Yadda saxlandı",
+                planService.toggleDocCheckItem(requestId, itemId, configItemId, checked)));
+    }
+
+    @PostMapping("/requests/{requestId}/items/{itemId}/verify-equipment-docs")
+    @PreAuthorize("hasAuthority('COORDINATOR:PUT')")
+    @Operation(summary = "Xəttin texnika sənədlərini yoxlanıldı kimi işarələ")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> verifyDocsItem(
+            @PathVariable Long requestId, @PathVariable Long itemId) {
+        return ResponseEntity.ok(ApiResponse.success("Sənədlər yoxlanıldı",
+                planService.verifyDocsItem(requestId, itemId)));
+    }
+
+    @PostMapping("/requests/{requestId}/items/{itemId}/dispatch")
+    @PreAuthorize("hasAuthority('COORDINATOR:DISPATCH')")
+    @Operation(summary = "Xəttin texnikasını yüklə və göndər")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> dispatchItem(
+            @PathVariable Long requestId, @PathVariable Long itemId) {
+        return ResponseEntity.ok(ApiResponse.success("Texnika göndərildi",
+                planService.dispatchItem(requestId, itemId)));
+    }
+
+    @PostMapping("/requests/{requestId}/items/{itemId}/deliver")
+    @PreAuthorize("hasAuthority('COORDINATOR:DELIVER')")
+    @Operation(summary = "Xəttin təhvil-təslimini tamamla")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> deliverItem(
+            @PathVariable Long requestId, @PathVariable Long itemId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String notes = body != null ? body.get("notes") : null;
+        return ResponseEntity.ok(ApiResponse.success("Təhvil-təslim tamamlandı",
+                planService.deliverItem(requestId, itemId, notes)));
+    }
+
+    @PostMapping("/requests/{requestId}/items/{itemId}/documents")
+    @PreAuthorize("hasAuthority('COORDINATOR:POST')")
+    @Operation(summary = "Xəttə sənəd (təhvil-təslim aktı) yüklə")
+    public ResponseEntity<ApiResponse<CoordinatorPlanResponse>> uploadItemDocument(
+            @PathVariable Long requestId, @PathVariable Long itemId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "documentType", defaultValue = "HANDOVER_ACT") String documentType,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Sənəd əlavə edildi",
+                planService.uploadItemDocument(requestId, itemId, file, documentType, principal.getId())));
     }
 
     @PutMapping("/requests/{requestId}/equipment")
@@ -206,6 +294,23 @@ public class CoordinatorPlanController {
             @PathVariable Long requestId,
             @PathVariable Long documentId) throws MalformedURLException, IOException {
         Path filePath = planService.resolveDocument(requestId, documentId);
+        Resource resource = new UrlResource(filePath.toUri());
+        String ct = Files.probeContentType(filePath);
+        MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filePath.getFileName().toString() + "\"")
+                .contentType(mediaType)
+                .body(resource);
+    }
+
+    @GetMapping("/requests/{requestId}/equipment-documents/{documentId}/download")
+    @PreAuthorize("hasAuthority('COORDINATOR:GET')")
+    @Operation(summary = "Texnikanın sənədini yüklə (koordinator yoxlaması üçün)")
+    public ResponseEntity<Resource> downloadEquipmentDocument(
+            @PathVariable Long requestId,
+            @PathVariable Long documentId) throws MalformedURLException, IOException {
+        Path filePath = planService.resolveEquipmentDocument(requestId, documentId);
         Resource resource = new UrlResource(filePath.toUri());
         String ct = Files.probeContentType(filePath);
         MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;

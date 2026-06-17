@@ -502,6 +502,11 @@ public class EquipmentService implements ApprovalHandler {
             e.getSafetyEquipment().addAll(configItemRepository.findAllById(r.getSafetyEquipmentIds()));
         }
 
+        if (r.getRequiredDocumentIds() != null) {
+            e.getRequiredDocuments().clear();
+            e.getRequiredDocuments().addAll(configItemRepository.findAllById(r.getRequiredDocumentIds()));
+        }
+
         return e;
     }
 

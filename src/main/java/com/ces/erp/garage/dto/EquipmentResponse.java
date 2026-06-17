@@ -62,6 +62,7 @@ public class EquipmentResponse {
     private List<DocumentResponse> documents;
     private List<ImageResponse> images;
     private List<SafetyItemDto> safetyEquipment;
+    private List<SafetyItemDto> requiredDocuments;
     private LocalDateTime createdAt;
 
     @Data
@@ -111,6 +112,9 @@ public class EquipmentResponse {
                 .documents(e.getDocuments().stream().map(DocumentResponse::from).toList())
                 .images(e.getImages().stream().map(ImageResponse::from).toList())
                 .safetyEquipment(e.getSafetyEquipment().stream()
+                        .map(s -> SafetyItemDto.builder().id(s.getId()).name(s.getKey()).build())
+                        .toList())
+                .requiredDocuments(e.getRequiredDocuments().stream()
                         .map(s -> SafetyItemDto.builder().id(s.getId()).name(s.getKey()).build())
                         .toList())
                 .createdAt(e.getCreatedAt())

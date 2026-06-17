@@ -237,6 +237,7 @@ public class TechRequestService implements ApprovalHandler {
         entity.setProjectType(req.getProjectType());
         entity.setDayCount(req.getDayCount());
         entity.setTransportationRequired(req.isTransportationRequired());
+        entity.setPaymentMethod(req.getPaymentMethod());
         entity.setNotes(req.getNotes());
 
         List<TechParam> params = req.getParams() == null ? List.of() :

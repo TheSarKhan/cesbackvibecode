@@ -115,4 +115,7 @@ public class EquipmentRequest {
 
     @NotEmpty(message = "Ən azı bir təhlükəsizlik avadanlığı seçilməlidir")
     private List<Long> safetyEquipmentIds;
+
+    // Texnikanın məcburi sənəd tipləri (config item id-ləri) — opsional
+    private List<Long> requiredDocumentIds;
 }

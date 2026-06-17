@@ -16,4 +16,15 @@ public interface RequestDocumentRepository extends JpaRepository<RequestDocument
     Optional<RequestDocument> findByRequestIdAndDocTypeAndDeletedFalse(Long requestId, RequestDocumentType docType);
 
     boolean existsByRequestIdAndDocTypeAndDeletedFalse(Long requestId, RequestDocumentType docType);
+
+    // Çoxlu texnika: konkret xətt üzrə sənəd
+    Optional<RequestDocument> findByRequestIdAndDocTypeAndPlanItemIdAndDeletedFalse(
+            Long requestId, RequestDocumentType docType, Long planItemId);
+
+    // Sorğu səviyyəli (xəttə bağlı olmayan) sənəd
+    Optional<RequestDocument> findByRequestIdAndDocTypeAndPlanItemIsNullAndDeletedFalse(
+            Long requestId, RequestDocumentType docType);
+
+    boolean existsByRequestIdAndDocTypeAndPlanItemIdAndDeletedFalse(
+            Long requestId, RequestDocumentType docType, Long planItemId);
 }

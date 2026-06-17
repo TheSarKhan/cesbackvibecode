@@ -1,11 +1,13 @@
 package com.ces.erp.request.entity;
 
 import com.ces.erp.common.entity.BaseEntity;
+import com.ces.erp.config.entity.ConfigItem;
 import com.ces.erp.customer.entity.Customer;
 import com.ces.erp.enums.ProjectType;
 import com.ces.erp.enums.RequestStatus;
 import com.ces.erp.garage.entity.Equipment;
 import com.ces.erp.user.entity.User;
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -73,6 +75,11 @@ public class TechRequest extends BaseEntity {
     @Builder.Default
     private boolean transportationRequired = false;
 
+    // ─── Ödəniş növü: CASH (nağd) və ya TRANSFER (köçürmə) ─────────────────────
+
+    @Column(length = 20)
+    private String paymentMethod;
+
     // ─── Texniki parametrlər (Key-Value) ──────────────────────────────────────
 
     @ElementCollection(fetch = FetchType.EAGER)
@@ -94,6 +101,17 @@ public class TechRequest extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    // ─── PM-in dəqiqləşdirdiyi əlavə tələb olunan sənədlər (LM ilk baxış) ──────
+    // Texnikanın öz məcburi sənədlərinə əlavə olaraq bu sorğu üçün lazım olanlar.
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "request_required_documents",
+            joinColumns = @JoinColumn(name = "request_id"),
+            inverseJoinColumns = @JoinColumn(name = "config_item_id"))
+    @BatchSize(size = 50)
+    @Builder.Default
+    private List<ConfigItem> extraRequiredDocuments = new ArrayList<>();
 
     // ─── PM-in əlavə etdiyi sifarişçi ofis əlaqəsi (LM addımı 1.3) ───────────
 

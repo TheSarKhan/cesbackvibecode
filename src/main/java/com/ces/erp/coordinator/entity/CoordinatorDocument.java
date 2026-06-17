@@ -18,6 +18,11 @@ public class CoordinatorDocument extends BaseEntity {
     @JoinColumn(name = "plan_id", nullable = false)
     private CoordinatorPlan plan;
 
+    // Sənəd konkret texnika xəttinə aiddirsə (məs. təhvil-təslim aktı) — opsional
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plan_item_id")
+    private CoordinatorPlanItem planItem;
+
     private String documentName;
 
     @Column(nullable = false)

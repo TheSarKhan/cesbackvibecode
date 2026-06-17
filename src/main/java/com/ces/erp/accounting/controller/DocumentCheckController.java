@@ -65,6 +65,32 @@ public class DocumentCheckController {
                 service.uploadDocument(requestId, RequestDocumentType.PRICE_PROTOCOL, file, principal.getId())));
     }
 
+    // ─── Çoxlu texnika: xətt üzrə sənəd yükləmə (mühasib də yükləyə bilər) ────
+
+    @PostMapping(value = "/{requestId}/items/{itemId}/upload-contract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('ACCOUNTING:POST')")
+    @Operation(summary = "Bir texnika xətti üçün müqavilə faylı yüklə")
+    public ResponseEntity<ApiResponse<RequestDocumentCheckResponse>> uploadContractItem(
+            @PathVariable Long requestId,
+            @PathVariable Long itemId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Müqavilə yükləndi",
+                service.uploadDocument(requestId, RequestDocumentType.CONTRACT, file, principal.getId(), itemId)));
+    }
+
+    @PostMapping(value = "/{requestId}/items/{itemId}/upload-price-protocol", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('ACCOUNTING:POST')")
+    @Operation(summary = "Bir texnika xətti üçün qiymət razılaşma protokolu yüklə")
+    public ResponseEntity<ApiResponse<RequestDocumentCheckResponse>> uploadProtocolItem(
+            @PathVariable Long requestId,
+            @PathVariable Long itemId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Protokol yükləndi",
+                service.uploadDocument(requestId, RequestDocumentType.PRICE_PROTOCOL, file, principal.getId(), itemId)));
+    }
+
     @DeleteMapping("/{requestId}/documents/{documentId}")
     @PreAuthorize("hasAuthority('ACCOUNTING:DELETE')")
     @Operation(summary = "Yüklənmiş sənədi sil")

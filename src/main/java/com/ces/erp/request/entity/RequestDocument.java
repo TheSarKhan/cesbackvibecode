@@ -1,6 +1,7 @@
 package com.ces.erp.request.entity;
 
 import com.ces.erp.common.entity.BaseEntity;
+import com.ces.erp.coordinator.entity.CoordinatorPlanItem;
 import com.ces.erp.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,6 +22,11 @@ public class RequestDocument extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "request_id", nullable = false)
     private TechRequest request;
+
+    // Çoxlu texnika: sənəd konkret texnika xəttinə bağlana bilər (null = sorğu səviyyəsində / köhnə)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plan_item_id")
+    private CoordinatorPlanItem planItem;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)

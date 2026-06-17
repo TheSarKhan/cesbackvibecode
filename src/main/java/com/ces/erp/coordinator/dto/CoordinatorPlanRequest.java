@@ -39,6 +39,22 @@ public class CoordinatorPlanRequest {
 
     private String notes;
 
+    // ─── Yeni model — layihəyə seçilmiş texnika xətləri (çoxlu) ────────────────
+    // Bu siyahı verilirsə, koordinator çoxlu texnika seçmiş sayılır.
+    private List<PlanItemInput> items;
+
+    @Data
+    public static class PlanItemInput {
+        private Long id;                          // CoordinatorPlanItem id (update) / null (create)
+        private Long shortlistItemId;             // mənbə shortlist sətri (create üçün məcburi)
+        private BigDecimal equipmentPrice;        // sahibə ödəyəcəyimiz (cost) — şirkətdə 0
+        private BigDecimal customerEquipmentPrice;// müştəriyə təklif (revenue)
+        private BigDecimal transportationPrice;   // birdəfəlik daşınma (bu texnika üçün)
+        private Integer dayCount;                 // öz müddəti
+        private LocalDate startDate;
+        private LocalDate endDate;
+    }
+
     @Data
     public static class ShortlistRowInput {
         private Long itemId;             // null → yeni sətir yarat, var → mövcud sətri yenilə

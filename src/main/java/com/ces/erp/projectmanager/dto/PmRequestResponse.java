@@ -52,6 +52,12 @@ public class PmRequestResponse {
     // Sorğunun texniki parametrləri (key-value)
     private List<ParamDto> params;
 
+    // PM-in dəqiqləşdirdiyi əlavə tələb olunan sənədlər
+    private List<DocItemDto> extraRequiredDocuments;
+
+    // Shortlist texnikalarının öz məcburi sənədləri (informativ — union)
+    private List<DocItemDto> equipmentRequiredDocuments;
+
     // PM-in yaratdığı shortlist (detal görünüşdə)
     private Long shortlistId;
     private String shortlistNotes;
@@ -74,12 +80,20 @@ public class PmRequestResponse {
 
     @Data
     @Builder
+    public static class DocItemDto {
+        private Long id;
+        private String name;
+    }
+
+    @Data
+    @Builder
     public static class DocumentDto {
         private Long id;
         private String docType;           // CONTRACT | PRICE_PROTOCOL
         private String fileName;
         private String uploadedByName;
         private java.time.LocalDateTime uploadedAt;
+        private Long planItemId;          // hansı texnika xəttinə aiddir (null = sorğu səviyyəsi)
     }
 
     public static PmRequestResponse fromList(TechRequest r) {

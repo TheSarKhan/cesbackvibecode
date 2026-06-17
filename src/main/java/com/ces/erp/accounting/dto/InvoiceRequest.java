@@ -32,6 +32,8 @@ public class InvoiceRequest {
 
     private String equipmentName;   // Type A, B1
 
+    private Long equipmentId;       // Çoxlu texnika: bu qaimə hansı texnika xəttinə aiddir
+
     private String companyName;     // Type A (müştəri), B2 (xidmət şirkəti)
 
     private String serviceDescription; // Type B2

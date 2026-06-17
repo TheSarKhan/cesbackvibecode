@@ -57,8 +57,11 @@ public class RequestTransitionService {
         // Geri: maliyyə sənəd əskik/səhv, LM-ə iadə
         m.put(RequestStatus.ACCOUNTING_DOCS_CHECK, Set.of(RequestStatus.EXECUTION_READY, RequestStatus.REJECTED,
                 RequestStatus.PM_PRICE_NEGOTIATION));
-        // Geri: koordinator operatoru dəyişmək üçün geri qaytarır
-        m.put(RequestStatus.EXECUTION_READY, Set.of(RequestStatus.OPERATOR_ASSIGNED, RequestStatus.REJECTED));
+        // Geri: koordinator operatoru dəyişmək üçün geri qaytarır.
+        // DELIVERED — çoxlu texnika modelində aqreqat: bütün xətlər təhvil verildikdə
+        // sorğu birbaşa EXECUTION_READY → DELIVERED keçir (xətlər ayrıca icra olunur).
+        m.put(RequestStatus.EXECUTION_READY, Set.of(RequestStatus.OPERATOR_ASSIGNED,
+                RequestStatus.DELIVERED, RequestStatus.REJECTED));
         m.put(RequestStatus.OPERATOR_ASSIGNED, Set.of(RequestStatus.EQUIPMENT_DISPATCHED, RequestStatus.REJECTED,
                 RequestStatus.EXECUTION_READY));
         // Texnika yola çıxandan sonra geri qaytarma YOXDUR

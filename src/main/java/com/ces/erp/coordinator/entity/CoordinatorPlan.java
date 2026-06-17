@@ -14,7 +14,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "coordinator_plans")
@@ -79,6 +81,13 @@ public class CoordinatorPlan extends BaseEntity {
     @Builder.Default
     private List<CoordinatorDocument> documents = new ArrayList<>();
 
+    // ─── Çoxlu texnika xətləri (yeni model) ───────────────────────────────────
+    // Hər seçilmiş texnika bir xətt — öz qiyməti, müddəti, operatoru, icrası, qaiməsi.
+    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true)
+    @org.hibernate.annotations.BatchSize(size = 50)
+    @Builder.Default
+    private List<CoordinatorPlanItem> items = new ArrayList<>();
+
     // ─── Yeni flow — Mərhələ A (Danışıq) ──────────────────────────────────────
 
     // Daşınma podratçısı (transportationPrice ilə birlikdə)
@@ -98,6 +107,13 @@ public class CoordinatorPlan extends BaseEntity {
     private boolean equipmentDocsVerified = false;
 
     private LocalDateTime equipmentDocsCheckedAt;
+
+    // Koordinatorun yoxlama zamanı işarələdiyi sənəd tiplərinin (config_item) id-ləri
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "coordinator_plan_checked_docs", joinColumns = @JoinColumn(name = "plan_id"))
+    @Column(name = "config_item_id")
+    @Builder.Default
+    private Set<Long> checkedDocumentItemIds = new HashSet<>();
 
     private LocalDateTime dispatchedAt;
 

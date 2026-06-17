@@ -11,4 +11,9 @@ public interface CoordinatorDocumentRepository extends JpaRepository<Coordinator
     Optional<CoordinatorDocument> findByIdAndPlanIdAndDeletedFalse(Long id, Long planId);
 
     List<CoordinatorDocument> findAllByPlanIdAndDocumentTypeAndDeletedFalse(Long planId, String documentType);
+
+    // Texnika xəttinə bağlı sənədlər (akt və s.)
+    List<CoordinatorDocument> findAllByPlanItemIdAndDeletedFalse(Long planItemId);
+
+    List<CoordinatorDocument> findAllByPlanItemIdAndDocumentTypeAndDeletedFalse(Long planItemId, String documentType);
 }

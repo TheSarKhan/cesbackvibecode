@@ -26,6 +26,9 @@ public class TechRequestRequest {
 
     private boolean transportationRequired = false;
 
+    // Ödəniş növü: CASH (nağd) və ya TRANSFER (köçürmə)
+    private String paymentMethod;
+
     private List<ParamDto> params = new ArrayList<>();
 
     private Long selectedEquipmentId;
