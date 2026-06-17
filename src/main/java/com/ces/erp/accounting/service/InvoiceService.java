@@ -492,8 +492,13 @@ public class InvoiceService implements ApprovalHandler {
         BigDecimal expenseAmount = BigDecimal.ZERO;
         if (plan != null) {
             boolean isDaily = project.getRequest().getProjectType() == ProjectType.DAILY;
-            BigDecimal contractorRate = plan.getContractorDailyRate();
-            if (contractorRate != null && contractorRate.compareTo(BigDecimal.ZERO) > 0) {
+            // Sahibə (investor/podratçı) gündəlik ödəniş dərəcəsi:
+            // contractorDailyRate, yoxdursa equipmentPrice (= koordinatorda "bizim ödəyəcəyimiz" cost).
+            BigDecimal dailyRate = plan.getContractorDailyRate();
+            if (dailyRate == null || dailyRate.compareTo(BigDecimal.ZERO) <= 0) {
+                dailyRate = plan.getEquipmentPrice();
+            }
+            if (dailyRate != null && dailyRate.compareTo(BigDecimal.ZERO) > 0) {
                 int workDaysInMonth = isDaily ? 1
                         : (incomeInvoice.getWorkingDaysInMonth() != null && incomeInvoice.getWorkingDaysInMonth() > 0
                                 ? incomeInvoice.getWorkingDaysInMonth() : 26);
@@ -503,7 +508,7 @@ public class InvoiceService implements ApprovalHandler {
                 int extDays = incomeInvoice.getExtraDays() != null ? incomeInvoice.getExtraDays() : 0;
                 BigDecimal extHours = incomeInvoice.getExtraHours() != null ? incomeInvoice.getExtraHours() : BigDecimal.ZERO;
 
-                BigDecimal perDay = contractorRate.divide(BigDecimal.valueOf(workDaysInMonth), 6, RoundingMode.HALF_UP);
+                BigDecimal perDay = dailyRate.divide(BigDecimal.valueOf(workDaysInMonth), 6, RoundingMode.HALF_UP);
                 BigDecimal daysAmt = perDay.multiply(BigDecimal.valueOf((long) stdDays + extDays));
                 BigDecimal extHAmt = perDay
                         .divide(BigDecimal.valueOf(workHoursPerDay), 6, RoundingMode.HALF_UP)
@@ -511,12 +516,8 @@ public class InvoiceService implements ApprovalHandler {
                 expenseAmount = daysAmt.add(extHAmt).setScale(2, RoundingMode.HALF_UP);
             } else if (plan.getContractorPayment() != null
                     && plan.getContractorPayment().compareTo(BigDecimal.ZERO) > 0) {
-                // Fallback: dailyRate yoxdursa cəmi ödənişdən istifadə et
+                // Son çarə: gündəlik dərəcə yoxdursa ümumi razılaşdırılmış ödəniş (lump sum)
                 expenseAmount = plan.getContractorPayment();
-            } else if (plan.getEquipmentPrice() != null
-                    && plan.getEquipmentPrice().compareTo(BigDecimal.ZERO) > 0) {
-                // Fallback: günlük dərəcə/ödəniş yoxdursa "texnika xərci" (equipmentPrice)
-                expenseAmount = plan.getEquipmentPrice();
             }
         }
 
