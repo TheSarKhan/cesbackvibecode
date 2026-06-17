@@ -142,6 +142,10 @@ public class InvoiceResponse {
                 .accountingId(inv.getAccountingId())
                 .invoiceNumber(inv.getInvoiceNumber())
                 .amount(inv.getAmount())
+                .paidAmount(inv.getPaidAmount() != null ? inv.getPaidAmount() : BigDecimal.ZERO)
+                .remainingAmount(
+                        (inv.getAmount() != null ? inv.getAmount() : BigDecimal.ZERO)
+                                .subtract(inv.getPaidAmount() != null ? inv.getPaidAmount() : BigDecimal.ZERO))
                 .invoiceDate(inv.getInvoiceDate())
                 .etaxesId(inv.getEtaxesId())
                 .equipmentName(inv.getEquipmentName())
