@@ -5,9 +5,12 @@ import com.ces.erp.enums.ContractorStatus;
 import com.ces.erp.enums.RiskLevel;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "investors")
@@ -63,4 +66,9 @@ public class Investor extends BaseEntity {
     private boolean portalEnabled = false;
 
     private LocalDateTime lastLoginAt;
+
+    @OneToMany(mappedBy = "investor", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
+    @Builder.Default
+    private List<InvestorDocument> documents = new ArrayList<>();
 }

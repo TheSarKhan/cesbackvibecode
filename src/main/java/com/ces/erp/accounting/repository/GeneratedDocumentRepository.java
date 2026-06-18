@@ -8,11 +8,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface GeneratedDocumentRepository extends JpaRepository<GeneratedDocument, Long> {
 
     Optional<GeneratedDocument> findByIdAndDeletedFalse(Long id);
+
+    /** Müştərinin yaradılmış sənədləri (faktura/akt PDF) — sənəd mərkəzi üçün. */
+    List<GeneratedDocument> findAllByCustomerIdAndDeletedFalseOrderByCreatedAtDesc(Long customerId);
 
     @Query(value = """
             SELECT d FROM GeneratedDocument d

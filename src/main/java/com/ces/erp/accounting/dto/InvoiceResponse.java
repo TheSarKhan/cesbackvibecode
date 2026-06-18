@@ -83,6 +83,10 @@ public class InvoiceResponse {
     private List<InvoiceTransportDto> transports;
     private BigDecimal totalTransportAmount;
 
+    // Toplu qaimə — texnika sətirləri (boşdursa köhnə tək-texnikalı qaimə)
+    private List<InvoiceLineDto> lines;
+    private Integer equipmentCount;   // neçə texnika (siyahıda "N texnika" üçün)
+
     public static InvoiceResponse from(Invoice inv) {
         String typeLabel = switch (inv.getType()) {
             case INCOME             -> "Gəlir";
@@ -126,6 +130,11 @@ public class InvoiceResponse {
         BigDecimal totalTransport = transportDtos.stream()
                 .map(InvoiceTransportDto::getTransportAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        List<InvoiceLineDto> lineDtos = inv.getLines() == null ? List.of() : inv.getLines().stream()
+                .filter(l -> !l.isDeleted())
+                .map(InvoiceLineDto::from)
+                .toList();
 
         // customer_id FK boş ola bilər (layihə qaimələrində) — project→request→customer zəncirinə fallback
         var effectiveCustomer = inv.getCustomer();
@@ -179,6 +188,8 @@ public class InvoiceResponse {
                 .hasTransport(inv.isHasTransport())
                 .transports(transportDtos)
                 .totalTransportAmount(totalTransport)
+                .lines(lineDtos)
+                .equipmentCount(lineDtos.isEmpty() ? (inv.getEquipment() != null ? 1 : 0) : lineDtos.size())
                 .aktFileName(inv.getAktFileName())
                 .aktFileUploaded(inv.getAktFilePath() != null)
                 .build();

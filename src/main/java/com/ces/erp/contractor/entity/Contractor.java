@@ -5,8 +5,11 @@ import com.ces.erp.enums.ContractorStatus;
 import com.ces.erp.enums.RiskLevel;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "contractors")
@@ -48,4 +51,9 @@ public class Contractor extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    @OneToMany(mappedBy = "contractor", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
+    @Builder.Default
+    private List<ContractorDocument> documents = new ArrayList<>();
 }

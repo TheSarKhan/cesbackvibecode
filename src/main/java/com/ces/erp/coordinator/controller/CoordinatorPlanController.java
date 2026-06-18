@@ -320,4 +320,21 @@ public class CoordinatorPlanController {
                 .contentType(mediaType)
                 .body(resource);
     }
+
+    @GetMapping("/requests/{requestId}/request-documents/{documentId}/download")
+    @PreAuthorize("hasAuthority('COORDINATOR:GET')")
+    @Operation(summary = "Müqavilə sənədini yüklə (müştəri/sahib — koordinator oxu-rejimi)")
+    public ResponseEntity<Resource> downloadRequestDocument(
+            @PathVariable Long requestId,
+            @PathVariable Long documentId) throws MalformedURLException, IOException {
+        Path filePath = planService.resolveRequestDocument(requestId, documentId);
+        Resource resource = new UrlResource(filePath.toUri());
+        String ct = Files.probeContentType(filePath);
+        MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filePath.getFileName().toString() + "\"")
+                .contentType(mediaType)
+                .body(resource);
+    }
 }

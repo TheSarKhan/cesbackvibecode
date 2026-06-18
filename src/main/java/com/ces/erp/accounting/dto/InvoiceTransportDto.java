@@ -13,6 +13,9 @@ public class InvoiceTransportDto {
 
     private Long id;
 
+    // Toplu qaimə: bu daşınma hansı texnikaya aiddir (könüllü)
+    private Long equipmentId;
+
     @NotNull(message = "Daşınma tarixi daxil edilməlidir")
     private LocalDate transportDate;
 
@@ -26,6 +29,7 @@ public class InvoiceTransportDto {
     public static InvoiceTransportDto from(InvoiceTransport t) {
         InvoiceTransportDto dto = new InvoiceTransportDto();
         dto.setId(t.getId());
+        dto.setEquipmentId(t.getEquipmentId());
         dto.setTransportDate(t.getTransportDate());
         dto.setTransportDirection(t.getTransportDirection());
         dto.setTransportAmount(t.getTransportAmount());

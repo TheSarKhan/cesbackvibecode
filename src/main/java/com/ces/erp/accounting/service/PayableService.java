@@ -9,8 +9,10 @@ import com.ces.erp.accounting.entity.PayablePayment;
 import com.ces.erp.accounting.repository.InvoiceRepository;
 import com.ces.erp.accounting.repository.PayablePaymentRepository;
 import com.ces.erp.accounting.repository.PayableRepository;
+import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.enums.InvoiceType;
 import com.ces.erp.enums.PayableStatus;
+import com.ces.erp.project.entity.Project;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,7 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -42,41 +47,90 @@ public class PayableService {
         if (invoice == null || invoice.getProject() == null) return;
         if (invoice.getType() != InvoiceType.CONTRACTOR_EXPENSE
                 && invoice.getType() != InvoiceType.INVESTOR_EXPENSE) return;
+        recomputeProjectPayables(invoice.getProject());
+    }
 
-        var project = invoice.getProject();
+    /**
+     * Çoxlu sahib: layihənin BÜTÜN təsdiqlənmiş xərc qaimələrini sahibə görə qruplaşdırır
+     * və hər sahib (podratçı/investor) üçün ayrı Payable saxlayır (məbləğ = həmin sahibin
+     * qaimələrinin cəmi). Beləliklə müxtəlif sahiblərin borcu itmir / üst-üstə yazılmır.
+     */
+    private void recomputeProjectPayables(Project project) {
+        List<Invoice> expenses = invoiceRepository.findAllByProjectIdAndDeletedFalse(project.getId()).stream()
+                .filter(i -> (i.getType() == InvoiceType.CONTRACTOR_EXPENSE || i.getType() == InvoiceType.INVESTOR_EXPENSE)
+                        && i.getStatus() == InvoiceStatus.APPROVED)
+                .toList();
 
-        Payable payable = payableRepository.findByProjectIdAndDeletedFalse(project.getId())
-                .orElse(null);
+        Map<String, List<Invoice>> byOwner = new LinkedHashMap<>();
+        for (Invoice i : expenses) {
+            byOwner.computeIfAbsent(ownerKey(i), k -> new ArrayList<>()).add(i);
+        }
 
-        if (payable == null) {
-            // Yeni Payable yarat
-            LocalDate dueDate = project.getEndDate() != null
-                    ? project.getEndDate().plusDays(30)
-                    : LocalDate.now().plusDays(30);
+        List<Payable> existing = payableRepository.findAllByProjectIdAndDeletedFalse(project.getId());
+        LocalDate dueDate = project.getEndDate() != null
+                ? project.getEndDate().plusDays(30) : LocalDate.now().plusDays(30);
 
-            Payable.PayableBuilder builder = Payable.builder()
-                    .project(project)
-                    .totalAmount(invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO)
-                    .paidAmount(BigDecimal.ZERO)
-                    .dueDate(dueDate)
-                    .status(PayableStatus.PENDING);
+        for (var entry : byOwner.entrySet()) {
+            List<Invoice> grp = entry.getValue();
+            Invoice rep = grp.get(0);
+            BigDecimal total = grp.stream()
+                    .map(i -> i.getAmount() != null ? i.getAmount() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            if (invoice.getType() == InvoiceType.CONTRACTOR_EXPENSE && invoice.getContractor() != null) {
-                builder.contractor(invoice.getContractor());
+            Payable payable = existing.stream()
+                    .filter(p -> ownerKey(p).equals(entry.getKey()))
+                    .findFirst().orElse(null);
+
+            if (payable == null) {
+                Payable.PayableBuilder builder = Payable.builder()
+                        .project(project)
+                        .totalAmount(total)
+                        .paidAmount(BigDecimal.ZERO)
+                        .dueDate(dueDate)
+                        .status(PayableStatus.PENDING);
+                if (rep.getType() == InvoiceType.CONTRACTOR_EXPENSE && rep.getContractor() != null) {
+                    builder.contractor(rep.getContractor());
+                } else {
+                    builder.investorName(rep.getCompanyName());
+                    if (rep.getInvestor() != null) builder.investorVoen(rep.getInvestor().getVoen());
+                }
+                payable = payableRepository.save(builder.build());
             } else {
-                // INVESTOR_EXPENSE — investor adı və VOEN-i qaimədəki investor FK-dən oxu
-                builder.investorName(invoice.getCompanyName());
-                if (invoice.getInvestor() != null) {
-                    builder.investorVoen(invoice.getInvestor().getVoen());
+                payable.setTotalAmount(total);
+                if (payable.getContractor() == null
+                        && (payable.getInvestorVoen() == null || payable.getInvestorVoen().isBlank())
+                        && rep.getInvestor() != null && rep.getInvestor().getVoen() != null) {
+                    payable.setInvestorVoen(rep.getInvestor().getVoen());
                 }
             }
-
-            payableRepository.save(builder.build());
-        } else {
-            // Mövcud Payable-ı yenilə
-            payable.setTotalAmount(invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO);
             recalculateStatus(payable);
         }
+
+        // Artıq təsdiqlənmiş xərci olmayan sahiblərin payable-ını sıfırla (məs. qaimə geri qaytarıldı)
+        for (Payable p : existing) {
+            if (!byOwner.containsKey(ownerKey(p)) && p.getStatus() != PayableStatus.COMPLETED) {
+                p.setTotalAmount(BigDecimal.ZERO);
+                recalculateStatus(p);
+            }
+        }
+    }
+
+    /** Sahib açarı — qaimədən (podratçı id və ya investor voen/ad). */
+    private static String ownerKey(Invoice i) {
+        if (i.getType() == InvoiceType.CONTRACTOR_EXPENSE && i.getContractor() != null) {
+            return "C:" + i.getContractor().getId();
+        }
+        String voen = i.getInvestor() != null ? i.getInvestor().getVoen() : null;
+        return "I:" + (voen != null && !voen.isBlank() ? voen
+                : (i.getCompanyName() != null ? i.getCompanyName() : "?"));
+    }
+
+    /** Sahib açarı — payable-dan (eyni məntiq). */
+    private static String ownerKey(Payable p) {
+        if (p.getContractor() != null) return "C:" + p.getContractor().getId();
+        String voen = p.getInvestorVoen();
+        return "I:" + (voen != null && !voen.isBlank() ? voen
+                : (p.getInvestorName() != null ? p.getInvestorName() : "?"));
     }
 
     // ─── Read ─────────────────────────────────────────────────────────────────
@@ -210,6 +264,8 @@ public class PayableService {
             List<Invoice> projectInvoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(p.getProject().getId());
             for (Invoice inv : projectInvoices) {
                 if (inv.getType() != InvoiceType.CONTRACTOR_EXPENSE && inv.getType() != InvoiceType.INVESTOR_EXPENSE) continue;
+                // Yalnız BU payable-ın sahibinə aid qaimələr (digər sahiblərinkini sıfırlama)
+                if (!ownerKey(inv).equals(ownerKey(p))) continue;
                 BigDecimal invPaid = allPayments.stream()
                         .filter(pay -> pay.getInvoice() != null && pay.getInvoice().getId().equals(inv.getId()))
                         .map(PayablePayment::getAmount)

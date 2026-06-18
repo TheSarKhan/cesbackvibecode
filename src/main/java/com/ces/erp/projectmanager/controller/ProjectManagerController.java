@@ -232,6 +232,34 @@ public class ProjectManagerController {
         return ResponseEntity.ok(ApiResponse.success("Protokol yükləndi", service.getRequest(requestId)));
     }
 
+    // ─── Sahib tərəfi (podratçı/investor) sənədləri — xətt üzrə ──────────────
+
+    @PostMapping(value = "/requests/{requestId}/items/{itemId}/upload-owner-contract",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('PROJECT_MANAGER:POST')")
+    @Operation(summary = "Bir texnika xətti üçün SAHİB müqaviləsi yüklə")
+    public ResponseEntity<ApiResponse<PmRequestResponse>> uploadOwnerContractItem(
+            @PathVariable Long requestId,
+            @PathVariable Long itemId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        documentService.uploadDocument(requestId, RequestDocumentType.OWNER_CONTRACT, file, principal.getId(), itemId);
+        return ResponseEntity.ok(ApiResponse.success("Sahib müqaviləsi yükləndi", service.getRequest(requestId)));
+    }
+
+    @PostMapping(value = "/requests/{requestId}/items/{itemId}/upload-owner-price-protocol",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('PROJECT_MANAGER:POST')")
+    @Operation(summary = "Bir texnika xətti üçün SAHİB qiymət protokolu yüklə")
+    public ResponseEntity<ApiResponse<PmRequestResponse>> uploadOwnerPriceProtocolItem(
+            @PathVariable Long requestId,
+            @PathVariable Long itemId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        documentService.uploadDocument(requestId, RequestDocumentType.OWNER_PRICE_PROTOCOL, file, principal.getId(), itemId);
+        return ResponseEntity.ok(ApiResponse.success("Sahib protokolu yükləndi", service.getRequest(requestId)));
+    }
+
     @DeleteMapping("/requests/{requestId}/documents/{documentId}")
     @PreAuthorize("hasAuthority('PROJECT_MANAGER:DELETE')")
     @Operation(summary = "Yüklənmiş sənədi sil")

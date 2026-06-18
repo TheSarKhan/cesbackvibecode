@@ -20,6 +20,7 @@ public class ReceivableResponse {
     private String region;
     private String equipmentName;
     private String customerName;
+    private String customerVoen;
     private String customerPhone;
     
     private BigDecimal totalAmount;
@@ -55,13 +56,30 @@ public class ReceivableResponse {
     }
 
     public static ReceivableResponse from(Receivable r, List<com.ces.erp.accounting.entity.Invoice> invoices) {
+        // Texnika adı — gəlir qaimələrindəki texnikalar (çoxlu ola bilər)
+        String equipmentName = null;
+        if (invoices != null) {
+            List<String> names = invoices.stream()
+                    .filter(i -> !i.isDeleted() && i.getType() == com.ces.erp.enums.InvoiceType.INCOME && i.getEquipmentName() != null)
+                    .map(com.ces.erp.accounting.entity.Invoice::getEquipmentName)
+                    .distinct()
+                    .toList();
+            if (!names.isEmpty()) {
+                equipmentName = names.size() <= 2 ? String.join(", ", names) : (names.size() + " texnika");
+            }
+        }
+        if (equipmentName == null && r.getProject() != null && r.getProject().getRequest() != null
+                && r.getProject().getRequest().getSelectedEquipment() != null) {
+            equipmentName = r.getProject().getRequest().getSelectedEquipment().getName();
+        }
         return ReceivableResponse.builder()
                 .id(r.getId())
                 .projectCode(r.getProject() != null ? r.getProject().getProjectCode() : null)
                 .projectName(r.getProject() != null && r.getProject().getRequest() != null ? r.getProject().getRequest().getProjectName() : null)
                 .region(r.getProject() != null && r.getProject().getRequest() != null ? r.getProject().getRequest().getRegion() : null)
-                .equipmentName(r.getProject() != null && r.getProject().getRequest() != null && r.getProject().getRequest().getSelectedEquipment() != null ? r.getProject().getRequest().getSelectedEquipment().getName() : null)
+                .equipmentName(equipmentName)
                 .customerName(r.getCustomer() != null ? r.getCustomer().getCompanyName() : null)
+                .customerVoen(r.getCustomer() != null ? r.getCustomer().getVoen() : null)
                 .customerPhone(r.getCustomer() != null ? r.getCustomer().getOfficeContactPhone() : null)
                 .totalAmount(r.getTotalAmount())
                 .paidAmount(r.getPaidAmount())

@@ -50,6 +50,9 @@ public class RequestDocumentCheckResponse {
         private Long planItemId;
         private String equipmentName;
         private String equipmentCode;
+        private String ownershipType;   // COMPANY | CONTRACTOR | INVESTOR
+        private String ownerName;       // podratçı/investor adı (sahib sənədi kimə aiddir)
+        private boolean ownerDocsRequired; // sahib müqaviləsi tələb olunurmu (podratçı/investor)
     }
 
     public static RequestDocumentCheckResponse from(TechRequest r, List<RequestDocument> docs) {
@@ -73,11 +76,20 @@ public class RequestDocumentCheckResponse {
         boolean hasContract = docs.stream().anyMatch(d -> d.getDocType() == RequestDocumentType.CONTRACT);
         boolean hasProtocol = docs.stream().anyMatch(d -> d.getDocType() == RequestDocumentType.PRICE_PROTOCOL);
         List<LineInfo> lineInfos = lines == null ? List.of() : lines.stream()
-                .map(it -> LineInfo.builder()
-                        .planItemId(it.getId())
-                        .equipmentName(it.getEquipment() != null ? it.getEquipment().getName() : null)
-                        .equipmentCode(it.getEquipment() != null ? it.getEquipment().getEquipmentCode() : null)
-                        .build())
+                .map(it -> {
+                    boolean ownerLine = it.getPartyType() == com.ces.erp.projectmanager.entity.PartyType.CONTRACTOR
+                            || it.getPartyType() == com.ces.erp.projectmanager.entity.PartyType.INVESTOR;
+                    String ownerName = it.getContractor() != null ? it.getContractor().getCompanyName()
+                            : (it.getInvestor() != null ? it.getInvestor().getCompanyName() : null);
+                    return LineInfo.builder()
+                            .planItemId(it.getId())
+                            .equipmentName(it.getEquipment() != null ? it.getEquipment().getName() : null)
+                            .equipmentCode(it.getEquipment() != null ? it.getEquipment().getEquipmentCode() : null)
+                            .ownershipType(it.getPartyType() != null ? it.getPartyType().name() : null)
+                            .ownerName(ownerName)
+                            .ownerDocsRequired(ownerLine)
+                            .build();
+                })
                 .toList();
         return RequestDocumentCheckResponse.builder()
                 .requestId(r.getId())

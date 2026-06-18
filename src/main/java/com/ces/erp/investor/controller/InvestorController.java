@@ -10,14 +10,27 @@ import com.ces.erp.investor.dto.InvestorRequest;
 import com.ces.erp.investor.dto.InvestorResponse;
 import com.ces.erp.investor.dto.InvestorSetPasswordRequest;
 import com.ces.erp.investor.service.InvestorService;
+import com.ces.erp.common.security.UserPrincipal;
+import com.ces.erp.partydoc.PartyDocumentDto;
+import com.ces.erp.partydoc.PartyDocumentService;
+import com.ces.erp.partydoc.PartyKind;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +41,7 @@ import java.util.Map;
 public class InvestorController {
 
     private final InvestorService investorService;
+    private final PartyDocumentService partyDocumentService;
 
     @GetMapping
     @PreAuthorize("hasAuthority('INVESTORS:GET')")
@@ -105,6 +119,56 @@ public class InvestorController {
     @Operation(summary = "İnvestora edilmiş ödənişlər")
     public ResponseEntity<ApiResponse<List<PayableResponse>>> getPayables(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(investorService.getPayables(id)));
+    }
+
+    // ─── Sənəd mərkəzi (bütün mənbələrdən aqreqasiya) ────────────────────────
+
+    @GetMapping("/{id}/all-documents")
+    @PreAuthorize("hasAuthority('INVESTORS:GET')")
+    @Operation(summary = "İnvestorun BÜTÜN sənədləri (əl ilə + müqavilə + akt + texnika + qaimə)")
+    public ResponseEntity<ApiResponse<List<PartyDocumentDto>>> allDocuments(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                partyDocumentService.collect(PartyKind.INVESTOR, id)));
+    }
+
+    @PostMapping(value = "/{id}/all-documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('INVESTORS:POST')")
+    @Operation(summary = "İnvestora əl ilə sənəd yüklə")
+    public ResponseEntity<ApiResponse<PartyDocumentDto>> uploadDocument(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "documentName", required = false) String documentName,
+            @RequestParam(value = "documentDate", required = false) String documentDate,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Sənəd yükləndi",
+                partyDocumentService.uploadManual(PartyKind.INVESTOR, id, file, documentName, documentDate,
+                        principal != null ? principal.getId() : null)));
+    }
+
+    @DeleteMapping("/{id}/all-documents/{documentId}")
+    @PreAuthorize("hasAuthority('INVESTORS:DELETE')")
+    @Operation(summary = "Əl ilə yüklənmiş sənədi sil")
+    public ResponseEntity<ApiResponse<Void>> deleteDocument(@PathVariable Long id, @PathVariable Long documentId) {
+        partyDocumentService.deleteManual(PartyKind.INVESTOR, id, documentId);
+        return ResponseEntity.ok(ApiResponse.ok("Sənəd silindi"));
+    }
+
+    @GetMapping("/{id}/all-documents/{sourceType}/{sourceId}/download")
+    @PreAuthorize("hasAuthority('INVESTORS:GET')")
+    @Operation(summary = "Sənəd mərkəzindən sənəd endir")
+    public ResponseEntity<Resource> downloadDocument(@PathVariable Long id,
+                                                     @PathVariable String sourceType,
+                                                     @PathVariable Long sourceId) throws IOException {
+        var df = partyDocumentService.resolveDownload(PartyKind.INVESTOR, id, sourceType, sourceId);
+        Path path = df.path();
+        Resource resource = new UrlResource(path.toUri());
+        String ct = Files.probeContentType(path);
+        MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
+        String fileName = df.fileName() != null ? df.fileName() : path.getFileName().toString();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .contentType(mediaType)
+                .body(resource);
     }
 
     // ─── Portal hesab idarəsi (admin) ─────────────────────────────────────────

@@ -1,10 +1,8 @@
 package com.ces.erp.accounting.service;
 
-import com.ces.erp.accounting.dto.AccountingSummaryResponse;
-import com.ces.erp.accounting.dto.InvoiceRequest;
-import com.ces.erp.accounting.dto.InvoiceResponse;
-import com.ces.erp.accounting.dto.InvoiceTransportDto;
+import com.ces.erp.accounting.dto.*;
 import com.ces.erp.accounting.entity.Invoice;
+import com.ces.erp.accounting.entity.InvoiceLine;
 import com.ces.erp.accounting.entity.InvoiceTransport;
 import com.ces.erp.accounting.repository.InvoiceRepository;
 import com.ces.erp.accounting.repository.InvoiceTransportRepository;
@@ -56,6 +54,7 @@ public class InvoiceService implements ApprovalHandler {
 
     private final InvoiceRepository invoiceRepository;
     private final InvoiceTransportRepository invoiceTransportRepository;
+    private final com.ces.erp.accounting.repository.InvoiceLineRepository invoiceLineRepository;
     private final ProjectRepository projectRepository;
     private final ProjectRevenueRepository projectRevenueRepository;
     private final ProjectExpenseRepository projectExpenseRepository;
@@ -193,7 +192,8 @@ public class InvoiceService implements ApprovalHandler {
         inv.setWorkingDaysInMonth(req.getWorkingDaysInMonth());
         inv.setWorkingHoursPerDay(req.getWorkingHoursPerDay());
         inv.setOvertimeRate(req.getOvertimeRate());
-        if (req.getType() == InvoiceType.INCOME && req.getPeriodMonth() != null) {
+        boolean multiLine = req.getLines() != null && !req.getLines().isEmpty();
+        if (!multiLine && req.getType() == InvoiceType.INCOME && req.getPeriodMonth() != null) {
             BigDecimal calc = calculateTimesheetAmount(req);
             if (calc != null) inv.setAmount(calc.add(computeTransportTotal(req)));
         }
@@ -202,9 +202,11 @@ public class InvoiceService implements ApprovalHandler {
             var proj = projectRepository.findById(req.getProjectId())
                     .orElseThrow(() -> new ResourceNotFoundException("Layihə", req.getProjectId()));
             inv.setProject(proj);
-            // Çoxlu texnika: qaimə konkret texnika xəttinə bağlıdırsa onu götür;
-            // əks halda köhnə davranış (layihə → tələb → seçilmiş texnika).
-            if (req.getEquipmentId() != null) {
+            // Toplu qaimə: texnika qaimə səviyyəsində təyin edilmir (sətirlərdədir).
+            if (multiLine) {
+                inv.setEquipment(null);
+                inv.setEquipmentName(req.getLines().size() + " texnika");
+            } else if (req.getEquipmentId() != null) {
                 inv.setEquipment(equipmentRepository.findById(req.getEquipmentId())
                         .orElseThrow(() -> new ResourceNotFoundException("Texnika", req.getEquipmentId())));
             } else if (proj.getRequest() != null && proj.getRequest().getSelectedEquipment() != null) {
@@ -221,6 +223,12 @@ public class InvoiceService implements ApprovalHandler {
         }
 
         inv.setHasTransport(req.isHasTransport());
+
+        // Toplu qaimə: sətirləri qur, qaimə məbləği = Σ sətir
+        if (multiLine) {
+            BigDecimal linesTotal = buildIncomeLines(inv, req);
+            inv.setAmount(linesTotal);
+        }
 
         // SENT statusunda mühasibatlığa göndərilirsə → avtomatik ID yarat
         if (inv.getStatus() == InvoiceStatus.SENT && inv.getAccountingId() == null) {
@@ -275,7 +283,8 @@ public class InvoiceService implements ApprovalHandler {
         inv.setWorkingDaysInMonth(req.getWorkingDaysInMonth());
         inv.setWorkingHoursPerDay(req.getWorkingHoursPerDay());
         inv.setOvertimeRate(req.getOvertimeRate());
-        if (req.getType() == InvoiceType.INCOME && req.getPeriodMonth() != null) {
+        boolean multiLine = req.getLines() != null && !req.getLines().isEmpty();
+        if (!multiLine && req.getType() == InvoiceType.INCOME && req.getPeriodMonth() != null) {
             BigDecimal calc = calculateTimesheetAmount(req);
             if (calc != null) inv.setAmount(calc.add(computeTransportTotal(req)));
         }
@@ -298,6 +307,18 @@ public class InvoiceService implements ApprovalHandler {
         inv.getTransports().clear();
         if (req.isHasTransport() && req.getTransports() != null) {
             saveTransports(inv, req.getTransports());
+        }
+
+        // Toplu qaimə: sətirləri yenidən qur (akti qoruyaraq)
+        if (multiLine) {
+            inv.setEquipment(null);
+            inv.setEquipmentName(req.getLines().size() + " texnika");
+            BigDecimal linesTotal = rebuildLinesPreservingAkt(inv, req);
+            inv.setAmount(linesTotal);
+        } else if (req.getEquipmentId() != null) {
+            inv.getLines().clear();
+            inv.setEquipment(equipmentRepository.findById(req.getEquipmentId()).orElse(null));
+            inv.setEquipmentName(req.getEquipmentName());
         }
 
         Invoice updated = invoiceRepository.save(inv);
@@ -343,8 +364,8 @@ public class InvoiceService implements ApprovalHandler {
         if (req.getStatus() != null) {
             // Təhvil-təslim aktı yüklənmədən gəlir qaiməsi mühasibatlığa göndərilə bilməz
             if (req.getStatus() == InvoiceStatus.SENT && prevStatus != InvoiceStatus.SENT
-                    && inv.getType() == InvoiceType.INCOME && inv.getAktFilePath() == null) {
-                throw new BusinessException("Təhvil-təslim aktı yüklənmədən qaimə mühasibatlığa göndərilə bilməz");
+                    && inv.getType() == InvoiceType.INCOME) {
+                assertAktReady(inv);
             }
             if (req.getStatus() == InvoiceStatus.SENT && inv.getAccountingId() == null) {
                 inv.setAccountingId(generateAccountingId(java.time.LocalDate.now().getYear(), inv.getType()));
@@ -483,6 +504,12 @@ public class InvoiceService implements ApprovalHandler {
         var plan = coordinatorPlanRepository.findByRequestId(project.getRequest().getId()).orElse(null);
         log.info("[autoCreateExpenseInvoice] Plan tapıldı: {}", plan != null ? "BƏLİ (id=" + plan.getId() + ")" : "XEYR");
 
+        // Toplu qaimə: gəlir qaiməsi çoxlu texnika sətri daşıyırsa — sahib başına qruplaşdır
+        if (incomeInvoice.getLines() != null && !incomeInvoice.getLines().isEmpty()) {
+            autoCreateExpenseInvoicesFromLines(incomeInvoice, plan, project);
+            return;
+        }
+
         // Çoxlu texnika: gəlir qaiməsi konkret texnika xəttinə bağlıdırsa onu işlət
         Equipment eq = incomeInvoice.getEquipment() != null
                 ? incomeInvoice.getEquipment()
@@ -579,6 +606,133 @@ public class InvoiceService implements ApprovalHandler {
                 saved.getId(), saved.getType(), saved.getAmount(), saved.getAccountingId());
     }
 
+    /**
+     * Toplu gəlir qaiməsindən sahib başına xərc qaimələri.
+     * Hər sətir texnikasının sahibinə görə qruplaşdırılır; hər sahib (podratçı/investor)
+     * üçün öz texnika sətirləri ilə bir xərc qaiməsi yaranır. Şirkət texnikasına xərc yox.
+     */
+    private void autoCreateExpenseInvoicesFromLines(Invoice income, com.ces.erp.coordinator.entity.CoordinatorPlan plan,
+                                                    com.ces.erp.project.entity.Project project) {
+        boolean isDaily = project.getRequest().getProjectType() == ProjectType.DAILY;
+        java.util.Map<String, Equipment> bucketsSampleEq = new java.util.HashMap<>();
+        // Hər sahib üçün xərc sətirlərini topla
+        java.util.Map<String, java.util.List<InvoiceLine>> ownerExpenseLines = new java.util.LinkedHashMap<>();
+        java.util.Map<String, BigDecimal> ownerTotals = new java.util.HashMap<>();
+
+        for (InvoiceLine ln : income.getLines()) {
+            if (ln.isDeleted()) continue;
+            Equipment eq = ln.getEquipment();
+            if (eq == null || eq.getOwnershipType() == OwnershipType.COMPANY) continue;
+
+            // Sahibə ödəniş dərəcəsi (cost): plan xəttindən (planItemId) equipmentPrice
+            BigDecimal dailyRate = null;
+            if (plan != null && ln.getPlanItemId() != null) {
+                var item = plan.getItems().stream()
+                        .filter(i -> !i.isDeleted() && i.getId().equals(ln.getPlanItemId()))
+                        .findFirst().orElse(null);
+                if (item != null) dailyRate = item.getEquipmentPrice();
+            }
+            if ((dailyRate == null || dailyRate.compareTo(BigDecimal.ZERO) <= 0) && plan != null) {
+                dailyRate = plan.getContractorDailyRate();
+                if (dailyRate == null || dailyRate.compareTo(BigDecimal.ZERO) <= 0) dailyRate = plan.getEquipmentPrice();
+            }
+            if (dailyRate == null) dailyRate = BigDecimal.ZERO;
+
+            BigDecimal cost = computeLineCostAmount(ln, dailyRate, isDaily);
+
+            String key = eq.getOwnershipType() == OwnershipType.CONTRACTOR
+                    ? "C:" + (eq.getOwnerContractor() != null ? eq.getOwnerContractor().getId() : "?")
+                    : "I:" + (eq.getOwnerInvestorVoen() != null ? eq.getOwnerInvestorVoen() : eq.getOwnerInvestorName());
+
+            InvoiceLine expLine = InvoiceLine.builder()
+                    .equipment(eq)
+                    .equipmentName(eq.getName())
+                    .planItemId(ln.getPlanItemId())
+                    .unitPrice(dailyRate)
+                    .dayCount(ln.getDayCount())
+                    .periodMonth(ln.getPeriodMonth())
+                    .periodYear(ln.getPeriodYear())
+                    .standardDays(ln.getStandardDays())
+                    .extraDays(ln.getExtraDays())
+                    .extraHours(ln.getExtraHours())
+                    .workingDaysInMonth(ln.getWorkingDaysInMonth())
+                    .workingHoursPerDay(ln.getWorkingHoursPerDay())
+                    .equipmentAmount(cost)
+                    .transportAmount(BigDecimal.ZERO)
+                    .lineTotal(cost)
+                    .build();
+            ownerExpenseLines.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(expLine);
+            ownerTotals.merge(key, cost, BigDecimal::add);
+            bucketsSampleEq.putIfAbsent(key, eq);
+        }
+
+        if (ownerExpenseLines.isEmpty()) {
+            log.info("[autoCreateExpenseInvoicesFromLines] Sahib texnikası yoxdur (hamısı şirkət) — xərc qaiməsi yaradılmır");
+            return;
+        }
+
+        String incomeRef = income.getInvoiceNumber() != null ? income.getInvoiceNumber()
+                : (income.getAccountingId() != null ? income.getAccountingId() : "#" + income.getId());
+
+        for (var entry : ownerExpenseLines.entrySet()) {
+            String key = entry.getKey();
+            java.util.List<InvoiceLine> expLines = entry.getValue();
+            Equipment sampleEq = bucketsSampleEq.get(key);
+            BigDecimal total = ownerTotals.getOrDefault(key, BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+
+            Invoice.InvoiceBuilder builder = Invoice.builder()
+                    .status(InvoiceStatus.SENT)
+                    .amount(total)
+                    .invoiceDate(income.getInvoiceDate())
+                    .project(project)
+                    .equipmentName(expLines.size() + " texnika")
+                    .periodMonth(income.getPeriodMonth())
+                    .periodYear(income.getPeriodYear())
+                    .sourceInvoiceId(income.getId())
+                    .notes("\"" + incomeRef + "\" gəlir qaiməsindən avtomatik yaradıldı");
+
+            if (sampleEq.getOwnershipType() == OwnershipType.CONTRACTOR) {
+                builder.type(InvoiceType.CONTRACTOR_EXPENSE).contractor(sampleEq.getOwnerContractor());
+            } else {
+                builder.type(InvoiceType.INVESTOR_EXPENSE).companyName(sampleEq.getOwnerInvestorName());
+                if (sampleEq.getOwnerInvestorVoen() != null) {
+                    investorRepository.findByVoenAndDeletedFalse(sampleEq.getOwnerInvestorVoen())
+                            .ifPresent(builder::investor);
+                }
+            }
+
+            Invoice expense = builder.build();
+            expense.setAccountingId(generateAccountingId(income.getInvoiceDate().getYear(), expense.getType()));
+            for (InvoiceLine l : expLines) l.setInvoice(expense);
+            expense.getLines().addAll(expLines);
+            Invoice saved = invoiceRepository.save(expense);
+            log.info("[autoCreateExpenseInvoicesFromLines] Sahib {} → xərc qaiməsi id={}, amount={}, sətir={}",
+                    key, saved.getId(), saved.getAmount(), expLines.size());
+        }
+    }
+
+    /** Xərc sətrinin sahibə ödəniş məbləği (gəlir sətrinin gün/saat məlumatı + sahib dərəcəsi). */
+    private BigDecimal computeLineCostAmount(InvoiceLine ln, BigDecimal dailyRate, boolean isDaily) {
+        if (dailyRate == null || dailyRate.compareTo(BigDecimal.ZERO) <= 0) return BigDecimal.ZERO;
+        int workDaysInMonth = isDaily ? 1
+                : (ln.getWorkingDaysInMonth() != null && ln.getWorkingDaysInMonth() > 0 ? ln.getWorkingDaysInMonth() : 26);
+        int workHoursPerDay = ln.getWorkingHoursPerDay() != null && ln.getWorkingHoursPerDay() > 0
+                ? ln.getWorkingHoursPerDay() : 9;
+        int stdDays = ln.getStandardDays() != null ? ln.getStandardDays() : 0;
+        int extDays = ln.getExtraDays() != null ? ln.getExtraDays() : 0;
+        BigDecimal extHours = ln.getExtraHours() != null ? ln.getExtraHours() : BigDecimal.ZERO;
+
+        // Gündəlik layihə + timesheet yoxdursa: tarif × gün
+        if (isDaily && stdDays == 0 && extDays == 0 && extHours.compareTo(BigDecimal.ZERO) == 0) {
+            int days = ln.getDayCount() != null && ln.getDayCount() > 0 ? ln.getDayCount() : 1;
+            return dailyRate.multiply(BigDecimal.valueOf(days)).setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal perDay = dailyRate.divide(BigDecimal.valueOf(workDaysInMonth), 6, RoundingMode.HALF_UP);
+        BigDecimal daysAmt = perDay.multiply(BigDecimal.valueOf((long) stdDays + extDays));
+        BigDecimal extHAmt = perDay.divide(BigDecimal.valueOf(workHoursPerDay), 6, RoundingMode.HALF_UP).multiply(extHours);
+        return daysAmt.add(extHAmt).setScale(2, RoundingMode.HALF_UP);
+    }
+
     @Transactional
     public InvoiceResponse returnToProject(Long id) {
         Invoice inv = findOrThrow(id);
@@ -634,10 +788,14 @@ public class InvoiceService implements ApprovalHandler {
         if (req.getWorkingHoursPerDay() != null)  inv.setWorkingHoursPerDay(req.getWorkingHoursPerDay());
         if (req.getOvertimeRate() != null)        inv.setOvertimeRate(req.getOvertimeRate());
 
-        // Vaxt cədvəlinə görə məbləği yenidən hesabla (məcburi sahələr varsa)
-        BigDecimal recalc = calculateTimesheetAmount(req);
-        if (recalc != null && recalc.compareTo(BigDecimal.ZERO) > 0) {
-            inv.setAmount(recalc.add(computeTransportTotal(req)));
+        boolean multiLine = req.getLines() != null && !req.getLines().isEmpty();
+
+        // Vaxt cədvəlinə görə məbləği yenidən hesabla (tək-texnikalı, məcburi sahələr varsa)
+        if (!multiLine) {
+            BigDecimal recalc = calculateTimesheetAmount(req);
+            if (recalc != null && recalc.compareTo(BigDecimal.ZERO) > 0) {
+                inv.setAmount(recalc.add(computeTransportTotal(req)));
+            }
         }
 
         // Yalnız tam paket göndərildiyi halda daşınmaları sıfırla (yoxsa mövcud olanları qoru)
@@ -649,14 +807,22 @@ public class InvoiceService implements ApprovalHandler {
             }
         }
 
+        // Toplu qaimə: sətirləri yenidən qur (akti qoruyaraq), məbləğ = Σ sətir
+        if (multiLine) {
+            inv.setEquipment(null);
+            inv.setEquipmentName(req.getLines().size() + " texnika");
+            BigDecimal linesTotal = rebuildLinesPreservingAkt(inv, req);
+            inv.setAmount(linesTotal);
+        }
+
         // Səhv konfiqurasiyaya qarşı son qoruma — amount null-a düşməsin
         if (inv.getAmount() == null) {
             throw new BusinessException("Qaimə məbləği boş ola bilməz. Standart günlər və aylıq dərəcə daxil edin.");
         }
 
         // Təhvil-təslim aktı yüklənmədən gəlir qaiməsi yenidən mühasibatlığa göndərilə bilməz
-        if (inv.getType() == InvoiceType.INCOME && inv.getAktFilePath() == null) {
-            throw new BusinessException("Təhvil-təslim aktı yüklənmədən qaimə mühasibatlığa göndərilə bilməz");
+        if (inv.getType() == InvoiceType.INCOME) {
+            assertAktReady(inv);
         }
 
         // Əgər bu qaimənin hələ accountingId-si yoxdursa yarat (ilk dəfə resubmit olan köhnə qaimələr üçün)
@@ -717,6 +883,7 @@ public class InvoiceService implements ApprovalHandler {
         for (InvoiceTransportDto dto : dtos) {
             InvoiceTransport t = InvoiceTransport.builder()
                     .invoice(invoice)
+                    .equipmentId(dto.getEquipmentId())
                     .transportDate(dto.getTransportDate())
                     .transportDirection(dto.getTransportDirection())
                     .transportAmount(dto.getTransportAmount())
@@ -724,6 +891,109 @@ public class InvoiceService implements ApprovalHandler {
             transports.add(t);
         }
         invoice.getTransports().addAll(transports);
+    }
+
+    /**
+     * Toplu qaimə: req.lines-dən InvoiceLine-ları qurur, hər sətrin məbləğini hesablayır
+     * (aylıq timesheet düsturu və ya tarif × gün), daşınmanı texnikaya görə yığır.
+     * Qaimə üçün ümumi məbləği (Σ sətir) qaytarır.
+     */
+    private BigDecimal buildIncomeLines(Invoice inv, InvoiceRequest req) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (InvoiceLineDto ld : req.getLines()) {
+            BigDecimal eqAmount = computeLineEquipmentAmount(ld);
+            BigDecimal trAmount = transportSumForEquipment(req, ld.getEquipmentId());
+            BigDecimal lineTotal = eqAmount.add(trAmount);
+            total = total.add(lineTotal);
+
+            Equipment eq = ld.getEquipmentId() != null
+                    ? equipmentRepository.findById(ld.getEquipmentId()).orElse(null) : null;
+            InvoiceLine line = InvoiceLine.builder()
+                    .invoice(inv)
+                    .equipment(eq)
+                    .equipmentName(ld.getEquipmentName() != null ? ld.getEquipmentName()
+                            : (eq != null ? eq.getName() : null))
+                    .planItemId(ld.getPlanItemId())
+                    .unitPrice(ld.getUnitPrice())
+                    .dayCount(ld.getDayCount())
+                    .periodMonth(ld.getPeriodMonth())
+                    .periodYear(ld.getPeriodYear())
+                    .standardDays(ld.getStandardDays())
+                    .extraDays(ld.getExtraDays())
+                    .extraHours(ld.getExtraHours())
+                    .monthlyRate(ld.getMonthlyRate())
+                    .workingDaysInMonth(ld.getWorkingDaysInMonth())
+                    .workingHoursPerDay(ld.getWorkingHoursPerDay())
+                    .overtimeRate(ld.getOvertimeRate())
+                    .equipmentAmount(eqAmount)
+                    .transportAmount(trAmount)
+                    .lineTotal(lineTotal)
+                    .build();
+            inv.getLines().add(line);
+        }
+        return total.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Sətirləri yenidən qurarkən hər texnikanın mövcud təhvil-təslim aktını qoru
+     * (planItemId / equipmentId üzrə uyğunlaşdırılır). Köhnə sətirlər silinir, fayl diskdə qalır.
+     * Yenilənmiş ümumi məbləği qaytarır.
+     */
+    private BigDecimal rebuildLinesPreservingAkt(Invoice inv, InvoiceRequest req) {
+        java.util.Map<String, String[]> aktByKey = new java.util.HashMap<>();
+        for (InvoiceLine ol : inv.getLines()) {
+            if (ol.getAktFilePath() == null) continue;
+            String k = aktKey(ol.getPlanItemId(), ol.getEquipment() != null ? ol.getEquipment().getId() : null);
+            if (k != null) aktByKey.put(k, new String[]{ ol.getAktFilePath(), ol.getAktFileName() });
+        }
+        inv.getLines().clear();
+        BigDecimal total = buildIncomeLines(inv, req);
+        for (InvoiceLine nl : inv.getLines()) {
+            String k = aktKey(nl.getPlanItemId(), nl.getEquipment() != null ? nl.getEquipment().getId() : null);
+            if (k != null && aktByKey.containsKey(k)) {
+                nl.setAktFilePath(aktByKey.get(k)[0]);
+                nl.setAktFileName(aktByKey.get(k)[1]);
+            }
+        }
+        return total;
+    }
+
+    private static String aktKey(Long planItemId, Long equipmentId) {
+        if (planItemId != null) return "P:" + planItemId;
+        if (equipmentId != null) return "E:" + equipmentId;
+        return null;
+    }
+
+    /** Bir sətrin texnika məbləği — aylıq timesheet düsturu və ya tarif × gün. */
+    private BigDecimal computeLineEquipmentAmount(InvoiceLineDto ld) {
+        if (ld.getMonthlyRate() != null && ld.getWorkingDaysInMonth() != null
+                && ld.getWorkingDaysInMonth() > 0 && ld.getWorkingHoursPerDay() != null
+                && ld.getWorkingHoursPerDay() > 0) {
+            BigDecimal daily = ld.getMonthlyRate()
+                    .divide(BigDecimal.valueOf(ld.getWorkingDaysInMonth()), 6, RoundingMode.HALF_UP);
+            BigDecimal std = daily.multiply(BigDecimal.valueOf(ld.getStandardDays() != null ? ld.getStandardDays() : 0));
+            BigDecimal extD = daily.multiply(BigDecimal.valueOf(ld.getExtraDays() != null ? ld.getExtraDays() : 0));
+            BigDecimal rate = ld.getOvertimeRate() != null ? ld.getOvertimeRate() : BigDecimal.ONE;
+            BigDecimal extH = ld.getExtraHours() != null
+                    ? daily.divide(BigDecimal.valueOf(ld.getWorkingHoursPerDay()), 6, RoundingMode.HALF_UP)
+                           .multiply(ld.getExtraHours()).multiply(rate)
+                    : BigDecimal.ZERO;
+            return std.add(extD).add(extH).setScale(2, RoundingMode.HALF_UP);
+        }
+        // Gündəlik / sadə: tarif × gün
+        BigDecimal unit = ld.getUnitPrice() != null ? ld.getUnitPrice() : BigDecimal.ZERO;
+        int days = ld.getDayCount() != null && ld.getDayCount() > 0 ? ld.getDayCount() : 1;
+        return unit.multiply(BigDecimal.valueOf(days)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal transportSumForEquipment(InvoiceRequest req, Long equipmentId) {
+        if (!req.isHasTransport() || req.getTransports() == null) return BigDecimal.ZERO;
+        return req.getTransports().stream()
+                .filter(t -> equipmentId == null
+                        ? t.getEquipmentId() == null
+                        : equipmentId.equals(t.getEquipmentId()))
+                .map(t -> t.getTransportAmount() != null ? t.getTransportAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Transactional
@@ -746,6 +1016,57 @@ public class InvoiceService implements ApprovalHandler {
             throw new ResourceNotFoundException("Bu qaimə üçün Akt faylı tapılmadı");
         }
         return fileStorageService.resolve(inv.getAktFilePath());
+    }
+
+    /**
+     * Akt hazırlıq yoxlaması: toplu qaimədə HƏR texnika sətrinin öz təhvil-təslim akti
+     * olmalıdır; köhnə tək-texnikalı qaimədə qaimə səviyyəsindəki akt kifayətdir.
+     */
+    private void assertAktReady(Invoice inv) {
+        List<InvoiceLine> lines = inv.getLines() == null ? List.of()
+                : inv.getLines().stream().filter(l -> !l.isDeleted()).toList();
+        if (!lines.isEmpty()) {
+            for (InvoiceLine l : lines) {
+                if (l.getAktFilePath() == null) {
+                    String name = l.getEquipmentName() != null ? l.getEquipmentName() : ("Xətt #" + l.getId());
+                    throw new BusinessException(name + " üçün təhvil-təslim aktı yüklənməlidir");
+                }
+            }
+            return;
+        }
+        if (inv.getAktFilePath() == null) {
+            throw new BusinessException("Təhvil-təslim aktı yüklənmədən qaimə mühasibatlığa göndərilə bilməz");
+        }
+    }
+
+    /** Bir texnika sətrinin təhvil-təslim aktını yüklə. */
+    @Transactional
+    public InvoiceResponse uploadLineAkt(Long invoiceId, Long lineId, MultipartFile file) {
+        Invoice inv = findOrThrow(invoiceId);
+        InvoiceLine line = invoiceLineRepository.findByIdAndDeletedFalse(lineId)
+                .orElseThrow(() -> new ResourceNotFoundException("Qaimə sətri", lineId));
+        if (line.getInvoice() == null || !line.getInvoice().getId().equals(invoiceId)) {
+            throw new BusinessException("Bu sətir bu qaiməyə aid deyil");
+        }
+        if (line.getAktFilePath() != null) {
+            fileStorageService.delete(line.getAktFilePath());
+        }
+        String path = fileStorageService.store(file, "invoice-akt");
+        line.setAktFilePath(path);
+        line.setAktFileName(file.getOriginalFilename());
+        invoiceLineRepository.save(line);
+        auditService.log("FAKTURA", inv.getId(), inv.getAccountingId(), "AKT YÜKLƏNDİ",
+                (line.getEquipmentName() != null ? line.getEquipmentName() : ("Xətt #" + lineId)) + " aktı yükləndi");
+        return InvoiceResponse.from(findOrThrow(invoiceId));
+    }
+
+    public Path resolveLineAktPath(Long invoiceId, Long lineId) {
+        InvoiceLine line = invoiceLineRepository.findByIdAndDeletedFalse(lineId)
+                .orElseThrow(() -> new ResourceNotFoundException("Qaimə sətri", lineId));
+        if (line.getInvoice() == null || !line.getInvoice().getId().equals(invoiceId) || line.getAktFilePath() == null) {
+            throw new ResourceNotFoundException("Akt faylı tapılmadı", lineId);
+        }
+        return fileStorageService.resolve(line.getAktFilePath());
     }
 
     private synchronized String generateAccountingId(int year, InvoiceType type) {

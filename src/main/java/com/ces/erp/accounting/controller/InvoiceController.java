@@ -164,4 +164,30 @@ public class InvoiceController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
                 .body(resource);
     }
+
+    // ─── Toplu qaimə: hər texnika sətrinin öz təhvil-təslim aktı ─────────────
+
+    @PostMapping(value = "/{id}/lines/{lineId}/akt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('ACCOUNTING:POST')")
+    @Operation(summary = "Bir texnika sətrinin təhvil-təslim aktını yüklə")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> uploadLineAkt(
+            @PathVariable Long id, @PathVariable Long lineId,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.success("Akt yükləndi", invoiceService.uploadLineAkt(id, lineId, file)));
+    }
+
+    @GetMapping("/{id}/lines/{lineId}/akt")
+    @PreAuthorize("hasAuthority('ACCOUNTING:GET')")
+    @Operation(summary = "Bir texnika sətrinin aktını endir / preview et")
+    public ResponseEntity<Resource> downloadLineAkt(@PathVariable Long id, @PathVariable Long lineId) throws Exception {
+        Path filePath = invoiceService.resolveLineAktPath(id, lineId);
+        Resource resource = new UrlResource(filePath.toUri());
+        String contentType = Files.probeContentType(filePath);
+        if (contentType == null) contentType = "application/octet-stream";
+        String fileName = filePath.getFileName().toString();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
+                .body(resource);
+    }
 }

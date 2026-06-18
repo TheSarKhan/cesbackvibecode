@@ -11,4 +11,7 @@ public interface PayablePaymentRepository extends JpaRepository<PayablePayment, 
     List<PayablePayment> findAllByPayableIdAndDeletedFalseOrderByPaymentDateAsc(Long payableId);
 
     Optional<PayablePayment> findByIdAndPayableIdAndDeletedFalse(Long id, Long payableId);
+
+    // Konkret qaimə üzrə edilmiş ödənişlər (investor portalı — qaimə detalı)
+    List<PayablePayment> findAllByInvoiceIdAndDeletedFalseOrderByPaymentDateAsc(Long invoiceId);
 }

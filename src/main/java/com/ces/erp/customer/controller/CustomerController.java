@@ -10,6 +10,9 @@ import com.ces.erp.customer.dto.CustomerRequest;
 import com.ces.erp.customer.dto.CustomerResponse;
 import com.ces.erp.project.dto.ProjectResponse;
 import com.ces.erp.customer.service.CustomerService;
+import com.ces.erp.partydoc.PartyDocumentDto;
+import com.ces.erp.partydoc.PartyDocumentService;
+import com.ces.erp.partydoc.PartyKind;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -37,6 +40,7 @@ import java.util.Map;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final PartyDocumentService partyDocumentService;
 
     @GetMapping
     @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:GET')")
@@ -161,5 +165,55 @@ public class CustomerController {
         } catch (IOException e) {
             throw new com.ces.erp.common.exception.FileStorageException("Fayl endirilə bilmədi: " + e.getMessage());
         }
+    }
+
+    // ─── Sənəd mərkəzi (bütün mənbələrdən aqreqasiya) ────────────────────────
+
+    @GetMapping("/{id}/all-documents")
+    @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:GET')")
+    @Operation(summary = "Müştərinin BÜTÜN sənədləri (əl ilə + müqavilə + akt + qaimə)")
+    public ResponseEntity<ApiResponse<List<PartyDocumentDto>>> allDocuments(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                partyDocumentService.collect(PartyKind.CUSTOMER, id)));
+    }
+
+    @PostMapping(value = "/{id}/all-documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:POST')")
+    @Operation(summary = "Müştəriyə əl ilə sənəd yüklə")
+    public ResponseEntity<ApiResponse<PartyDocumentDto>> uploadHubDocument(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "documentName", required = false) String documentName,
+            @RequestParam(value = "documentDate", required = false) String documentDate,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Sənəd yükləndi",
+                partyDocumentService.uploadManual(PartyKind.CUSTOMER, id, file, documentName, documentDate,
+                        principal != null ? principal.getId() : null)));
+    }
+
+    @DeleteMapping("/{id}/all-documents/{documentId}")
+    @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:DELETE')")
+    @Operation(summary = "Əl ilə yüklənmiş sənədi sil")
+    public ResponseEntity<ApiResponse<Void>> deleteHubDocument(@PathVariable Long id, @PathVariable Long documentId) {
+        partyDocumentService.deleteManual(PartyKind.CUSTOMER, id, documentId);
+        return ResponseEntity.ok(ApiResponse.ok("Sənəd silindi"));
+    }
+
+    @GetMapping("/{id}/all-documents/{sourceType}/{sourceId}/download")
+    @PreAuthorize("hasAuthority('CUSTOMER_MANAGEMENT:GET')")
+    @Operation(summary = "Sənəd mərkəzindən sənəd endir")
+    public ResponseEntity<Resource> downloadHubDocument(@PathVariable Long id,
+                                                        @PathVariable String sourceType,
+                                                        @PathVariable Long sourceId) throws IOException {
+        var df = partyDocumentService.resolveDownload(PartyKind.CUSTOMER, id, sourceType, sourceId);
+        Path path = df.path();
+        Resource resource = new UrlResource(path.toUri());
+        String ct = Files.probeContentType(path);
+        MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
+        String fileName = df.fileName() != null ? df.fileName() : path.getFileName().toString();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .contentType(mediaType)
+                .body(resource);
     }
 }

@@ -8,6 +8,7 @@ import com.ces.erp.common.service.FileStorageService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.ces.erp.coordinator.entity.CoordinatorPlan;
+import com.ces.erp.coordinator.entity.CoordinatorPlanItem;
 import com.ces.erp.coordinator.repository.CoordinatorPlanRepository;
 import com.ces.erp.enums.EquipmentStatus;
 import com.ces.erp.enums.ProjectStatus;
@@ -242,20 +243,26 @@ public class ProjectService {
         BigDecimal overtimeRate = req.getOvertimeRate() != null ? req.getOvertimeRate() : BigDecimal.ONE;
         BigDecimal overtimeHours = actual.subtract(scheduled).max(BigDecimal.ZERO);
 
-        // Gap 2+3: Əlavə vaxt saatlıq dərəcəsi layihə növünə görə hesablanır
-        // DAILY  → equipmentPrice artıq gündəlik qiymətdir
-        // MONTHLY → equipmentPrice aylıq qiymətdir, 26 iş gününə bölünür
-        BigDecimal equipmentPrice = planForHours != null && planForHours.getEquipmentPrice() != null
-                ? planForHours.getEquipmentPrice() : BigDecimal.ZERO;
+        // Çoxlu texnika: əlavə vaxt saatlıq dərəcəsi BÜTÜN xətlərin gündəlik dəyərinin cəmindən
+        // DAILY → equipmentPrice artıq gündəlikdir; MONTHLY → 26 iş gününə bölünür.
         ProjectType projectType = p.getRequest() != null ? p.getRequest().getProjectType() : null;
-        BigDecimal dailyRate;
-        if (projectType == ProjectType.MONTHLY) {
-            dailyRate = equipmentPrice.divide(BigDecimal.valueOf(26), 4, RoundingMode.HALF_UP);
+        List<CoordinatorPlanItem> planItems = planForHours != null
+                ? planForHours.getItems().stream().filter(i -> !i.isDeleted()).toList()
+                : List.of();
+        BigDecimal totalDailyRate = BigDecimal.ZERO;
+        if (!planItems.isEmpty()) {
+            for (CoordinatorPlanItem it : planItems) {
+                BigDecimal ep = it.getEquipmentPrice() != null ? it.getEquipmentPrice() : BigDecimal.ZERO;
+                totalDailyRate = totalDailyRate.add(projectType == ProjectType.MONTHLY
+                        ? ep.divide(BigDecimal.valueOf(26), 4, RoundingMode.HALF_UP) : ep);
+            }
         } else {
-            // DAILY və ya null → equipmentPrice gündəlik qiymətdir
-            dailyRate = equipmentPrice;
+            BigDecimal ep = planForHours != null && planForHours.getEquipmentPrice() != null
+                    ? planForHours.getEquipmentPrice() : BigDecimal.ZERO;
+            totalDailyRate = projectType == ProjectType.MONTHLY
+                    ? ep.divide(BigDecimal.valueOf(26), 4, RoundingMode.HALF_UP) : ep;
         }
-        BigDecimal hourlyRate = dailyRate.divide(BigDecimal.valueOf(9), 4, RoundingMode.HALF_UP);
+        BigDecimal hourlyRate = totalDailyRate.divide(BigDecimal.valueOf(9), 4, RoundingMode.HALF_UP);
         BigDecimal overtimePay = overtimeHours.multiply(hourlyRate).multiply(overtimeRate).setScale(2, RoundingMode.HALF_UP);
 
         p.setEvacuationCost(req.getEvacuationCost());
@@ -286,60 +293,67 @@ public class ProjectService {
         auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YENİLƏNDİ", "Layihə tamamlandı");
         CoordinatorPlan plan = planForHours;
 
-        // Texnikanın layihə tarixçəsinə qeyd yaz
-        Equipment eq = plan != null && plan.getSelectedEquipment() != null
-                ? plan.getSelectedEquipment()
-                : (p.getRequest() != null ? p.getRequest().getSelectedEquipment() : null);
-        if (eq != null) {
-            EquipmentProjectHistory history = EquipmentProjectHistory.builder()
-                    .equipment(eq)
-                    .projectId(p.getId())
-                    .projectName(p.getRequest() != null ? p.getRequest().getProjectName() : p.getProjectCode())
-                    .startDate(p.getStartDate())
-                    .endDate(p.getEndDate())
-                    .contractorRevenue(plan != null && plan.getContractorPayment() != null
-                            ? plan.getContractorPayment() : BigDecimal.ZERO)
-                    .status("COMPLETED")
-                    .notes(p.getRequest() != null ? p.getRequest().getCompanyName() : null)
-                    .build();
-            equipmentHistoryRepository.save(history);
+        // Texnikaların layihə tarixçəsi — hər texnika xətti üçün (çoxlu model).
+        // Sahib (podratçı/investor) xərc qaimələri qaimə axınında (autoCreateExpenseInvoice)
+        // per-line yaranır — burada dublikat yaratmırıq.
+        String histProjectName = p.getRequest() != null ? p.getRequest().getProjectName() : p.getProjectCode();
+        String histNotes = p.getRequest() != null ? p.getRequest().getCompanyName() : null;
+        if (!planItems.isEmpty()) {
+            for (CoordinatorPlanItem it : planItems) {
+                Equipment le = it.getEquipment();
+                if (le == null) continue;
+                EquipmentProjectHistory history = EquipmentProjectHistory.builder()
+                        .equipment(le)
+                        .projectId(p.getId())
+                        .projectName(histProjectName)
+                        .startDate(it.getStartDate() != null ? it.getStartDate() : p.getStartDate())
+                        .endDate(it.getEndDate() != null ? it.getEndDate() : p.getEndDate())
+                        .contractorRevenue(lineCostTotal(it, projectType))
+                        .status("COMPLETED")
+                        .notes(histNotes)
+                        .build();
+                equipmentHistoryRepository.save(history);
 
-            // Texnikanı avtomatik "Yolda" statusuna keçir
-            if (eq.getStatus() == EquipmentStatus.RENTED) {
-                equipmentService.changeStatus(eq, EquipmentStatus.IN_TRANSIT,
-                        "Layihə tamamlandı — texnika geri yoldadır", equipmentService.currentUserOrNull());
+                if (le.getStatus() == EquipmentStatus.RENTED) {
+                    equipmentService.changeStatus(le, EquipmentStatus.IN_TRANSIT,
+                            "Layihə tamamlandı — texnika geri yoldadır", equipmentService.currentUserOrNull());
+                }
             }
+        } else {
+            // Legacy tək-texnika (item-siz köhnə planlar)
+            Equipment eq = plan != null && plan.getSelectedEquipment() != null
+                    ? plan.getSelectedEquipment()
+                    : (p.getRequest() != null ? p.getRequest().getSelectedEquipment() : null);
+            if (eq != null) {
+                EquipmentProjectHistory history = EquipmentProjectHistory.builder()
+                        .equipment(eq)
+                        .projectId(p.getId())
+                        .projectName(histProjectName)
+                        .startDate(p.getStartDate())
+                        .endDate(p.getEndDate())
+                        .contractorRevenue(plan != null && plan.getContractorPayment() != null
+                                ? plan.getContractorPayment() : BigDecimal.ZERO)
+                        .status("COMPLETED")
+                        .notes(histNotes)
+                        .build();
+                equipmentHistoryRepository.save(history);
 
-            // Podratçı/İnvestor ödəniş qaiməsini avtomatik yarat (əgər artıq yoxdursa)
-            BigDecimal contractorPayment = plan != null && plan.getContractorPayment() != null
-                    ? plan.getContractorPayment() : BigDecimal.ZERO;
-            if (contractorPayment.compareTo(BigDecimal.ZERO) > 0
-                    && (eq.getOwnershipType() == OwnershipType.CONTRACTOR || eq.getOwnershipType() == OwnershipType.INVESTOR)) {
-                boolean expenseExists = invoiceRepository.existsByProjectIdAndTypeAndPeriodMonthAndPeriodYearAndDeletedFalse(
-                        p.getId(),
-                        eq.getOwnershipType() == OwnershipType.CONTRACTOR ? InvoiceType.CONTRACTOR_EXPENSE : InvoiceType.INVESTOR_EXPENSE,
-                        null, null);
-                if (!expenseExists) {
-                    Invoice.InvoiceBuilder expBuilder = Invoice.builder()
-                            .status(InvoiceStatus.SENT)
-                            .amount(contractorPayment)
-                            .invoiceDate(LocalDate.now())
-                            .project(p)
-                            .equipmentName(eq.getName())
-                            .notes("Layihə bağlanmasında avtomatik yaradılmış ödəniş qaiməsi");
-                    if (eq.getOwnershipType() == OwnershipType.CONTRACTOR) {
-                        expBuilder.type(InvoiceType.CONTRACTOR_EXPENSE)
-                                  .contractor(eq.getOwnerContractor());
-                    } else {
-                        expBuilder.type(InvoiceType.INVESTOR_EXPENSE)
-                                  .companyName(eq.getOwnerInvestorName());
-                    }
-                    invoiceRepository.save(expBuilder.build());
+                if (eq.getStatus() == EquipmentStatus.RENTED) {
+                    equipmentService.changeStatus(eq, EquipmentStatus.IN_TRANSIT,
+                            "Layihə tamamlandı — texnika geri yoldadır", equipmentService.currentUserOrNull());
                 }
             }
         }
 
         return ProjectResponse.from(p, plan);
+    }
+
+    /** Bir texnika xəttinin maya dəyəri cəmi (DAILY: vahid×gün, MONTHLY: vahid). */
+    private static BigDecimal lineCostTotal(CoordinatorPlanItem it, ProjectType type) {
+        BigDecimal unit = it.getEquipmentPrice() != null ? it.getEquipmentPrice() : BigDecimal.ZERO;
+        int days = it.getDayCount() != null ? it.getDayCount() : 0;
+        if (type == ProjectType.MONTHLY || days == 0) return unit;
+        return unit.multiply(BigDecimal.valueOf(days));
     }
 
     // ─── Bitmə tarixini yenilə ────────────────────────────────────────────────

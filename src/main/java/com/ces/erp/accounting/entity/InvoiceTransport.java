@@ -20,6 +20,10 @@ public class InvoiceTransport extends BaseEntity {
     @JoinColumn(name = "invoice_id", nullable = false)
     private Invoice invoice;
 
+    // Toplu qaimə: bu daşınma hansı texnikaya aiddir (sətir qruplaşması üçün; köhnədə null)
+    @Column(name = "equipment_id")
+    private Long equipmentId;
+
     @Column(nullable = false)
     private LocalDate transportDate;
 

@@ -201,14 +201,28 @@ public class DocumentCheckService implements ApprovalHandler {
         // (xəttə bağlı sənəd və ya köhnə sorğu-səviyyəli sənəd qəbul olunur).
         if (!items.isEmpty() && anyPerLine) {
             for (CoordinatorPlanItem it : items) {
+                String eqName = it.getEquipment() != null ? it.getEquipment().getName() : ("Xətt #" + it.getId());
+                // Müştəri tərəfi — hər xəttdə məcburi
                 boolean hasContract = docs.stream().anyMatch(d -> d.getDocType() == RequestDocumentType.CONTRACT
                         && (d.getPlanItem() == null || d.getPlanItem().getId().equals(it.getId())));
                 boolean hasProtocol = docs.stream().anyMatch(d -> d.getDocType() == RequestDocumentType.PRICE_PROTOCOL
                         && (d.getPlanItem() == null || d.getPlanItem().getId().equals(it.getId())));
                 if (!hasContract || !hasProtocol) {
-                    String eqName = it.getEquipment() != null ? it.getEquipment().getName() : ("Xətt #" + it.getId());
                     throw new BusinessException(eqName
-                            + " üçün müqavilə və qiymət razılaşma protokolu yüklənməlidir");
+                            + " üçün müştəri müqaviləsi və qiymət razılaşma protokolu yüklənməlidir");
+                }
+                // Sahib tərəfi — yalnız podratçı/investor texnikası üçün məcburi
+                boolean ownerLine = it.getPartyType() == com.ces.erp.projectmanager.entity.PartyType.CONTRACTOR
+                        || it.getPartyType() == com.ces.erp.projectmanager.entity.PartyType.INVESTOR;
+                if (ownerLine) {
+                    boolean hasOwnerContract = docs.stream().anyMatch(d -> d.getDocType() == RequestDocumentType.OWNER_CONTRACT
+                            && (d.getPlanItem() == null || d.getPlanItem().getId().equals(it.getId())));
+                    boolean hasOwnerProtocol = docs.stream().anyMatch(d -> d.getDocType() == RequestDocumentType.OWNER_PRICE_PROTOCOL
+                            && (d.getPlanItem() == null || d.getPlanItem().getId().equals(it.getId())));
+                    if (!hasOwnerContract || !hasOwnerProtocol) {
+                        throw new BusinessException(eqName
+                                + " üçün sahib (podratçı/investor) müqaviləsi və sahib qiymət protokolu yüklənməlidir");
+                    }
                 }
             }
             return;

@@ -62,4 +62,7 @@ public class InvoiceRequest {
     // Texnika daşınması
     private boolean hasTransport;
     private List<InvoiceTransportDto> transports;
+
+    // ─── Toplu qaimə — texnika sətirləri (verilərsə amount = sətirlərin cəmi) ─
+    private List<InvoiceLineDto> lines;
 }

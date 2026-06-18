@@ -141,4 +141,10 @@ public class Invoice extends BaseEntity {
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<InvoiceTransport> transports = new ArrayList<>();
+
+    // ─── Toplu qaimə — texnika sətirləri (boşdursa köhnə tək-texnikalı qaimə) ─
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
+    @org.hibernate.annotations.BatchSize(size = 50)
+    @Builder.Default
+    private List<InvoiceLine> lines = new ArrayList<>();
 }

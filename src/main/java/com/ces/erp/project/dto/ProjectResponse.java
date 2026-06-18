@@ -107,12 +107,18 @@ ProjectResponse {
         private String equipmentName;
         private String equipmentCode;
         private String equipmentType;
+        private String equipmentBrand;
+        private String equipmentModel;
+        private String equipmentSerialNumber;
+        private String equipmentPlateNumber;
         private String ownershipType;
         private String partyType;
         private String contractorName;
         private String contractorVoen;
+        private String contractorPhone;
         private String investorName;
         private String investorVoen;
+        private String investorPhone;
         private BigDecimal equipmentPrice;          // sahibə ödəyəcəyimiz (vahid)
         private BigDecimal customerEquipmentPrice;  // müştəri (vahid)
         private BigDecimal transportationPrice;
@@ -260,14 +266,21 @@ ProjectResponse {
                                     .equipmentName(le != null ? le.getName() : null)
                                     .equipmentCode(le != null ? le.getEquipmentCode() : null)
                                     .equipmentType(le != null ? le.getType() : null)
+                                    .equipmentBrand(le != null ? le.getBrand() : null)
+                                    .equipmentModel(le != null ? le.getModel() : null)
+                                    .equipmentSerialNumber(le != null ? le.getSerialNumber() : null)
+                                    .equipmentPlateNumber(le != null ? le.getPlateNumber() : null)
                                     .ownershipType(le != null ? le.getOwnershipType().name() : null)
                                     .partyType(it.getPartyType() != null ? it.getPartyType().name() : null)
                                     .contractorName(it.getContractor() != null ? it.getContractor().getCompanyName() : null)
                                     .contractorVoen(it.getContractor() != null ? it.getContractor().getVoen() : null)
+                                    .contractorPhone(it.getContractor() != null ? it.getContractor().getPhone() : null)
                                     .investorName(it.getInvestor() != null ? it.getInvestor().getCompanyName()
                                             : (le != null ? le.getOwnerInvestorName() : null))
                                     .investorVoen(it.getInvestor() != null ? it.getInvestor().getVoen()
                                             : (le != null ? le.getOwnerInvestorVoen() : null))
+                                    .investorPhone(it.getInvestor() != null ? it.getInvestor().getContactPhone()
+                                            : (le != null ? le.getOwnerInvestorPhone() : null))
                                     .equipmentPrice(it.getEquipmentPrice())
                                     .customerEquipmentPrice(it.getCustomerEquipmentPrice())
                                     .transportationPrice(it.getTransportationPrice())

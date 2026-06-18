@@ -34,6 +34,20 @@ public class PayableResponse {
     private List<InvoiceResponse> invoices;
     private List<PayablePaymentResponse> payments;
 
+    /** Qaimənin sahibi bu payable-ın sahibinə uyğundurmu (çoxlu sahib ayrılması). */
+    private static boolean ownerMatch(Invoice i, Payable p) {
+        if (p.getContractor() != null) {
+            return i.getType() == InvoiceType.CONTRACTOR_EXPENSE
+                    && i.getContractor() != null
+                    && i.getContractor().getId().equals(p.getContractor().getId());
+        }
+        if (i.getType() != InvoiceType.INVESTOR_EXPENSE) return false;
+        String pVoen = p.getInvestorVoen();
+        String iVoen = i.getInvestor() != null ? i.getInvestor().getVoen() : null;
+        if (pVoen != null && !pVoen.isBlank() && iVoen != null) return pVoen.equals(iVoen);
+        return p.getInvestorName() != null && p.getInvestorName().equals(i.getCompanyName());
+    }
+
     private static List<InvoiceResponse> buildInvoiceLines(List<Invoice> invoiceList, Payable p) {
         Map<Long, BigDecimal> paidByInvoice = p.getPayments().stream()
                 .filter(pay -> !pay.isDeleted() && pay.getInvoice() != null)
@@ -42,7 +56,7 @@ public class PayableResponse {
                         Collectors.reducing(BigDecimal.ZERO, pay -> pay.getAmount(), BigDecimal::add)));
         return invoiceList.stream()
                 .filter(i -> !i.isDeleted()
-                        && (i.getType() == InvoiceType.CONTRACTOR_EXPENSE || i.getType() == InvoiceType.INVESTOR_EXPENSE)
+                        && ownerMatch(i, p)
                         && i.getStatus() == InvoiceStatus.APPROVED
                         && i.getInvoiceNumber() != null && !i.getInvoiceNumber().trim().isEmpty())
                 .map(inv -> {
@@ -79,21 +93,23 @@ public class PayableResponse {
             projectCode = p.getProject().getProjectCode();
             if (p.getProject().getRequest() != null) {
                 projectName = p.getProject().getRequest().getProjectName();
-                // Koordinator planındakı texnikanı yoxla (request.selectedEquipment-dan fərqli ola bilər)
-                if (p.getProject().getRequest().getSelectedEquipment() != null) {
-                    equipmentName = p.getProject().getRequest().getSelectedEquipment().getName();
-                }
             }
         }
-        // Qaimədən texnika adını götür (daha etibarlı mənbə — autoCreateExpenseInvoice bunu doldurur)
-        if (equipmentName == null && invoiceList != null) {
-            equipmentName = invoiceList.stream()
-                    .filter(i -> !i.isDeleted()
-                            && (i.getType() == InvoiceType.CONTRACTOR_EXPENSE || i.getType() == InvoiceType.INVESTOR_EXPENSE)
-                            && i.getEquipmentName() != null)
+        // Texnika adı — BU sahibin qaimələrindəki texnikalar (çoxlu ola bilər)
+        if (invoiceList != null) {
+            List<String> names = invoiceList.stream()
+                    .filter(i -> !i.isDeleted() && ownerMatch(i, p) && i.getEquipmentName() != null)
                     .map(Invoice::getEquipmentName)
-                    .findFirst()
-                    .orElse(null);
+                    .distinct()
+                    .toList();
+            if (!names.isEmpty()) {
+                equipmentName = names.size() <= 2 ? String.join(", ", names) : (names.size() + " texnika");
+            }
+        }
+        // Fallback — köhnə tək-texnika
+        if (equipmentName == null && p.getProject() != null && p.getProject().getRequest() != null
+                && p.getProject().getRequest().getSelectedEquipment() != null) {
+            equipmentName = p.getProject().getRequest().getSelectedEquipment().getName();
         }
 
         return PayableResponse.builder()

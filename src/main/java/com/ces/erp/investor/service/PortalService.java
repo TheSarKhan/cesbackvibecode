@@ -1,11 +1,14 @@
 package com.ces.erp.investor.service;
 
 import com.ces.erp.accounting.dto.InvoiceResponse;
+import com.ces.erp.accounting.dto.PayablePaymentResponse;
 import com.ces.erp.accounting.dto.PayableResponse;
 import com.ces.erp.accounting.entity.Invoice;
 import com.ces.erp.accounting.entity.Payable;
 import com.ces.erp.accounting.repository.InvoiceRepository;
+import com.ces.erp.accounting.repository.PayablePaymentRepository;
 import com.ces.erp.accounting.repository.PayableRepository;
+import com.ces.erp.enums.InvoiceStatus;
 import com.ces.erp.common.exception.BusinessException;
 import com.ces.erp.common.exception.ResourceNotFoundException;
 import com.ces.erp.common.service.FileStorageService;
@@ -23,6 +26,9 @@ import com.ces.erp.investor.dto.PortalDashboardResponse;
 import com.ces.erp.investor.dto.PortalEquipmentEarnings;
 import com.ces.erp.investor.entity.Investor;
 import com.ces.erp.investor.repository.InvestorRepository;
+import com.ces.erp.partydoc.PartyDocumentDto;
+import com.ces.erp.partydoc.PartyDocumentService;
+import com.ces.erp.partydoc.PartyKind;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -55,11 +61,13 @@ public class PortalService {
     private final InvestorRepository investorRepository;
     private final InvoiceRepository invoiceRepository;
     private final PayableRepository payableRepository;
+    private final PayablePaymentRepository payablePaymentRepository;
     private final EquipmentRepository equipmentRepository;
     private final EquipmentProjectHistoryRepository projectHistoryRepository;
     private final EquipmentDocumentRepository equipmentDocumentRepository;
     private final FileStorageService fileStorageService;
     private final PasswordEncoder passwordEncoder;
+    private final PartyDocumentService partyDocumentService;
 
     private Investor me(Long investorId) {
         return investorRepository.findByIdAndDeletedFalse(investorId)
@@ -182,36 +190,44 @@ public class PortalService {
     }
 
     @Transactional(readOnly = true)
-    public List<DocumentResponse> getDocuments(Long investorId) {
-        // Yalnız mənim avadanlıqlarıma aid sənədlər
-        return myEquipment(me(investorId)).stream()
-                .flatMap(e -> equipmentDocumentRepository.findAllByEquipmentId(e.getId()).stream())
-                .map(DocumentResponse::from)
-                .toList();
+    public List<PartyDocumentDto> getDocuments(Long investorId) {
+        // Sənəd mərkəzi — investorun BÜTÜN sənədləri (sahib müqaviləsi/protokol,
+        // təhvil-təslim aktları, texnika qaraj sənədləri, qaimələr, əl ilə yüklənənlər).
+        // me() ilə investorun mövcudluğu təsdiqlənir; aqreqasiya yalnız bu investorId üzrə.
+        me(investorId);
+        return partyDocumentService.collect(PartyKind.INVESTOR, investorId);
     }
 
     /**
-     * Sənəd faylının fiziki yolu — yalnız investorun ÖZ texnikasına aid sənəd üçün.
-     * Başqasının sənədi → 404 (mövcudluğu sızdırmamaq üçün).
+     * Sənəd mərkəzindən faylın fiziki yolu + adı — yalnız bu investora aid sənəd üçün.
+     * Sahiblik {@link PartyDocumentService}-də yoxlanır; aid deyilsə 404.
      */
     @Transactional(readOnly = true)
-    public Path resolveOwnedDocumentPath(Long investorId, Long documentId) {
-        Investor investor = me(investorId);
-        EquipmentDocument doc = equipmentDocumentRepository.findById(documentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sənəd", documentId));
-        Equipment eq = doc.getEquipment();
-        if (eq == null || eq.getOwnerInvestorVoen() == null
-                || !eq.getOwnerInvestorVoen().equals(investor.getVoen())) {
-            throw new ResourceNotFoundException("Sənəd", documentId);
-        }
-        return fileStorageService.resolve(doc.getFilePath());
+    public PartyDocumentService.DownloadFile resolveHubDocument(Long investorId, String sourceType, Long sourceId) {
+        me(investorId);
+        return partyDocumentService.resolveDownload(PartyKind.INVESTOR, investorId, sourceType, sourceId);
     }
 
     @Transactional(readOnly = true)
     public List<InvoiceResponse> getInvoices(Long investorId) {
         // TƏHLÜKƏSİZ: investor FK ilə (companyName ilə deyil)
+        // Yalnız rəsmən verilmiş qaimələr (göndərilmiş/təsdiqlənmiş) — qaralama görünməsin.
         return invoiceRepository.findAllByInvestorId(investorId).stream()
+                .filter(i -> i.getStatus() == InvoiceStatus.SENT || i.getStatus() == InvoiceStatus.APPROVED)
                 .map(InvoiceResponse::from)
+                .toList();
+    }
+
+    /** Konkret qaimə üzrə edilmiş ödənişlər — yalnız bu investorun qaiməsi üçün (yoxsa 404). */
+    @Transactional(readOnly = true)
+    public List<PayablePaymentResponse> getInvoicePayments(Long investorId, Long invoiceId) {
+        Invoice inv = invoiceRepository.findById(invoiceId)
+                .filter(i -> !i.isDeleted() && i.getInvestor() != null
+                        && i.getInvestor().getId().equals(investorId))
+                .orElseThrow(() -> new ResourceNotFoundException("Qaimə", invoiceId));
+        return payablePaymentRepository
+                .findAllByInvoiceIdAndDeletedFalseOrderByPaymentDateAsc(inv.getId()).stream()
+                .map(PayablePaymentResponse::from)
                 .toList();
     }
 

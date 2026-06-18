@@ -21,8 +21,10 @@ import java.util.List;
 @Builder
 public class Payable extends BaseEntity {
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_id", nullable = false, unique = true)
+    // Çoxlu texnika: 1 layihədə bir neçə sahib (podratçı/investor) ola bilər —
+    // hər sahib üçün ayrı Payable (artıq layihə başına tək deyil).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
     // CONTRACTOR ownership üçün — Contractor entity linki

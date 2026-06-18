@@ -23,7 +23,8 @@ public interface PayableRepository extends JpaRepository<Payable, Long> {
                                      @Param("search") String search,
                                      Pageable pageable);
 
-    Optional<Payable> findByProjectIdAndDeletedFalse(Long projectId);
+    // Çoxlu sahib: 1 layihədə bir neçə payable ola bilər
+    List<Payable> findAllByProjectIdAndDeletedFalse(Long projectId);
 
     Optional<Payable> findByIdAndDeletedFalse(Long id);
 

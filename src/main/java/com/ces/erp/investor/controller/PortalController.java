@@ -92,6 +92,13 @@ public class PortalController {
         return ResponseEntity.ok(ApiResponse.success(portalService.getInvoices(me.getInvestorId())));
     }
 
+    @GetMapping("/invoices/{id}/payments")
+    @Operation(summary = "Bu qaimə üzrə edilmiş ödənişlər")
+    public ResponseEntity<ApiResponse<List<com.ces.erp.accounting.dto.PayablePaymentResponse>>> invoicePayments(
+            @AuthenticationPrincipal InvestorPrincipal me, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(portalService.getInvoicePayments(me.getInvestorId(), id)));
+    }
+
     @GetMapping("/payments")
     @Operation(summary = "Ödənişlər / borc")
     public ResponseEntity<ApiResponse<List<PayableResponse>>> payments(@AuthenticationPrincipal InvestorPrincipal me) {
@@ -99,22 +106,26 @@ public class PortalController {
     }
 
     @GetMapping("/documents")
-    @Operation(summary = "Avadanlıq sənədlərim")
-    public ResponseEntity<ApiResponse<List<DocumentResponse>>> documents(@AuthenticationPrincipal InvestorPrincipal me) {
+    @Operation(summary = "Bütün sənədlərim (müqavilə, akt, texnika sənədi, qaimə)")
+    public ResponseEntity<ApiResponse<List<com.ces.erp.partydoc.PartyDocumentDto>>> documents(
+            @AuthenticationPrincipal InvestorPrincipal me) {
         return ResponseEntity.ok(ApiResponse.success(portalService.getDocuments(me.getInvestorId())));
     }
 
-    @GetMapping("/documents/{documentId}/download")
-    @Operation(summary = "Sənədi endir (yalnız öz texnikasının sənədi)")
+    @GetMapping("/documents/{sourceType}/{sourceId}/download")
+    @Operation(summary = "Sənədi endir (yalnız öz sənədim)")
     public ResponseEntity<Resource> downloadDocument(
-            @AuthenticationPrincipal InvestorPrincipal me, @PathVariable Long documentId) {
+            @AuthenticationPrincipal InvestorPrincipal me,
+            @PathVariable String sourceType, @PathVariable Long sourceId) {
         try {
-            Path path = portalService.resolveOwnedDocumentPath(me.getInvestorId(), documentId);
+            var df = portalService.resolveHubDocument(me.getInvestorId(), sourceType, sourceId);
+            Path path = df.path();
             Resource resource = new UrlResource(path.toUri());
             String ct = Files.probeContentType(path);
             MediaType mediaType = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
+            String fileName = df.fileName() != null ? df.fileName() : path.getFileName().toString();
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName() + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
                     .contentType(mediaType)
                     .body(resource);
         } catch (IOException e) {

@@ -91,6 +91,32 @@ public class DocumentCheckController {
                 service.uploadDocument(requestId, RequestDocumentType.PRICE_PROTOCOL, file, principal.getId(), itemId)));
     }
 
+    // ─── Sahib tərəfi (podratçı/investor) sənədləri ──────────────────────────
+
+    @PostMapping(value = "/{requestId}/items/{itemId}/upload-owner-contract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('ACCOUNTING:POST')")
+    @Operation(summary = "Bir texnika xətti üçün SAHİB müqaviləsi yüklə")
+    public ResponseEntity<ApiResponse<RequestDocumentCheckResponse>> uploadOwnerContractItem(
+            @PathVariable Long requestId,
+            @PathVariable Long itemId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Sahib müqaviləsi yükləndi",
+                service.uploadDocument(requestId, RequestDocumentType.OWNER_CONTRACT, file, principal.getId(), itemId)));
+    }
+
+    @PostMapping(value = "/{requestId}/items/{itemId}/upload-owner-price-protocol", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('ACCOUNTING:POST')")
+    @Operation(summary = "Bir texnika xətti üçün SAHİB qiymət protokolu yüklə")
+    public ResponseEntity<ApiResponse<RequestDocumentCheckResponse>> uploadOwnerProtocolItem(
+            @PathVariable Long requestId,
+            @PathVariable Long itemId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Sahib protokolu yükləndi",
+                service.uploadDocument(requestId, RequestDocumentType.OWNER_PRICE_PROTOCOL, file, principal.getId(), itemId)));
+    }
+
     @DeleteMapping("/{requestId}/documents/{documentId}")
     @PreAuthorize("hasAuthority('ACCOUNTING:DELETE')")
     @Operation(summary = "Yüklənmiş sənədi sil")

@@ -79,6 +79,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final com.ces.erp.request.repository.RequestStatusLogRepository statusLogRepository;
     private final com.ces.erp.common.audit.AuditService auditService;
     private final com.ces.erp.request.service.RequestTransitionService transitionService;
+    private final com.ces.erp.request.repository.RequestDocumentRepository requestDocumentRepository;
 
     @Override public String getEntityType() { return "COORDINATOR_SUBMIT"; }
     @Override public String getModuleCode()  { return "COORDINATOR"; }
@@ -169,7 +170,28 @@ public class CoordinatorPlanService implements ApprovalHandler {
                 .map(CoordinatorPlanResponse::from)
                 .orElseGet(() -> CoordinatorPlanResponse.fromRequest(request));
         resp.setShortlistItems(loadShortlistRows(requestId));
+        attachAgreementDocuments(resp, requestId);
         return resp;
+    }
+
+    /** Hər texnika xəttinə müqavilə sənədlərini (müştəri + sahib) bağla — koordinator oxu-rejimi. */
+    private void attachAgreementDocuments(CoordinatorPlanResponse resp, Long requestId) {
+        if (resp.getItems() == null || resp.getItems().isEmpty()) return;
+        var docs = requestDocumentRepository.findAllByRequestIdAndDeletedFalse(requestId);
+        if (docs.isEmpty()) return;
+        for (var item : resp.getItems()) {
+            var agDocs = docs.stream()
+                    // xəttə bağlı sənəd VƏ YA sorğu səviyyəli (köhnə) sənəd
+                    .filter(d -> d.getPlanItem() == null
+                            || (d.getPlanItem().getId().equals(item.getId())))
+                    .map(d -> CoordinatorPlanResponse.AgreementDocDto.builder()
+                            .id(d.getId())
+                            .docType(d.getDocType() != null ? d.getDocType().name() : null)
+                            .fileName(d.getFileName())
+                            .build())
+                    .toList();
+            item.setAgreementDocuments(agDocs);
+        }
     }
 
     private List<CoordinatorPlanResponse.ShortlistRowDto> loadShortlistRows(Long requestId) {
@@ -1010,6 +1032,19 @@ public class CoordinatorPlanService implements ApprovalHandler {
                         && it.getEquipment().getId().equals(doc.getEquipment().getId()));
         if (!belongs) {
             throw new ResourceNotFoundException("Texnika sənədi", documentId);
+        }
+        return fileStorageService.resolve(doc.getFilePath());
+    }
+
+    /**
+     * Müqavilə sənədini (müştəri/sahib) koordinator oxu-rejimi üçün aç.
+     * Təhlükəsizlik: sənəd bu sorğuya aid olmalıdır.
+     */
+    public Path resolveRequestDocument(Long requestId, Long documentId) {
+        var doc = requestDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sənəd", documentId));
+        if (doc.isDeleted() || doc.getRequest() == null || !doc.getRequest().getId().equals(requestId)) {
+            throw new ResourceNotFoundException("Sənəd", documentId);
         }
         return fileStorageService.resolve(doc.getFilePath());
     }

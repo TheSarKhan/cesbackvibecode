@@ -133,6 +133,8 @@ public class CoordinatorPlanResponse {
         private String actFileName;
         // Texnikanın qarajda yüklənmiş faktiki sənədləri (koordinator baxış/yoxlaması üçün)
         private List<EquipmentDocDto> equipmentDocuments;
+        // Müqavilə sənədləri (müştəri + sahib tərəfi) — koordinator oxu-rejimi
+        private List<AgreementDocDto> agreementDocuments;
     }
 
     @Data
@@ -141,6 +143,14 @@ public class CoordinatorPlanResponse {
         private Long id;
         private String name;
         private String type;
+    }
+
+    @Data
+    @Builder
+    public static class AgreementDocDto {
+        private Long id;
+        private String docType;     // CONTRACT | PRICE_PROTOCOL | OWNER_CONTRACT | OWNER_PRICE_PROTOCOL
+        private String fileName;
     }
 
     @Data
