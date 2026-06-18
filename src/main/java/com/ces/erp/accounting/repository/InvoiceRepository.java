@@ -86,6 +86,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     List<Invoice> findAllByProjectIdAndDeletedFalse(Long projectId);
 
+    // Toplu yükləmə (N+1 qarşısını almaq üçün — debitor/kreditor siyahıları)
+    List<Invoice> findAllByProjectIdInAndDeletedFalse(List<Long> projectIds);
+
     boolean existsByEtaxesIdAndDeletedFalse(String etaxesId);
 
     boolean existsByProjectIdAndStatusAndDeletedFalse(Long projectId, com.ces.erp.enums.InvoiceStatus status);

@@ -34,6 +34,9 @@ public class DashboardStatsResponse {
     private List<RequestDto>          requests;
     private AccountingSummaryDto      accountingSummary;
     private List<InvoiceDto>          invoices;
+    private TrendsDto                 trends;
+    private ArAgingDto                arAging;
+    private List<TopCustomerDto>      topCustomers;
 
     @Data @AllArgsConstructor @NoArgsConstructor
     public static class ProjectDto {
@@ -66,5 +69,29 @@ public class DashboardStatsResponse {
     public static class InvoiceDto {
         private String     issueDate;
         private BigDecimal amount;
+    }
+
+    @Data @AllArgsConstructor @NoArgsConstructor
+    public static class TrendsDto {
+        private BigDecimal incomeTrend;   // % dəyişim — bu ay vs keçən ay (gəlir)
+        private BigDecimal profitTrend;   // % dəyişim — bu ay vs keçən ay (xalis mənfəət)
+    }
+
+    @Data @AllArgsConstructor @NoArgsConstructor
+    public static class ArAgingDto {
+        private BigDecimal totalOutstanding;
+        private BigDecimal current;        // ≤30 gün / vaxtı çatmamış
+        private BigDecimal days30to60;
+        private BigDecimal days60to90;
+        private BigDecimal overdue90Plus;
+        private long       overdueInvoiceCount;
+    }
+
+    @Data @AllArgsConstructor @NoArgsConstructor
+    public static class TopCustomerDto {
+        private Long       id;
+        private String     name;
+        private long       invoiceCount;
+        private BigDecimal totalRevenue;
     }
 }

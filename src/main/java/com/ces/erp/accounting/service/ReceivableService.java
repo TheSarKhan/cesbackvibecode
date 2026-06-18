@@ -40,12 +40,23 @@ public class ReceivableService {
     @Transactional
     public Page<ReceivableResponse> getReceivables(ReceivableStatus status, String search, Pageable pageable) {
         String safeSearch = (search == null || search.trim().isEmpty()) ? "" : search.trim();
-        return receivableRepository.findAllWithFilters(status, safeSearch, pageable)
-                .map(r -> {
-                    syncTotalFromInvoices(r);
-                    List<Invoice> invoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
-                    return ReceivableResponse.from(r, invoices);
-                });
+        Page<Receivable> page = receivableRepository.findAllWithFilters(status, safeSearch, pageable);
+
+        // N+1 qarşısı: səhifədəki bütün layihələrin qaimələrini bir sorğu ilə yüklə
+        List<Long> projectIds = page.getContent().stream()
+                .map(r -> r.getProject() != null ? r.getProject().getId() : null)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+        java.util.Map<Long, List<Invoice>> byProject = projectIds.isEmpty()
+                ? java.util.Map.of()
+                : invoiceRepository.findAllByProjectIdInAndDeletedFalse(projectIds).stream()
+                        .collect(java.util.stream.Collectors.groupingBy(i -> i.getProject().getId()));
+
+        return page.map(r -> {
+            List<Invoice> invoices = r.getProject() != null
+                    ? byProject.getOrDefault(r.getProject().getId(), List.of()) : List.of();
+            syncTotalFromInvoices(r, invoices);
+            return ReceivableResponse.from(r, invoices);
+        });
     }
 
     @Transactional
@@ -63,7 +74,11 @@ public class ReceivableService {
      */
     private void syncTotalFromInvoices(Receivable r) {
         if (r.getProject() == null) return;
-        List<Invoice> allInvoices = invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId());
+        syncTotalFromInvoices(r, invoiceRepository.findAllByProjectIdAndDeletedFalse(r.getProject().getId()));
+    }
+
+    private void syncTotalFromInvoices(Receivable r, List<Invoice> allInvoices) {
+        if (r.getProject() == null) return;
         BigDecimal invoiceTotal = allInvoices.stream()
                 .filter(i -> i.getType() == InvoiceType.INCOME && i.getStatus() == InvoiceStatus.APPROVED)
                 .map(i -> i.getAmount() != null ? i.getAmount() : BigDecimal.ZERO)

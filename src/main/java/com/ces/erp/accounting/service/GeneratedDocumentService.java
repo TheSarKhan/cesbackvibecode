@@ -220,12 +220,10 @@ public class GeneratedDocumentService {
                     result.add(eqLine);
                 }
 
-                // Daşınma — hər texnika üçün ayrıca. Mənbə üstünlüyü:
-                // 1) qaimədəki InvoiceTransport (ilk + proses) → 2) sətrin transportAmount → 3) plandan (CoordinatorPlanItem)
-                final CoordinatorPlan plan = (invoice.getProject() != null && invoice.getProject().getRequest() != null)
-                        ? coordinatorPlanRepository.findByRequestId(invoice.getProject().getRequest().getId()).orElse(null)
-                        : null;
-
+                // Daşınma — hər texnika üçün ayrıca, YALNIZ qaimədə fakturalanmış məbləğdən:
+                // 1) InvoiceTransport (ilk + proses) → 2) sətrin transportAmount.
+                // Plan daşınması qaimə yaradılarkən öncədən doldurulur (frontend), ona görə burada
+                // plan fallback YOXdur — sənəd cəmi həmişə qaimə cəmi ilə eyni qalsın.
                 java.util.Map<Long, java.util.List<com.ces.erp.accounting.entity.InvoiceTransport>> transportsByEq = new java.util.LinkedHashMap<>();
                 java.util.List<com.ces.erp.accounting.entity.InvoiceTransport> noEqTransports = new java.util.ArrayList<>();
                 for (var t : invTransports) {
@@ -241,10 +239,6 @@ public class GeneratedDocumentService {
                         for (var t : lineTransports) result.add(buildTransportLine(t, eqNames, invId));
                     } else if (l.getTransportAmount() != null && l.getTransportAmount().compareTo(BigDecimal.ZERO) > 0) {
                         result.add(simpleTransportLine(l.getEquipmentName(), l.getTransportAmount(), invId));
-                    } else {
-                        BigDecimal planTr = planItemTransport(plan, l.getPlanItemId());
-                        if (planTr != null && planTr.compareTo(BigDecimal.ZERO) > 0)
-                            result.add(simpleTransportLine(l.getEquipmentName(), planTr, invId));
                     }
                 }
                 // equipmentId-siz (köhnə) daşınmalar
@@ -392,16 +386,6 @@ public class GeneratedDocumentService {
         tLine.setUnitPrice(amount != null ? amount : BigDecimal.ZERO);
         tLine.setSourceInvoiceId(invId);
         return tLine;
-    }
-
-    /** Plan xəttindən (CoordinatorPlanItem) daşınma qiyməti — sənəddə hər texnika üçün fallback. */
-    private BigDecimal planItemTransport(CoordinatorPlan plan, Long planItemId) {
-        if (plan == null || planItemId == null) return null;
-        return plan.getItems().stream()
-                .filter(i -> !i.isDeleted() && planItemId.equals(i.getId()))
-                .map(com.ces.erp.coordinator.entity.CoordinatorPlanItem::getTransportationPrice)
-                .filter(java.util.Objects::nonNull)
-                .findFirst().orElse(null);
     }
 
     /** Daşınma sətri — texnika adı (varsa) və istiqamətlə. */

@@ -22,6 +22,8 @@ public interface ReceivableRepository extends JpaRepository<Receivable, Long> {
                                         @Param("search") String search,
                                         Pageable pageable);
 
+    List<Receivable> findAllByDeletedFalse();
+
     Optional<Receivable> findByProjectIdAndDeletedFalse(Long projectId);
 
     Optional<Receivable> findByIdAndDeletedFalse(Long id);

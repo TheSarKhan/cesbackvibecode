@@ -138,13 +138,22 @@ public class PayableService {
     @Transactional(readOnly = true)
     public Page<PayableResponse> getPayables(PayableStatus status, String search, Pageable pageable) {
         String safeSearch = (search == null || search.trim().isEmpty()) ? "" : search.trim();
-        return payableRepository.findAllWithFilters(status, safeSearch, pageable)
-                .map(p -> {
-                    List<Invoice> invoices = p.getProject() != null
-                            ? invoiceRepository.findAllByProjectIdAndDeletedFalse(p.getProject().getId())
-                            : List.of();
-                    return PayableResponse.from(p, invoices);
-                });
+        Page<Payable> page = payableRepository.findAllWithFilters(status, safeSearch, pageable);
+
+        // N+1 qarşısı: səhifədəki bütün layihələrin qaimələrini bir sorğu ilə yüklə
+        List<Long> projectIds = page.getContent().stream()
+                .map(p -> p.getProject() != null ? p.getProject().getId() : null)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, List<Invoice>> byProject = projectIds.isEmpty()
+                ? Map.of()
+                : invoiceRepository.findAllByProjectIdInAndDeletedFalse(projectIds).stream()
+                        .collect(java.util.stream.Collectors.groupingBy(i -> i.getProject().getId()));
+
+        return page.map(p -> {
+            List<Invoice> invoices = p.getProject() != null
+                    ? byProject.getOrDefault(p.getProject().getId(), List.of()) : List.of();
+            return PayableResponse.from(p, invoices);
+        });
     }
 
     @Transactional(readOnly = true)

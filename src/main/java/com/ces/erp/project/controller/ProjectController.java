@@ -144,18 +144,6 @@ public class ProjectController {
                 projectService.complete(id, req)));
     }
 
-    // ─── Bitmə tarixi ─────────────────────────────────────────────────────────
-
-    @PatchMapping("/{id}/end-date")
-    @PreAuthorize("hasAuthority('PROJECTS:PUT')")
-    @Operation(summary = "Layihənin bitmə tarixini yenilə")
-    public ResponseEntity<ApiResponse<ProjectResponse>> updateEndDate(
-            @PathVariable Long id,
-            @RequestBody Map<String, String> body) {
-        LocalDate endDate = LocalDate.parse(body.get("endDate"));
-        return ResponseEntity.ok(ApiResponse.success("Bitmə tarixi yeniləndi",
-                projectService.updateEndDate(id, endDate)));
-    }
 
     // ─── Başlanğıc tarixi ─────────────────────────────────────────────────────
 

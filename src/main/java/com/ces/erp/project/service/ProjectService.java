@@ -376,18 +376,7 @@ public class ProjectService {
         return ProjectResponse.from(p, plan);
     }
 
-    @Transactional
-    public ProjectResponse updateEndDate(Long id, LocalDate endDate) {
-        Project p = findOrThrow(id);
-        if (p.getStatus() == ProjectStatus.COMPLETED) {
-            throw new BusinessException("Bağlanmış layihənin bitmə tarixi dəyişdirilə bilməz");
-        }
-        p.setEndDate(endDate);
-        projectRepository.save(p);
-        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "YENİLƏNDİ", "Layihə yeniləndi");
-        CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
-        return ProjectResponse.from(p, plan);
-    }
+    // QEYD: updateEndDate silindi — bitmə tarixi yalnız layihə bağlananda (complete) qeyd olunur.
 
     // ─── Ödəniş girişləri ─────────────────────────────────────────────────────
 
