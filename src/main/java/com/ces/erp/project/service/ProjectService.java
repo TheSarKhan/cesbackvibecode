@@ -221,6 +221,11 @@ public class ProjectService {
             throw new BusinessException("Layihəni bitirmək üçün ən az bir təsdiqlənmiş qaimə (qəbul sənədi) olmalıdır");
         }
 
+        // Bitmə tarixi — bağlanış zamanı qeyd olunur (effektiv gün hesablamasından əvvəl tətbiq et)
+        if (req.getEndDate() != null) {
+            p.setEndDate(req.getEndDate());
+        }
+
         // Planlaşdırılan saatlar: effektiv gün × 9 (1 gün = 9 saat)
         CoordinatorPlan planForHours = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
         Integer planDayCount = planForHours != null && planForHours.getDayCount() != null

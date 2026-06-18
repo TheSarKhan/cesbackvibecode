@@ -184,7 +184,7 @@ public class GeneratedDocumentService {
                 throw new BusinessException("Qaimə (#" + invId + ") təsdiqlənməyib. Yalnız APPROVED qaimələr istifadə edilə bilər.");
             }
 
-            // Qaimənin daşınma sətirləri
+            // Qaimənin daşınma sətirləri (həm ilk, həm proses daşınmaları)
             List<com.ces.erp.accounting.entity.InvoiceTransport> invTransports = invoice.getTransports().stream()
                     .filter(t -> !t.isDeleted())
                     .toList();
@@ -192,50 +192,98 @@ public class GeneratedDocumentService {
                     .map(t -> t.getTransportAmount() != null ? t.getTransportAmount() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            // Texnika icarəsi sətiri — nəqliyyat məbləği çıxılmış xalis məbləğlə
-            DocumentLineRequest lineReq = new DocumentLineRequest();
-            String description = buildEquipmentDescription(invoice);
-            lineReq.setDescription(description);
-            BigDecimal equipAmount = (invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO)
-                    .subtract(transportTotal);
+            // Toplu qaimə sətirləri (hər texnika ayrı)
+            List<com.ces.erp.accounting.entity.InvoiceLine> invLines = invoice.getLines() == null
+                    ? java.util.List.of()
+                    : invoice.getLines().stream().filter(l -> !l.isDeleted()).toList();
 
-            lineReq.setUnit("ədəd");
-            lineReq.setQuantity(BigDecimal.ONE);
-            lineReq.setUnitPrice(equipAmount.compareTo(BigDecimal.ZERO) > 0 ? equipAmount : BigDecimal.ZERO);
-            lineReq.setSourceInvoiceId(invId);
-            result.add(lineReq);
-
-            // Daşınma sətirləri — qaimədə daxil edilmiş InvoiceTransport qeydlərindən
-            if (!invTransports.isEmpty()) {
-                for (com.ces.erp.accounting.entity.InvoiceTransport t : invTransports) {
-                    DocumentLineRequest tLine = new DocumentLineRequest();
-                    String dir = t.getTransportDirection() != null ? " — " + t.getTransportDirection() : "";
-                    tLine.setDescription("Daşınma" + dir);
-                    tLine.setUnit("dəfə");
-                    tLine.setQuantity(BigDecimal.ONE);
-                    tLine.setUnitPrice(t.getTransportAmount() != null ? t.getTransportAmount() : BigDecimal.ZERO);
-                    tLine.setSourceInvoiceId(invId);
-                    result.add(tLine);
+            if (!invLines.isEmpty()) {
+                // Texnika ID → ad (daşınma sətrində texnikanı göstərmək üçün)
+                java.util.Map<Long, String> eqNames = new java.util.LinkedHashMap<>();
+                for (var l : invLines) {
+                    Long eid = l.getEquipment() != null ? l.getEquipment().getId() : null;
+                    if (eid != null && l.getEquipmentName() != null) eqNames.put(eid, l.getEquipmentName());
                 }
+
+                // Hər texnika üçün ayrıca icarə sətri (daşınmasız xalis məbləğlə)
+                for (var l : invLines) {
+                    DocumentLineRequest eqLine = new DocumentLineRequest();
+                    eqLine.setDescription(buildLineDescription(l, invoice));
+                    eqLine.setUnit("ədəd");
+                    eqLine.setQuantity(BigDecimal.ONE);
+                    BigDecimal amt = l.getEquipmentAmount() != null ? l.getEquipmentAmount()
+                            : (l.getLineTotal() != null
+                                ? l.getLineTotal().subtract(l.getTransportAmount() != null ? l.getTransportAmount() : BigDecimal.ZERO)
+                                : BigDecimal.ZERO);
+                    eqLine.setUnitPrice(amt.compareTo(BigDecimal.ZERO) > 0 ? amt : BigDecimal.ZERO);
+                    eqLine.setSourceInvoiceId(invId);
+                    result.add(eqLine);
+                }
+
+                // Daşınma — hər texnika üçün ayrıca. Mənbə üstünlüyü:
+                // 1) qaimədəki InvoiceTransport (ilk + proses) → 2) sətrin transportAmount → 3) plandan (CoordinatorPlanItem)
+                final CoordinatorPlan plan = (invoice.getProject() != null && invoice.getProject().getRequest() != null)
+                        ? coordinatorPlanRepository.findByRequestId(invoice.getProject().getRequest().getId()).orElse(null)
+                        : null;
+
+                java.util.Map<Long, java.util.List<com.ces.erp.accounting.entity.InvoiceTransport>> transportsByEq = new java.util.LinkedHashMap<>();
+                java.util.List<com.ces.erp.accounting.entity.InvoiceTransport> noEqTransports = new java.util.ArrayList<>();
+                for (var t : invTransports) {
+                    if (t.getEquipmentId() != null)
+                        transportsByEq.computeIfAbsent(t.getEquipmentId(), k -> new java.util.ArrayList<>()).add(t);
+                    else noEqTransports.add(t);
+                }
+
+                for (var l : invLines) {
+                    Long eid = l.getEquipment() != null ? l.getEquipment().getId() : null;
+                    var lineTransports = eid != null ? transportsByEq.get(eid) : null;
+                    if (lineTransports != null && !lineTransports.isEmpty()) {
+                        for (var t : lineTransports) result.add(buildTransportLine(t, eqNames, invId));
+                    } else if (l.getTransportAmount() != null && l.getTransportAmount().compareTo(BigDecimal.ZERO) > 0) {
+                        result.add(simpleTransportLine(l.getEquipmentName(), l.getTransportAmount(), invId));
+                    } else {
+                        BigDecimal planTr = planItemTransport(plan, l.getPlanItemId());
+                        if (planTr != null && planTr.compareTo(BigDecimal.ZERO) > 0)
+                            result.add(simpleTransportLine(l.getEquipmentName(), planTr, invId));
+                    }
+                }
+                // equipmentId-siz (köhnə) daşınmalar
+                for (var t : noEqTransports) result.add(buildTransportLine(t, eqNames, invId));
             } else {
-                // Fallback: CoordinatorPlan-dan daşınma qiyməti
-                if (invoice.getProject() != null && invoice.getProject().getRequest() != null) {
-                    Long requestId = invoice.getProject().getRequest().getId();
-                    Optional<CoordinatorPlan> planOpt = coordinatorPlanRepository.findByRequestId(requestId);
-                    planOpt.ifPresent(plan -> {
-                        if (plan.getTransportationPrice() != null
-                                && plan.getTransportationPrice().compareTo(BigDecimal.ZERO) > 0) {
-                            DocumentLineRequest transport = new DocumentLineRequest();
-                            String equipName = invoice.getEquipmentName() != null
-                                    ? " (" + invoice.getEquipmentName() + ")" : "";
-                            transport.setDescription("Daşınma" + equipName);
-                            transport.setUnit("dəfə");
-                            transport.setQuantity(BigDecimal.ONE);
-                            transport.setUnitPrice(plan.getTransportationPrice());
-                            transport.setSourceInvoiceId(invId);
-                            result.add(transport);
-                        }
-                    });
+                // ── Tək-texnikalı (köhnə) qaimə ──
+                DocumentLineRequest lineReq = new DocumentLineRequest();
+                lineReq.setDescription(buildEquipmentDescription(invoice));
+                BigDecimal equipAmount = (invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO)
+                        .subtract(transportTotal);
+                lineReq.setUnit("ədəd");
+                lineReq.setQuantity(BigDecimal.ONE);
+                lineReq.setUnitPrice(equipAmount.compareTo(BigDecimal.ZERO) > 0 ? equipAmount : BigDecimal.ZERO);
+                lineReq.setSourceInvoiceId(invId);
+                result.add(lineReq);
+
+                // Daşınma sətirləri — qaimədə daxil edilmiş InvoiceTransport qeydlərindən
+                if (!invTransports.isEmpty()) {
+                    for (var t : invTransports) result.add(buildTransportLine(t, java.util.Map.of(), invId));
+                } else {
+                    // Fallback: CoordinatorPlan-dan daşınma qiyməti
+                    if (invoice.getProject() != null && invoice.getProject().getRequest() != null) {
+                        Long requestId = invoice.getProject().getRequest().getId();
+                        Optional<CoordinatorPlan> planOpt = coordinatorPlanRepository.findByRequestId(requestId);
+                        planOpt.ifPresent(plan -> {
+                            if (plan.getTransportationPrice() != null
+                                    && plan.getTransportationPrice().compareTo(BigDecimal.ZERO) > 0) {
+                                DocumentLineRequest transport = new DocumentLineRequest();
+                                String equipName = invoice.getEquipmentName() != null
+                                        ? " (" + invoice.getEquipmentName() + ")" : "";
+                                transport.setDescription("Daşınma" + equipName);
+                                transport.setUnit("dəfə");
+                                transport.setQuantity(BigDecimal.ONE);
+                                transport.setUnitPrice(plan.getTransportationPrice());
+                                transport.setSourceInvoiceId(invId);
+                                result.add(transport);
+                            }
+                        });
+                    }
                 }
             }
         }
@@ -318,6 +366,58 @@ public class GeneratedDocumentService {
         } catch (NumberFormatException e) {
             return BigDecimal.valueOf(18);
         }
+    }
+
+    /** Toplu qaimə sətrindən (bir texnika) təsvir: "Texnika adı icarəsi (ay/il)". */
+    private String buildLineDescription(com.ces.erp.accounting.entity.InvoiceLine line, Invoice invoice) {
+        StringBuilder sb = new StringBuilder();
+        String name = line.getEquipmentName() != null && !line.getEquipmentName().isBlank()
+                ? line.getEquipmentName() : "Texnika";
+        sb.append(name).append(" icarəsi");
+        Integer pm = line.getPeriodMonth() != null ? line.getPeriodMonth() : invoice.getPeriodMonth();
+        Integer py = line.getPeriodYear() != null ? line.getPeriodYear() : invoice.getPeriodYear();
+        if (pm != null && py != null) {
+            sb.append(" (").append(pm).append("/").append(py).append(")");
+        }
+        return sb.toString();
+    }
+
+    /** Sadə daşınma sətri — texnika adı və məbləğlə (istiqamət olmadan; plan/məbləğ fallback). */
+    private DocumentLineRequest simpleTransportLine(String eqName, BigDecimal amount, Long invId) {
+        DocumentLineRequest tLine = new DocumentLineRequest();
+        String name = (eqName != null && !eqName.isBlank()) ? " (" + eqName + ")" : "";
+        tLine.setDescription("Daşınma" + name);
+        tLine.setUnit("dəfə");
+        tLine.setQuantity(BigDecimal.ONE);
+        tLine.setUnitPrice(amount != null ? amount : BigDecimal.ZERO);
+        tLine.setSourceInvoiceId(invId);
+        return tLine;
+    }
+
+    /** Plan xəttindən (CoordinatorPlanItem) daşınma qiyməti — sənəddə hər texnika üçün fallback. */
+    private BigDecimal planItemTransport(CoordinatorPlan plan, Long planItemId) {
+        if (plan == null || planItemId == null) return null;
+        return plan.getItems().stream()
+                .filter(i -> !i.isDeleted() && planItemId.equals(i.getId()))
+                .map(com.ces.erp.coordinator.entity.CoordinatorPlanItem::getTransportationPrice)
+                .filter(java.util.Objects::nonNull)
+                .findFirst().orElse(null);
+    }
+
+    /** Daşınma sətri — texnika adı (varsa) və istiqamətlə. */
+    private DocumentLineRequest buildTransportLine(com.ces.erp.accounting.entity.InvoiceTransport t,
+                                                   java.util.Map<Long, String> eqNames, Long invId) {
+        DocumentLineRequest tLine = new DocumentLineRequest();
+        String eqName = (t.getEquipmentId() != null && eqNames.get(t.getEquipmentId()) != null)
+                ? " (" + eqNames.get(t.getEquipmentId()) + ")" : "";
+        String dir = (t.getTransportDirection() != null && !t.getTransportDirection().isBlank())
+                ? " — " + t.getTransportDirection() : "";
+        tLine.setDescription("Daşınma" + eqName + dir);
+        tLine.setUnit("dəfə");
+        tLine.setQuantity(BigDecimal.ONE);
+        tLine.setUnitPrice(t.getTransportAmount() != null ? t.getTransportAmount() : BigDecimal.ZERO);
+        tLine.setSourceInvoiceId(invId);
+        return tLine;
     }
 
     private String buildEquipmentDescription(Invoice invoice) {

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Data
 public class ProjectCompleteRequest {
@@ -12,6 +13,9 @@ public class ProjectCompleteRequest {
     @NotNull(message = "Evakuator xərci daxil edilməlidir")
     @DecimalMin(value = "0.0", message = "Evakuator xərci mənfi ola bilməz")
     private BigDecimal evacuationCost;
+
+    // Bitmə tarixi — layihə bağlanarkən qeyd olunur (könüllü; boşdursa bugünkü tarix)
+    private LocalDate endDate;
 
     // İş saatı timesheet qaimələrindən izlənilir — optional
     private BigDecimal actualHours;
