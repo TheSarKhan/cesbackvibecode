@@ -1,6 +1,5 @@
 package com.ces.erp.coordinator.service;
 
-import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.dto.PagedResponse;
@@ -469,7 +468,6 @@ public class CoordinatorPlanService implements ApprovalHandler {
     }
 
     @Transactional
-    @RequiresApproval(module = "COORDINATOR", entityType = "COORDINATOR_SUBMIT")
     public CoordinatorPlanResponse submitPlan(Long requestId) {
         TechRequest request = findRequestOrThrow(requestId);
         // Yeni flowda koordinator təklifi PM-ə qaytarır (mərkəzi gateway ilə)

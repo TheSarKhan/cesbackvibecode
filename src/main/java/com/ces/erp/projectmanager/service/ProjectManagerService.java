@@ -1,6 +1,5 @@
 package com.ces.erp.projectmanager.service;
 
-import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
@@ -336,7 +335,6 @@ public class ProjectManagerService implements ApprovalHandler {
     }
 
     @Transactional
-    @RequiresApproval(module = "PROJECT_MANAGER", entityType = "PM_APPROVE")
     public PmRequestResponse approve(Long requestId) {
         approveInternal(requestId);
         return getRequest(requestId);
@@ -472,10 +470,17 @@ public class ProjectManagerService implements ApprovalHandler {
                         ? investorRepository.findById(itemReq.getInvestorId())
                             .orElseThrow(() -> new ResourceNotFoundException("Investor", itemReq.getInvestorId()))
                         : null);
-                item.setEquipment(itemReq.getEquipmentId() != null
-                        ? equipmentRepository.findById(itemReq.getEquipmentId())
-                            .orElseThrow(() -> new ResourceNotFoundException("Texnika", itemReq.getEquipmentId()))
-                        : null);
+                if (itemReq.getEquipmentId() != null) {
+                    var eq = equipmentRepository.findById(itemReq.getEquipmentId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Texnika", itemReq.getEquipmentId()));
+                    // İcarədə olan texnika başqa layihəyə seçilə bilməz
+                    if (eq.getStatus() == EquipmentStatus.RENTED) {
+                        throw new BusinessException("İcarədə olan texnika seçilə bilməz: " + eq.getName());
+                    }
+                    item.setEquipment(eq);
+                } else {
+                    item.setEquipment(null);
+                }
                 item.setNegotiatedPrice(itemReq.getNegotiatedPrice());
                 item.setRank(itemReq.getRank());
                 item.setNotes(itemReq.getNotes());

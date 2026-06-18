@@ -2,7 +2,6 @@ package com.ces.erp.accounting.service;
 
 import com.ces.erp.accounting.dto.RequestDocumentCheckResponse;
 import com.ces.erp.accounting.service.ReceivableService;
-import com.ces.erp.approval.annotation.RequiresApproval;
 import com.ces.erp.approval.context.ApprovalContext;
 import com.ces.erp.approval.handler.ApprovalHandler;
 import com.ces.erp.common.audit.AuditService;
@@ -244,7 +243,6 @@ public class DocumentCheckService implements ApprovalHandler {
      * yaradıb {@code PROJECT_ACTIVATION} sıraya salır və 202 qaytarır. Təsdiqdə applyEdit→applyActivation.
      */
     @Transactional
-    @RequiresApproval(module = "ACCOUNTING", entityType = "PROJECT_ACTIVATION")
     public RequestDocumentCheckResponse submitForActivation(Long requestId) {
         // Yalnız apply-proceed olduqda işləyər (normalda aspect sıraya salır).
         applyActivation(requestId);
