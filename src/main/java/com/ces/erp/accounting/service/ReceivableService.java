@@ -95,16 +95,20 @@ public class ReceivableService {
 
     @Transactional
     public void createFromProject(Project project) {
+        createFromProject(project, null);
+    }
+
+    @Transactional
+    public void createFromProject(Project project, Customer fallbackCustomer) {
         // Layihənin debitoru varmı?
         if (receivableRepository.findByProjectIdAndDeletedFalse(project.getId()).isPresent()) {
             return;
         }
 
+        // Müştəri FK: əvvəl sorğudan, yoxdursa qaimədən (fallback). Heç biri yoxdursa null —
+        // debitor yenə də yaranır (companyName mətn ilə layihələr üçün).
         Customer customer = project.getRequest() != null ? project.getRequest().getCustomer() : null;
-        if (customer == null) {
-            // Müştəri olmadan debitor yaradıla bilməz — sessiz çıx
-            return;
-        }
+        if (customer == null) customer = fallbackCustomer;
 
         LocalDate dueDate = project.getEndDate() != null ? project.getEndDate().plusDays(20) : LocalDate.now().plusDays(20);
 
@@ -143,13 +147,17 @@ public class ReceivableService {
 
         Receivable r = receivableRepository.findByProjectIdAndDeletedFalse(invoice.getProject().getId())
                 .orElseGet(() -> {
-                   createFromProject(invoice.getProject());
+                   createFromProject(invoice.getProject(), invoice.getCustomer());
                    return receivableRepository.findByProjectIdAndDeletedFalse(invoice.getProject().getId()).orElse(null);
                 });
 
         if (r == null) {
-            // Müştəri olmadığı üçün debitor yaradıla bilmədi
             return;
+        }
+
+        // Self-heal: mövcud debitorda müştəri boşdursa, qaimədəki müştəri ilə doldur
+        if (r.getCustomer() == null && invoice.getCustomer() != null) {
+            r.setCustomer(invoice.getCustomer());
         }
 
         // Yalnız APPROVED INCOME qaimələrinin cəmi — borc məbləği

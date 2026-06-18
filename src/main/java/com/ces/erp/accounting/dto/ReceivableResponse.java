@@ -72,13 +72,16 @@ public class ReceivableResponse {
                 && r.getProject().getRequest().getSelectedEquipment() != null) {
             equipmentName = r.getProject().getRequest().getSelectedEquipment().getName();
         }
+        // Müştəri FK yoxdursa — layihənin companyName mətnini göstər
+        String customerName = r.getCustomer() != null ? r.getCustomer().getCompanyName()
+                : (r.getProject() != null && r.getProject().getRequest() != null ? r.getProject().getRequest().getCompanyName() : null);
         return ReceivableResponse.builder()
                 .id(r.getId())
                 .projectCode(r.getProject() != null ? r.getProject().getProjectCode() : null)
                 .projectName(r.getProject() != null && r.getProject().getRequest() != null ? r.getProject().getRequest().getProjectName() : null)
                 .region(r.getProject() != null && r.getProject().getRequest() != null ? r.getProject().getRequest().getRegion() : null)
                 .equipmentName(equipmentName)
-                .customerName(r.getCustomer() != null ? r.getCustomer().getCompanyName() : null)
+                .customerName(customerName)
                 .customerVoen(r.getCustomer() != null ? r.getCustomer().getVoen() : null)
                 .customerPhone(r.getCustomer() != null ? r.getCustomer().getOfficeContactPhone() : null)
                 .totalAmount(r.getTotalAmount())

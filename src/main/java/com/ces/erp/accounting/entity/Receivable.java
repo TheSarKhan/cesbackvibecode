@@ -25,8 +25,9 @@ public class Receivable extends BaseEntity {
     @JoinColumn(name = "project_id", nullable = false, unique = true)
     private Project project;
 
+    // Könüllü: layihə yalnız companyName ilə (müştəri FK olmadan) yarana bilər
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id", nullable = false)
+    @JoinColumn(name = "customer_id")
     private Customer customer;
 
     @Column(nullable = false, precision = 12, scale = 2)

@@ -14,10 +14,10 @@ import java.util.Optional;
 
 public interface ReceivableRepository extends JpaRepository<Receivable, Long> {
 
-    @Query("SELECT r FROM Receivable r WHERE r.deleted = false " +
+    @Query("SELECT r FROM Receivable r LEFT JOIN r.customer cu LEFT JOIN r.project pr WHERE r.deleted = false " +
            "AND (:status IS NULL OR r.status = :status) " +
-           "AND (LOWER(r.project.projectCode) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "OR LOWER(r.customer.companyName) LIKE LOWER(CONCAT('%', :search, '%')))")
+           "AND (:search = '' OR LOWER(COALESCE(pr.projectCode, '')) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "OR LOWER(COALESCE(cu.companyName, '')) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<Receivable> findAllWithFilters(@Param("status") ReceivableStatus status,
                                         @Param("search") String search,
                                         Pageable pageable);
