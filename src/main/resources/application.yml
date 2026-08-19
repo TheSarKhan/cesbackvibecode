@@ -8,9 +8,9 @@ spring:
   application:
     name: ces-erp
   datasource:
-    url: jdbc:postgresql://localhost:5434/ces_erp
-    username: ces_user
-    password: ces_password
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/ces_erp}
+    username: ${DB_USERNAME:ces_user}
+    password: ${DB_PASSWORD:ces_password}
     driver-class-name: org.postgresql.Driver
   flyway:
     enabled: true
@@ -28,18 +28,18 @@ spring:
         format_sql: true
   data:
     redis:
-      host: localhost
-      port: 6381
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6381}
   servlet:
     multipart:
       enabled: true
       max-file-size: 50MB
       max-request-size: 50MB
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: serxan.babayev.06@gmail.com
-    password: "fisr dogm rgic usdj"
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:serxan.babayev.06@gmail.com}
+    password: ${MAIL_PASSWORD:fisr dogm rgic usdj}
     protocol: smtp
     properties:
       mail:
@@ -72,7 +72,7 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:https://ces.invorent.com,https://www.ces.invorent.com,http://localhost:3000,http://localhost:5173}
   jwt:
-    secret: ces-erp-super-secret-key-minimum-256-bit-length-required-here
+    secret: ${JWT_SECRET:ces-erp-super-secret-key-minimum-256-bit-length-required-here}
     access-token-expiry: 86400000
     refresh-token-expiry: 604800000
   upload:

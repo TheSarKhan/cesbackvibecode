@@ -29,6 +29,8 @@ public interface ContractorRepository extends JpaRepository<Contractor, Long> {
 
     Optional<Contractor> findByIdAndDeletedFalse(Long id);
 
+    Optional<Contractor> findByVoen(String voen);
+
     boolean existsByVoenAndDeletedFalse(String voen);
 
     boolean existsByVoenAndIdNotAndDeletedFalse(String voen, Long id);

@@ -104,30 +104,37 @@ public class DataSeeder implements CommandLineRunner {
         moduleRepository.findAll().forEach(m -> moduleNameByCode.put(m.getCode(), m.getNameAz()));
 
         // ── Şöbələr ──
-        Department rehberlik  = dept("Rəhbərlik",            "Şirkət rəhbərliyi");
-        Department satis      = dept("Satış şöbəsi",         "Müştəri və sorğu idarəetməsi");
-        Department layihePm   = dept("Layihə İdarəetməsi",   "Layihə menecerləri");
-        Department koord      = dept("Koordinasiya şöbəsi",  "Koordinator əməliyyatları");
-        Department maliyye    = dept("Maliyyə şöbəsi",       "Mühasibatlıq və maliyyə");
-        Department texniki    = dept("Texniki Xidmət şöbəsi","Qaraj və avadanlıq idarəetməsi");
-        departmentRepository.saveAll(List.of(rehberlik, satis, layihePm, koord, maliyye, texniki));
+        Department idare      = dept("İdarə şöbəsi",          "Şirkət rəhbərliyi");
+        Department admin      = dept("Administrator şöbəsi",  "Sistem administrasiyası — istifadəçi, rol, qaraj və master data idarəetməsi");
+        Department layihePm   = dept("Layihə Meneceri şöbəsi","Layihə menecerləri");
+        Department koord      = dept("Koordinasiya şöbəsi",   "Koordinator əməliyyatları");
+        Department muhasib    = dept("Mühasibatlıq şöbəsi",   "Mühasibatlıq və maliyyə");
+        Department sorgu      = dept("Sorğu şöbəsi",          "Müştəri və sorğu idarəetməsi");
+        departmentRepository.saveAll(List.of(idare, admin, layihePm, koord, muhasib, sorgu));
 
         // ── Rollar ──
 
-        // 1. Super Admin — adi rol, BÜTÜN real icazələr qrant kimi verilir (xüsusi flag yox)
-        Role superAdmin = role("Super Admin", "Bütün modullara tam giriş", rehberlik);
+        // 1. Super Admin (İdarə) — adi rol, BÜTÜN real icazələr qrant kimi verilir (xüsusi flag yox)
+        Role superAdmin = role("Super Admin", "Bütün modullara tam giriş", idare);
         grantAllReal(superAdmin);
         roleRepository.save(superAdmin);
 
-        // 2. Satış Meneceri
-        Role salesRole = role("Satış Meneceri", "Müştəri və sorğu idarəetməsi", satis);
-        grant(salesRole, "CUSTOMER_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
-        grant(salesRole, "CONTRACTOR_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
-        grant(salesRole, "REQUESTS", "GET", "POST", "PUT", "DELETE", "SEND_COORDINATOR");
-        grant(salesRole, "PROJECTS", "GET");
-        grant(salesRole, "GARAGE", "GET");
-        grant(salesRole, "DASHBOARD", "GET");
-        roleRepository.save(salesRole);
+        // 2. Administrator — sistem administrasiyası (istifadəçi/rol, qaraj, master data)
+        Role adminRole = role("Administrator", "Sistem administrasiyası və master data idarəetməsi", admin);
+        grant(adminRole, "ROLE_PERMISSION", "GET", "POST", "PUT", "DELETE");
+        grant(adminRole, "EMPLOYEE_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
+        grant(adminRole, "HR_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
+        grant(adminRole, "CONFIG", "GET", "POST", "PUT", "DELETE", "PING");
+        grant(adminRole, "CUSTOMER_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
+        grant(adminRole, "CONTRACTOR_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
+        grant(adminRole, "INVESTORS", "GET", "POST", "PUT", "DELETE");
+        grant(adminRole, "OPERATORS", "GET", "POST", "PUT", "DELETE");
+        grant(adminRole, "GARAGE", "GET", "POST", "PUT", "DELETE");
+        grant(adminRole, "SERVICE_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
+        grant(adminRole, "AUDIT_LOG", "GET");
+        grant(adminRole, "TRASH", "GET", "PUT");
+        grant(adminRole, "DASHBOARD", "GET");
+        roleRepository.save(adminRole);
 
         // 3. Layihə Meneceri
         Role pmRole = role("Layihə Meneceri", "Layihə menecmenti və müştəri əlaqələri", layihePm);
@@ -153,8 +160,8 @@ public class DataSeeder implements CommandLineRunner {
         grant(coordRole, "DASHBOARD", "GET");
         roleRepository.save(coordRole);
 
-        // 5. Maliyyəçi
-        Role financeRole = role("Maliyyəçi", "Mühasibatlıq və maliyyə əməliyyatları", maliyye);
+        // 5. Mühasib
+        Role financeRole = role("Mühasib", "Mühasibatlıq və maliyyə əməliyyatları", muhasib);
         grant(financeRole, "ACCOUNTING", "GET", "POST", "PUT", "DELETE", "CHECK_DOCUMENTS");
         grant(financeRole, "PROJECTS", "GET");
         grant(financeRole, "REQUESTS", "GET");
@@ -162,22 +169,23 @@ public class DataSeeder implements CommandLineRunner {
         grant(financeRole, "DASHBOARD", "GET");
         roleRepository.save(financeRole);
 
-        // 6. Texnik
-        Role techRole = role("Texnik", "Qaraj və texniki xidmət", texniki);
-        grant(techRole, "GARAGE", "GET", "POST", "PUT", "DELETE");
-        grant(techRole, "SERVICE_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
-        grant(techRole, "REQUESTS", "GET");
-        grant(techRole, "OPERATORS", "GET");
-        grant(techRole, "DASHBOARD", "GET");
-        roleRepository.save(techRole);
+        // 6. Sorğu Məsulu
+        Role sorguRole = role("Sorğu Məsulu", "Müştəri, podratçı və sorğu idarəetməsi", sorgu);
+        grant(sorguRole, "CUSTOMER_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
+        grant(sorguRole, "CONTRACTOR_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
+        grant(sorguRole, "REQUESTS", "GET", "POST", "PUT", "DELETE", "SEND_COORDINATOR");
+        grant(sorguRole, "PROJECTS", "GET");
+        grant(sorguRole, "GARAGE", "GET");
+        grant(sorguRole, "DASHBOARD", "GET");
+        roleRepository.save(sorguRole);
 
         // ── İstifadəçilər (hər rol üçün bir test useri) ──
-        saveUser("Fuad Quliyev", "admin@ces.az", "Admin@123", "+994501000001", rehberlik, superAdmin, true);
-        saveUser("Nigar Əhmədova", "nigar@ces.az", "Test@123", "+994502000001", satis, salesRole, false);
+        saveUser("Fuad Quliyev", "admin@ces.az", "Admin@123", "+994501000001", idare, superAdmin, true);
+        saveUser("Elvin Məmmədov", "administrator@ces.az", "Test@123", "+994506000001", admin, adminRole, false);
         saveUser("Səbinə Quliyeva", "sebine@ces.az", "Test@123", "+994505000001", layihePm, pmRole, false);
         saveUser("Bəhruz Hüseynov", "behruz@ces.az", "Test@123", "+994503000001", koord, coordRole, false);
-        saveUser("Xədicə Babayeva", "xedice@ces.az", "Test@123", "+994504000001", maliyye, financeRole, false);
-        saveUser("Elvin Texnik", "texnik@ces.az", "Test@123", "+994506000001", texniki, techRole, false);
+        saveUser("Xədicə Babayeva", "xedice@ces.az", "Test@123", "+994504000001", muhasib, financeRole, false);
+        saveUser("Nigar Əhmədova", "nigar@ces.az", "Test@123", "+994502000001", sorgu, sorguRole, false);
 
         log.info("6 şöbə, 6 rol, 6 istifadəçi əlavə edildi.");
     }
