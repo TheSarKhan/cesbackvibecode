@@ -146,7 +146,6 @@ public class RoleService implements ApprovalHandler {
     }
 
     @Transactional
-    @RequiresApproval(module = "ROLE_PERMISSION", entityType = "ROLE")
     public RoleResponse update(Long id, RoleRequest request) {
         Role role = roleRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol", id));
@@ -166,7 +165,6 @@ public class RoleService implements ApprovalHandler {
     }
 
     @Transactional
-    @RequiresApproval(module = "ROLE_PERMISSION", entityType = "ROLE", isDelete = true)
     public void delete(Long id) {
         Role role = roleRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol", id));
