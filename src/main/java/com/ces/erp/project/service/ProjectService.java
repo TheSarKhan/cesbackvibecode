@@ -365,17 +365,29 @@ public class ProjectService {
             projectRepository.save(p);
         }
 
-        Equipment eq = plan != null && plan.getSelectedEquipment() != null
-                ? plan.getSelectedEquipment()
-                : (p.getRequest() != null ? p.getRequest().getSelectedEquipment() : null);
+        List<Equipment> targetEquipments = new java.util.ArrayList<>();
+        if (plan != null && plan.getItems() != null && !plan.getItems().isEmpty()) {
+            for (CoordinatorPlanItem it : plan.getItems()) {
+                if (it.getEquipment() != null && !it.isDeleted()) {
+                    targetEquipments.add(it.getEquipment());
+                }
+            }
+        }
+        if (targetEquipments.isEmpty()) {
+            Equipment eq = plan != null && plan.getSelectedEquipment() != null
+                    ? plan.getSelectedEquipment()
+                    : (p.getRequest() != null ? p.getRequest().getSelectedEquipment() : null);
+            if (eq != null) targetEquipments.add(eq);
+        }
 
-        if (eq != null) {
+        EquipmentStatus nextStatus = (req != null && req.isRequiresInspection())
+                ? EquipmentStatus.IN_INSPECTION
+                : EquipmentStatus.AVAILABLE;
+
+        for (Equipment eq : targetEquipments) {
             if (req != null && req.getFinalHourKmCounter() != null) {
                 eq.setHourKmCounter(req.getFinalHourKmCounter());
             }
-            EquipmentStatus nextStatus = (req != null && req.isRequiresInspection())
-                    ? EquipmentStatus.IN_INSPECTION
-                    : EquipmentStatus.AVAILABLE;
             equipmentService.changeStatus(eq, nextStatus,
                     "Demobilizasiya — qaraja qaytarıldı" + (req != null && req.getReturnNotes() != null ? ": " + req.getReturnNotes() : ""),
                     equipmentService.currentUserOrNull());

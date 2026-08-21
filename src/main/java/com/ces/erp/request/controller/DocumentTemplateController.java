@@ -52,7 +52,7 @@ public class DocumentTemplateController {
                 .body(pdfBytes);
     }
 
-    @PostMapping("/auto-attach-handover-act")
+    @PostMapping({"/auto-attach-handover-act", "/handover-act/auto-attach"})
     @Operation(summary = "Təhvil-təslim aktını avtomatik generasiya edib Koordinator planına bağla")
     public ResponseEntity<ApiResponse<String>> autoAttachHandoverAct(
             @PathVariable Long requestId,
@@ -74,7 +74,7 @@ public class DocumentTemplateController {
         return ResponseEntity.ok(ApiResponse.success("Təhvil-təslim aktı avtomatik yaradıldı və plana bağlandı", "OK"));
     }
 
-    @PostMapping("/auto-attach-price-protocol")
+    @PostMapping({"/auto-attach-price-protocol", "/price-protocol/auto-attach"})
     @Operation(summary = "Qiymət protokolunu avtomatik generasiya edib Mühasibatlığa bağla")
     public ResponseEntity<ApiResponse<String>> autoAttachPriceProtocol(
             @PathVariable Long requestId,
