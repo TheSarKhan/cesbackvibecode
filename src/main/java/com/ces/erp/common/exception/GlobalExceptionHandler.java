@@ -21,6 +21,8 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.stream.Collectors;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -44,7 +46,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MultipartException.class)
     public ResponseEntity<ApiResponse<Void>> handleMultipart(MultipartException ex) {
         logger.warn("Multipart xətası: {}", ex.getMessage());
-        return ResponseEntity.badRequest().body(ApiResponse.error("Fayl yüklənərkən xəta baş verdi"));
+        return ResponseEntity.badRequest().body(ApiResponse.error("Fayl yüklənərkən xəta baş verdi. Faylın mövcudluğunu və formatını yoxlayın."));
     }
 
     @ExceptionHandler(BusinessException.class)
@@ -61,21 +63,33 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult().getAllErrors().stream()
-                .map(error -> {
-                    if (error instanceof FieldError fe) return fe.getField() + ": " + fe.getDefaultMessage();
-                    return error.getDefaultMessage();
-                })
-                .findFirst()
-                .orElse("Validasiya xətası");
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getDefaultMessage() != null && !fe.getDefaultMessage().isBlank()
+                        ? fe.getDefaultMessage()
+                        : fe.getField() + " sahəsi yanlışdır")
+                .distinct()
+                .collect(Collectors.joining("; "));
+
+        if (message.isBlank()) {
+            message = ex.getBindingResult().getAllErrors().stream()
+                    .map(err -> err.getDefaultMessage() != null ? err.getDefaultMessage() : "Validasiya xətası")
+                    .distinct()
+                    .collect(Collectors.joining("; "));
+        }
+
+        if (message.isBlank()) {
+            message = "Daxil edilən məlumatların düzgünlüyünü yoxlayın (Validasiya xətası)";
+        }
+
         logger.warn("Validasiya xətası: {}", message);
         return ResponseEntity.badRequest().body(ApiResponse.error(message));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        String message = "Göndərilən məlumat formatı düzgün deyil. Xanaların tipini (tarix, seçim və s.) yoxlayın.";
         logger.warn("Oxunmaz sorğu gövdəsi: {}", ex.getMessage());
-        return ResponseEntity.badRequest().body(ApiResponse.error("Sorğu gövdəsi düzgün formatda deyil"));
+        return ResponseEntity.badRequest().body(ApiResponse.error(message));
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
@@ -88,7 +102,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         String message = "'" + ex.getName() + "' parametri üçün düzgün tip tələb olunur: "
-                + ex.getRequiredType().getSimpleName();
+                + (ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "naməlum");
         logger.warn("Tip uyuşmazlığı: {}", message);
         return ResponseEntity.badRequest().body(ApiResponse.error(message));
     }
@@ -136,7 +150,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error("Endpoint tapılmadı: " + ex.getResourcePath()));
+                .body(ApiResponse.error("Axtarılan səhifə və ya ünvan tapılmadı: " + ex.getResourcePath()));
     }
 
     // ─── 409 Conflict ─────────────────────────────────────────────────────────
@@ -170,9 +184,22 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
-        logger.warn("Verilənlər bazası məhdudiyyəti pozuldu: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error("Bu məlumat artıq mövcuddur və ya məhdudiyyəti pozur"));
+        String rootMsg = ex.getRootCause() != null ? ex.getRootCause().getMessage() : ex.getMessage();
+        String lower = (rootMsg != null ? rootMsg : "").toLowerCase();
+
+        String userFriendlyMsg;
+        if (lower.contains("foreign key") || lower.contains("violates foreign key constraint") || lower.contains("referential integrity")) {
+            userFriendlyMsg = "Bu qeyd digər məlumatlarla (layihələr, sənədlər, ödənişlər və ya texnikalar) əlaqəli olduğu üçün silinə və ya dəyişdirilə bilməz. Əvvəlcə əlaqəli qeydləri tənzimləyin.";
+        } else if (lower.contains("unique constraint") || lower.contains("duplicate key")) {
+            userFriendlyMsg = "Daxil edilən unikal məlumat (məsələn: VÖEN, nömrə, kod və ya ad) artıq sistemdə mövcuddur. Təkrar daxil edilə bilməz.";
+        } else if (lower.contains("not-null") || lower.contains("null value in column")) {
+            userFriendlyMsg = "Tələb olunan məcburi xanalar doldurulmayıb.";
+        } else {
+            userFriendlyMsg = "Məlumat bazası məhdudiyyəti: Göndərilən məlumatlar bütövlük qaydalarına uyğun gəlmir.";
+        }
+
+        logger.warn("Verilənlər bazası məhdudiyyəti pozuldu: {} -> Cavab: {}", ex.getMessage(), userFriendlyMsg);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(userFriendlyMsg));
     }
 
     // ─── 500 Internal Server Error ────────────────────────────────────────────
@@ -181,13 +208,37 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleFileStorage(FileStorageException ex) {
         logger.error("Fayl saxlama xətası: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error("Fayl saxlama xətası: " + ex.getMessage()));
+    }
+
+    @ExceptionHandler(NullPointerException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNullPointer(NullPointerException ex) {
+        logger.error("NullPointerException baş verdi: {}", ex.getMessage(), ex);
+        String msg = "Daxili server xətası (NullPointerException): Tələb olunan obyekt və ya parametr boşdur (null referans).";
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.error(msg));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneral(Exception ex) {
-        logger.error("Gözlənilməz xəta: {}", ex.getMessage(), ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Sistem xətası baş verdi. Zəhmət olmasa yenidən cəhd edin."));
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+
+        String exceptionType = rootCause.getClass().getSimpleName();
+        String rootMsg = rootCause.getMessage();
+        if (rootMsg == null || rootMsg.isBlank()) {
+            rootMsg = ex.getMessage();
+        }
+
+        String userFriendlyMsg;
+        if (rootMsg != null && !rootMsg.isBlank()) {
+            userFriendlyMsg = "Daxili server xətası (" + exceptionType + "): " + rootMsg;
+        } else {
+            userFriendlyMsg = "Daxili server xətası (" + exceptionType + "): Gözlənilməz sistem nasazlığı baş verdi.";
+        }
+
+        logger.error("Gözlənilməz daxili xəta [{}]: {}", exceptionType, rootMsg, ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.error(userFriendlyMsg));
     }
 }
