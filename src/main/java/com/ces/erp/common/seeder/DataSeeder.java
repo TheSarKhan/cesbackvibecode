@@ -120,22 +120,9 @@ public class DataSeeder implements CommandLineRunner {
         grantAllReal(ceoRole);
         roleRepository.save(ceoRole);
 
-        // 2. Administrator — sistem administrasiyası (istifadəçi/rol, qaraj, master data) + təsdiq səlahiyyəti
-        Role adminRole = role("Administrator", "Sistem administrasiyası, master data idarəetməsi və əməliyyat təsdiqi", admin);
-        grant(adminRole, "ROLE_PERMISSION", "GET", "POST", "PUT", "DELETE");
-        grant(adminRole, "EMPLOYEE_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
-        grant(adminRole, "HR_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
-        grant(adminRole, "CONFIG", "GET", "POST", "PUT", "DELETE", "PING");
-        grant(adminRole, "CUSTOMER_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
-        grant(adminRole, "CONTRACTOR_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
-        grant(adminRole, "INVESTORS", "GET", "POST", "PUT", "DELETE");
-        grant(adminRole, "OPERATORS", "GET", "POST", "PUT", "DELETE");
-        grant(adminRole, "GARAGE", "GET", "POST", "PUT", "DELETE");
-        grant(adminRole, "SERVICE_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
-        grant(adminRole, "AUDIT_LOG", "GET");
-        grant(adminRole, "TRASH", "GET", "PUT");
-        grant(adminRole, "OPERATIONS_APPROVAL", "GET", "PUT");
-        grant(adminRole, "DASHBOARD", "GET");
+        // 2. Administrator — bütün modullara CEO ilə eyni tam giriş + əməliyyat təsdiqi
+        Role adminRole = role("Administrator", "Bütün modullara tam giriş və əməliyyat təsdiqi", admin);
+        grantAllReal(adminRole);
         roleRepository.save(adminRole);
 
         // 3. Layihə Meneceri
@@ -225,6 +212,7 @@ public class DataSeeder implements CommandLineRunner {
         grant(role, "INVESTORS", "GET", "POST", "PUT", "DELETE");
         grant(role, "OPERATORS", "GET", "POST", "PUT", "DELETE");
         grant(role, "GARAGE", "GET", "POST", "PUT", "DELETE");
+        grant(role, "SERVICE_MANAGEMENT", "GET", "POST", "PUT", "DELETE");
         grant(role, "REQUESTS", "GET", "POST", "PUT", "DELETE", "SEND_COORDINATOR");
         grant(role, "PROJECT_MANAGER", "GET", "POST", "PUT", "DELETE", "APPROVE_PM");
         grant(role, "COORDINATOR", "GET", "POST", "PUT", "DELETE", "SUBMIT_OFFER", "DISPATCH", "DELIVER");
