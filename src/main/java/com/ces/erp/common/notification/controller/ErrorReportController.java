@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/system")
+@RequestMapping("/api/system")
 @RequiredArgsConstructor
 @Tag(name = "System Notifications", description = "Sistem xəta və bildiriş servisləri")
 public class ErrorReportController {
