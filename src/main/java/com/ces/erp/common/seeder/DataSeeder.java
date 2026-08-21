@@ -127,7 +127,7 @@ public class DataSeeder implements CommandLineRunner {
 
         // 3. Layihə Meneceri
         Role pmRole = role("Layihə Meneceri", "Layihə menecmenti və müştəri əlaqələri", layihePm);
-        grant(pmRole, "REQUESTS", "GET", "PUT");
+        grant(pmRole, "REQUESTS", "GET", "POST", "PUT", "DELETE", "SEND_COORDINATOR");
         grant(pmRole, "PROJECT_MANAGER", "GET", "POST", "PUT", "DELETE", "APPROVE_PM");
         grant(pmRole, "CUSTOMER_MANAGEMENT", "GET");
         grant(pmRole, "CONTRACTOR_MANAGEMENT", "GET");
