@@ -45,6 +45,16 @@ public class DocumentConfigSeeder implements CommandLineRunner {
         addIfAbsent(items, "COMPANY_BANK_DETAILS", "IBAN",                  "AZ69AZRT40060019440587075001");
         addIfAbsent(items, "COMPANY_BANK_DETAILS", "CORRESPONDENT_ACCOUNT", "AZ02NABZ01350100000000022944");
 
+        // ─── Təhlükəsizlik avadanlıqları ────────────────────────────────────────
+        addIfAbsent(items, "SAFETY_EQUIPMENT", "Yanğınsöndürən",             "Yanğınsöndürən");
+        addIfAbsent(items, "SAFETY_EQUIPMENT", "İlk tibbi yardım çantası",   "İlk tibbi yardım çantası");
+        addIfAbsent(items, "SAFETY_EQUIPMENT", "Qəza dayanma nişanı",        "Qəza dayanma nişanı");
+        addIfAbsent(items, "SAFETY_EQUIPMENT", "Təhlükəsizlik kəməri",       "Təhlükəsizlik kəməri");
+        addIfAbsent(items, "SAFETY_EQUIPMENT", "GPS İzləyici",               "GPS İzləyici");
+        addIfAbsent(items, "SAFETY_EQUIPMENT", "Geri səs siqnalı",           "Geri səs siqnalı");
+        addIfAbsent(items, "SAFETY_EQUIPMENT", "Mayak işığı",               "Mayak işığı");
+        addIfAbsent(items, "SAFETY_EQUIPMENT", "Qığılcım söndürücü",        "Qığılcım söndürücü");
+
         configRepository.saveAll(items);
         log.info("{} sənəd konfiqurasiya elementi əlavə edildi.", items.size());
     }

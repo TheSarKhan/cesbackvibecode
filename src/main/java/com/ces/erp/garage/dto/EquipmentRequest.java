@@ -113,7 +113,6 @@ public class EquipmentRequest {
     @Size(max = 1000, message = "Qeyd maksimum 1000 simvol ola bilər")
     private String notes;
 
-    @NotEmpty(message = "Ən azı bir təhlükəsizlik avadanlığı seçilməlidir")
     private List<Long> safetyEquipmentIds;
 
     // Texnikanın məcburi sənəd tipləri (config item id-ləri) — opsional
