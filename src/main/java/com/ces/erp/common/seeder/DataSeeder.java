@@ -47,7 +47,7 @@ public class DataSeeder implements CommandLineRunner {
         } else {
             ensureCoreModules();
         }
-        if (!userRepository.existsByEmailAndDeletedFalse("elvin@ces.com.az")) {
+        if (!userRepository.existsByEmailAndDeletedFalse("elvin.seyidov@ces.com.az")) {
             log.info("Rollar və istifadəçilər seed edilir...");
             seedDepartmentsRolesUsers();
             log.info("Sistem seed tamamlandı.");
@@ -191,16 +191,15 @@ public class DataSeeder implements CommandLineRunner {
         roleRepository.save(financeRole);
 
         // ── İstifadəçilər (real şirkət işçiləri) ──────────────────────────────
-        // Soyadı olmayanlar (Ruslan, Ceyhun, Nazənin) — istifadəçi sonra öz soyadını əlavə edəcək.
         // Təsdiq səlahiyyəti (OPERATIONS_APPROVAL): CEO (hasApproval=true) + hər iki Administrator (rol icazəsi ilə).
-        saveUser("Elvin Seyidov", "elvin@ces.com.az", "elvin123", null, idare, ceoRole, true);
-        saveUser("Elvira Seyidova", "elvira@ces.com.az", "elvira123", null, admin, adminRole, false);
-        saveUser("Sərxan Babayev", "serxan@ces.com.az", "serxan123", null, admin, adminRole, false);
-        saveUser("Sevinc Seyidova", "sevinc@ces.com.az", "sevinc123", null, layihePm, pmRole, false);
-        saveUser("Ruslan", "ruslan@ces.com.az", "ruslan123", null, koord, coordRole, false);
-        saveUser("Ceyhun", "ceyhun@ces.com.az", "ceyhun123", null, anbar, anbarRole, false);
-        saveUser("Nazənin", "nazenin@ces.com.az", "nazenin123", null, qeydiyyat, qeydiyyatRole, false);
-        saveUser("Nigar Balabəyova", "nigar@ces.com.az", "nigar123", null, muhasib, financeRole, false);
+        saveUser("Elvin Seyidov", "elvin.seyidov@ces.com.az", "elvin123", "+994 50 682 90 80", idare, ceoRole, true);
+        saveUser("Elvira Seyidova", "elvira@ces.com.az", "elvira123", "+994 51 414 90 80", admin, adminRole, false);
+        saveUser("Sərxan Babayev", "serxan@ces.com.az", "serxan123", "+994 50 201 71 64", admin, adminRole, false);
+        saveUser("Sevinc Seyidova", "sales@ces.com.az", "sevinc123", "+994 51 290 42 80", layihePm, pmRole, false);
+        saveUser("Ruslan Məmmədov", "ruslan@ces.com.az", "ruslan123", "+994 10 241 67 64", koord, coordRole, false);
+        saveUser("Ceyhun İsayev", "servis@ces.com.az", "ceyhun123", "+994 10 236 32 46", anbar, anbarRole, false);
+        saveUser("Nazənin Ələkbərova", "office@ces.com.az", "nazenin123", "+994 10 232 55 72", qeydiyyat, qeydiyyatRole, false);
+        saveUser("Nigar Balabəyova", "accountant@ces.com.az", "nigar123", "+994 10 250 70 10", muhasib, financeRole, false);
 
         log.info("7 şöbə, 7 rol, 8 istifadəçi əlavə edildi.");
     }
