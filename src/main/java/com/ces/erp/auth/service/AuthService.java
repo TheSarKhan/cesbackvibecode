@@ -206,6 +206,10 @@ public class AuthService {
 
         var primary = roles.stream().findFirst().orElse(null);
 
+        boolean hasApproval = user.isHasApproval()
+                || permissions.stream().anyMatch(p -> p.startsWith("OPERATIONS_APPROVAL"))
+                || roles.stream().anyMatch(r -> "Administrator".equalsIgnoreCase(r.getName()) || "CEO".equalsIgnoreCase(r.getName()));
+
         LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
@@ -214,7 +218,7 @@ public class AuthService {
                 .department(user.getDepartment() != null ? user.getDepartment().getName() : null)
                 .role(primary != null ? primary.getName() : null)
                 .roleNames(roles.stream().map(com.ces.erp.role.entity.Role::getName).toList())
-                .hasApproval(user.isHasApproval())
+                .hasApproval(hasApproval)
                 .approvalDepartments(approvalDepts)
                 .permissions(permissions)
                 .build();

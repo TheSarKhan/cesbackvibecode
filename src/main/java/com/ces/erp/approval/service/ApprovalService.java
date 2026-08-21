@@ -164,11 +164,15 @@ public class ApprovalService {
         if (user.isHasApproval()) return true;
         if (user.getRoles() == null) return false;
 
+        // Administrator və ya CEO rolu varsa həmişə təsdiq edə bilər
+        if (user.getRoles().stream().anyMatch(r -> "Administrator".equalsIgnoreCase(r.getName()) || "CEO".equalsIgnoreCase(r.getName()))) {
+            return true;
+        }
+
         // Rolların OPERATIONS_APPROVAL GET/PUT icazəsi (tam permission-əsaslı)
         return user.getRoles().stream().anyMatch(role ->
                 role.getGrantedPermissions() != null && role.getGrantedPermissions().stream()
-                        .anyMatch(p -> "OPERATIONS_APPROVAL:GET".equals(p.getCode())
-                                || "OPERATIONS_APPROVAL:PUT".equals(p.getCode())));
+                        .anyMatch(p -> p.getCode() != null && p.getCode().startsWith("OPERATIONS_APPROVAL")));
     }
 
     /**

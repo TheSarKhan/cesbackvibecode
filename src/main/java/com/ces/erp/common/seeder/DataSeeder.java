@@ -180,8 +180,8 @@ public class DataSeeder implements CommandLineRunner {
         // ── İstifadəçilər (real şirkət işçiləri) ──────────────────────────────
         // Təsdiq səlahiyyəti (OPERATIONS_APPROVAL): CEO (hasApproval=true) + hər iki Administrator (rol icazəsi ilə).
         saveUser("Elvin Seyidov", "elvin.seyidov@ces.com.az", "elvin123", "+994 50 682 90 80", idare, ceoRole, true);
-        saveUser("Elvira Seyidova", "elvira@ces.com.az", "elvira123", "+994 51 414 90 80", admin, adminRole, false);
-        saveUser("Sərxan Babayev", "serxan@ces.com.az", "serxan123", "+994 50 201 71 64", admin, adminRole, false);
+        saveUser("Elvira Seyidova", "elvira@ces.com.az", "elvira123", "+994 51 414 90 80", admin, adminRole, true);
+        saveUser("Sərxan Babayev", "serxan@ces.com.az", "serxan123", "+994 50 201 71 64", admin, adminRole, true);
         saveUser("Sevinc Seyidova", "sales@ces.com.az", "sevinc123", "+994 51 290 42 80", layihePm, pmRole, false);
         saveUser("Ruslan Məmmədov", "ruslan@ces.com.az", "ruslan123", "+994 10 241 67 64", koord, coordRole, false);
         saveUser("Ceyhun İsayev", "servis@ces.com.az", "ceyhun123", "+994 10 236 32 46", anbar, anbarRole, false);
