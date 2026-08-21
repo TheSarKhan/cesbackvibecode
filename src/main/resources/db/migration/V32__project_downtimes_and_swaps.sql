@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS project_downtimes (
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100),
     updated_by VARCHAR(100),
-    deleted BOOLEAN NOT NULL DEFAULT FALSE
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    deleted_at TIMESTAMP WITHOUT TIME ZONE
 );
 
 CREATE TABLE IF NOT EXISTS project_equipment_swaps (
@@ -32,7 +33,8 @@ CREATE TABLE IF NOT EXISTS project_equipment_swaps (
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100),
     updated_by VARCHAR(100),
-    deleted BOOLEAN NOT NULL DEFAULT FALSE
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    deleted_at TIMESTAMP WITHOUT TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_project_downtimes_project_id ON project_downtimes(project_id);
