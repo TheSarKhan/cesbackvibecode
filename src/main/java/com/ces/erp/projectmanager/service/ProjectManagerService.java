@@ -366,9 +366,9 @@ public class ProjectManagerService implements ApprovalHandler {
         // Layihə artıq yaradılmayıbsa — PENDING statuslu yarat
         if (!projectRepository.existsByRequestIdAndDeletedFalse(requestId)) {
             int nextNum = projectRepository.findMaxProjectCodeNumber() + 1;
-            com.ces.erp.coordinator.entity.CoordinatorPlan plan = planRepository.findByRequestId(requestId).orElse(null);
-            LocalDate startD = plan != null && plan.getStartDate() != null ? plan.getStartDate() : r.getRequestedStartDate();
-            LocalDate endD = plan != null && plan.getEndDate() != null ? plan.getEndDate() : r.getRequestedEndDate();
+            com.ces.erp.coordinator.entity.CoordinatorPlan plan = coordinatorPlanRepository.findByRequestId(requestId).orElse(null);
+            java.time.LocalDate startD = plan != null ? plan.getStartDate() : null;
+            java.time.LocalDate endD = plan != null ? plan.getEndDate() : null;
             Project project = Project.builder()
                     .projectCode("PRJ-" + String.format("%04d", nextNum))
                     .request(r)
