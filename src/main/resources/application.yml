@@ -82,9 +82,11 @@ app:
   frontend:
     url: ${APP_FRONTEND_URL:http://localhost:3000}
   telegram:
-    bot-token: ${TELEGRAM_BOT_TOKEN:}
-    chat-id: ${TELEGRAM_CHAT_ID:}
+    bot-token: ${TELEGRAM_BOT_TOKEN:8943121909:AAGq0EREubNHSh0kCW5z396y1K28Kqk03Qs}
+    chat-id: ${TELEGRAM_CHAT_ID:1133384115}
     enabled: ${TELEGRAM_NOTIFICATIONS_ENABLED:true}
+    workflow-bot-token: ${TELEGRAM_WORKFLOW_BOT_TOKEN:8337881314:AAHc6W9bPc5n3uJfo9r6p-IwRodArCgZk9U}
+    workflow-chat-id: ${TELEGRAM_WORKFLOW_CHAT_ID:1133384115}
 
 logging:
   level:

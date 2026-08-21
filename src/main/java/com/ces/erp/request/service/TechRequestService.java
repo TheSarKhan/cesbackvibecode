@@ -52,6 +52,7 @@ public class TechRequestService implements ApprovalHandler {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final RequestTransitionService transitionService;
+    private final com.ces.erp.common.notification.service.WorkflowTelegramNotificationService workflowTelegramService;
 
     @Override public String getEntityType() { return "REQUEST"; }
     @Override public String getModuleCode()  { return "REQUESTS"; }
@@ -142,6 +143,7 @@ public class TechRequestService implements ApprovalHandler {
         saved = requestRepository.save(saved);
         String code = resolveCode(saved);
         auditService.log("SORĞU", saved.getId(), code, "YARADILDI", "Yeni texniki sorğu yaradıldı");
+        workflowTelegramService.notifyNewRequest(saved);
         return TechRequestResponse.from(saved);
     }
 

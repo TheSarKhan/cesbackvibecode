@@ -144,6 +144,16 @@ public class ProjectController {
                 projectService.complete(id, req)));
     }
 
+    @PostMapping("/{id}/return-to-garage")
+    @PreAuthorize("hasAuthority('PROJECTS:PUT')")
+    @Operation(summary = "Texnikanı qaraja qaytar və layihəni tamamla")
+    public ResponseEntity<ApiResponse<ProjectResponse>> returnToGarage(
+            @PathVariable Long id,
+            @RequestBody(required = false) com.ces.erp.project.dto.ProjectDemobilizeRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Texnika qaraja təhvil verildi və layihə bağlandı",
+                projectService.returnToGarage(id, req)));
+    }
+
 
     // ─── Başlanğıc tarixi ─────────────────────────────────────────────────────
 

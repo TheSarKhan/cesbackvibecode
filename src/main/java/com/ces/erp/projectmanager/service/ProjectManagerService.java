@@ -69,6 +69,7 @@ public class ProjectManagerService implements ApprovalHandler {
     private final com.ces.erp.config.repository.ConfigItemRepository configItemRepository;
     private final AuditService auditService;
     private final RequestTransitionService transitionService;
+    private final com.ces.erp.common.notification.service.WorkflowTelegramNotificationService workflowTelegramService;
 
     // PM-in görəcəyi statuslar
     private static final List<RequestStatus> PM_STATUSES = List.of(
@@ -222,6 +223,7 @@ public class ProjectManagerService implements ApprovalHandler {
             changeStatus(r, RequestStatus.PM_SHORTLIST_READY, "Shortlist hazırdır");
         }
         changeStatus(r, RequestStatus.COORDINATOR_NEGOTIATING, "Koordinatora yönləndirildi");
+        workflowTelegramService.notifyCoordinatorPlanRequested(r);
         return getRequest(requestId);
     }
 
@@ -374,6 +376,7 @@ public class ProjectManagerService implements ApprovalHandler {
 
         // Növbəti addım — mühasibatlığa keçid avtomatik (sənəd yoxlaması)
         changeStatus(r, RequestStatus.ACCOUNTING_DOCS_CHECK, "Mühasibatlığa göndərildi");
+        workflowTelegramService.notifyAccountingDocsCheck(r);
     }
 
     @Transactional
@@ -383,6 +386,7 @@ public class ProjectManagerService implements ApprovalHandler {
             throw new BusinessException("Bu statusda olan sorğu rədd edilə bilməz");
         }
         changeStatus(r, RequestStatus.REJECTED, reason != null ? reason : "PM tərəfindən rədd edildi");
+        workflowTelegramService.notifyReturn(r, reason, "Layihə Meneceri (Rədd)");
 
         // Yaradılmış pending Project varsa onu da soft-delete et
         projectRepository.findByRequestIdAndDeletedFalse(requestId).ifPresent(p -> {
@@ -404,6 +408,7 @@ public class ProjectManagerService implements ApprovalHandler {
         requireStatus(r, RequestStatus.PM_PRICE_NEGOTIATION);
         transitionService.transition(r, RequestStatus.COORDINATOR_NEGOTIATING, reason, null);
         releaseSelectedEquipment(r);
+        workflowTelegramService.notifyReturn(r, reason, "Layihə Meneceri -> Koordinator");
         return getRequest(requestId);
     }
 

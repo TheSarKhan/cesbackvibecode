@@ -62,6 +62,7 @@ public class ProjectService {
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
     private final InvoiceRepository invoiceRepository;
+    private final com.ces.erp.common.notification.service.WorkflowTelegramNotificationService workflowTelegramService;
 
     // ─── List ─────────────────────────────────────────────────────────────────
 
@@ -349,6 +350,42 @@ public class ProjectService {
                 }
             }
         }
+
+        return ProjectResponse.from(p, plan);
+    }
+
+    @Transactional
+    public ProjectResponse returnToGarage(Long id, com.ces.erp.project.dto.ProjectDemobilizeRequest req) {
+        Project p = findOrThrow(id);
+        CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+
+        if (p.getStatus() != ProjectStatus.COMPLETED) {
+            p.setStatus(ProjectStatus.COMPLETED);
+            if (p.getEndDate() == null) p.setEndDate(LocalDate.now());
+            projectRepository.save(p);
+        }
+
+        Equipment eq = plan != null && plan.getSelectedEquipment() != null
+                ? plan.getSelectedEquipment()
+                : (p.getRequest() != null ? p.getRequest().getSelectedEquipment() : null);
+
+        if (eq != null) {
+            if (req != null && req.getFinalHourKmCounter() != null) {
+                eq.setHourKmCounter(req.getFinalHourKmCounter());
+            }
+            EquipmentStatus nextStatus = (req != null && req.isRequiresInspection())
+                    ? EquipmentStatus.IN_INSPECTION
+                    : EquipmentStatus.AVAILABLE;
+            equipmentService.changeStatus(eq, nextStatus,
+                    "Demobilizasiya — qaraja qaytarıldı" + (req != null && req.getReturnNotes() != null ? ": " + req.getReturnNotes() : ""),
+                    equipmentService.currentUserOrNull());
+            equipmentRepository.save(eq);
+        }
+
+        String notes = req != null ? req.getReturnNotes() : null;
+        Double counter = req != null && req.getFinalHourKmCounter() != null ? req.getFinalHourKmCounter().doubleValue() : null;
+        workflowTelegramService.notifyProjectCompleted(p, counter, notes);
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "QARAJA_QAYTARILDI", "Texnika qaraja təhvil verildi və sərbəstləşdirildi");
 
         return ProjectResponse.from(p, plan);
     }

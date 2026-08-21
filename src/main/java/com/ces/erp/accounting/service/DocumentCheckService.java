@@ -51,6 +51,7 @@ public class DocumentCheckService implements ApprovalHandler {
     private final ReceivableService receivableService;
     private final CoordinatorPlanRepository planRepository;
     private final CoordinatorPlanItemRepository planItemRepository;
+    private final com.ces.erp.common.notification.service.WorkflowTelegramNotificationService workflowTelegramService;
 
     // ─── Approval handler (PROJECT_ACTIVATION) ───────────────────────────────
     // Mühasibat OK → Əməliyyatların təsdiqi → layihə ACTIVE. Entity = sorğu (requestId).
@@ -268,6 +269,7 @@ public class DocumentCheckService implements ApprovalHandler {
                 if (p.getStartDate() == null) p.setStartDate(LocalDate.now());
                 projectRepository.save(p);
                 receivableService.createFromProject(p);
+                workflowTelegramService.notifyProjectActivated(p);
             }
         });
     }
@@ -284,6 +286,7 @@ public class DocumentCheckService implements ApprovalHandler {
             throw new BusinessException("Geri qaytarma yalnız ACCOUNTING_DOCS_CHECK statusunda mümkündür");
         }
         transitionService.transition(r, RequestStatus.PM_PRICE_NEGOTIATION, reason, null);
+        workflowTelegramService.notifyReturn(r, reason, "Mühasibatlıq -> Layihə Meneceri");
         return buildResponse(r);
     }
 

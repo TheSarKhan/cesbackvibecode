@@ -79,6 +79,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
     private final com.ces.erp.common.audit.AuditService auditService;
     private final com.ces.erp.request.service.RequestTransitionService transitionService;
     private final com.ces.erp.request.repository.RequestDocumentRepository requestDocumentRepository;
+    private final com.ces.erp.common.notification.service.WorkflowTelegramNotificationService workflowTelegramService;
 
     @Override public String getEntityType() { return "COORDINATOR_SUBMIT"; }
     @Override public String getModuleCode()  { return "COORDINATOR"; }
@@ -495,6 +496,7 @@ public class CoordinatorPlanService implements ApprovalHandler {
         });
 
         notificationService.info("Təklif göndərildi", request.getRequestCode() + " üçün koordinator təklifi göndərildi", "COORDINATOR");
+        planRepository.findByRequestId(requestId).ifPresent(p -> workflowTelegramService.notifyOfferSubmitted(request, p));
 
         return planRepository.findByRequestId(requestId)
                 .map(CoordinatorPlanResponse::from)
