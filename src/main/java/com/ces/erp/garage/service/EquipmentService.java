@@ -65,9 +65,9 @@ public class EquipmentService implements ApprovalHandler {
     // IN_INSPECTION → baxış bitdikdə AVAILABLE, problem varsa DEFECTIVE
     private static final java.util.Map<EquipmentStatus, java.util.Set<EquipmentStatus>> ALLOWED_TRANSITIONS = java.util.Map.of(
             EquipmentStatus.AVAILABLE,      java.util.Set.of(EquipmentStatus.RENTED, EquipmentStatus.DEFECTIVE, EquipmentStatus.OUT_OF_SERVICE, EquipmentStatus.IN_INSPECTION),
-            // RENTED → IN_TRANSIT (layihə bağlandıqda), RENTED → AVAILABLE (icarə ləğvi: reject/withdraw/PM-release)
-            EquipmentStatus.RENTED,         java.util.Set.of(EquipmentStatus.IN_TRANSIT, EquipmentStatus.AVAILABLE),
-            EquipmentStatus.IN_TRANSIT,     java.util.Set.of(EquipmentStatus.IN_INSPECTION),
+            // RENTED → IN_TRANSIT / AVAILABLE / IN_INSPECTION / DEFECTIVE (layihə tamamlandıqda və ya qaraja qaytarıldıqda)
+            EquipmentStatus.RENTED,         java.util.Set.of(EquipmentStatus.IN_TRANSIT, EquipmentStatus.AVAILABLE, EquipmentStatus.IN_INSPECTION, EquipmentStatus.DEFECTIVE),
+            EquipmentStatus.IN_TRANSIT,     java.util.Set.of(EquipmentStatus.IN_INSPECTION, EquipmentStatus.AVAILABLE, EquipmentStatus.DEFECTIVE),
             EquipmentStatus.IN_INSPECTION,  java.util.Set.of(EquipmentStatus.UNDER_CHECK, EquipmentStatus.DEFECTIVE, EquipmentStatus.IN_REPAIR, EquipmentStatus.AVAILABLE),
             EquipmentStatus.UNDER_CHECK,    java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.IN_REPAIR),
             EquipmentStatus.IN_REPAIR,       java.util.Set.of(EquipmentStatus.AVAILABLE, EquipmentStatus.DEFECTIVE, EquipmentStatus.UNDER_CHECK),
