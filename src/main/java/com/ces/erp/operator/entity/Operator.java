@@ -1,6 +1,7 @@
 package com.ces.erp.operator.entity;
 
 import com.ces.erp.common.entity.BaseEntity;
+import com.ces.erp.enums.OperatorStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -29,6 +30,10 @@ public class Operator extends BaseEntity {
     private String email;
 
     private String specialization;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private OperatorStatus status;
 
     @Column(columnDefinition = "TEXT")
     private String notes;

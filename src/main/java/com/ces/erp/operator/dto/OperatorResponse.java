@@ -1,6 +1,7 @@
 package com.ces.erp.operator.dto;
 
 import com.ces.erp.enums.OperatorDocumentType;
+import com.ces.erp.enums.OperatorStatus;
 import com.ces.erp.operator.entity.Operator;
 import lombok.Builder;
 import lombok.Data;
@@ -22,6 +23,7 @@ public class OperatorResponse {
     private String phone;
     private String email;
     private String specialization;
+    private OperatorStatus status;
     private String notes;
     private boolean documentsComplete;
     private boolean busy;
@@ -44,11 +46,12 @@ public class OperatorResponse {
                 .id(o.getId())
                 .firstName(o.getFirstName())
                 .lastName(o.getLastName())
-                .fullName(o.getFirstName() + " " + o.getLastName())
+                .fullName((o.getFirstName() + " " + (o.getLastName() == null ? "" : o.getLastName())).trim())
                 .address(o.getAddress())
                 .phone(o.getPhone())
                 .email(o.getEmail())
                 .specialization(o.getSpecialization())
+                .status(o.getStatus())
                 .notes(o.getNotes())
                 .documentsComplete(complete)
                 .uploadedDocumentTypes(uploaded)

@@ -1,5 +1,6 @@
 package com.ces.erp.operator.dto;
 
+import com.ces.erp.enums.OperatorStatus;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
@@ -25,6 +26,8 @@ public class OperatorRequest {
 
     @Size(max = 100, message = "İxtisas maksimum 100 simvol ola bilər")
     private String specialization;
+
+    private OperatorStatus status;
 
     @Size(max = 500, message = "Qeyd maksimum 500 simvol ola bilər")
     private String notes;

@@ -54,6 +54,7 @@ public class EnumController {
         register(result, "EmployeeStatus", EmployeeStatus.values());
         register(result, "Gender", Gender.values());
         register(result, "OperatorDocumentType", OperatorDocumentType.values());
+        register(result, "OperatorStatus", OperatorStatus.values());
         register(result, "OwnershipType", OwnershipType.values());
         register(result, "RiskLevel", RiskLevel.values());
         register(result, "OperationType", OperationType.values());

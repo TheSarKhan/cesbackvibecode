@@ -102,6 +102,7 @@ public class OperatorService implements ApprovalHandler {
                 .phone(req.getPhone())
                 .email(req.getEmail())
                 .specialization(req.getSpecialization())
+                .status(req.getStatus())
                 .notes(req.getNotes())
 
                 .build();
@@ -120,6 +121,7 @@ public class OperatorService implements ApprovalHandler {
         o.setPhone(req.getPhone());
         o.setEmail(req.getEmail());
         o.setSpecialization(req.getSpecialization());
+        o.setStatus(req.getStatus());
         o.setNotes(req.getNotes());
         Operator updated = operatorRepository.save(o);
         auditService.log("OPERATOR", updated.getId(), updated.getFirstName() + " " + updated.getLastName(), "YENİLƏNDİ", "Operator məlumatları yeniləndi");
