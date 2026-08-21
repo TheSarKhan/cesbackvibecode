@@ -30,6 +30,8 @@ import com.ces.erp.project.repository.ProjectExpenseRepository;
 import com.ces.erp.project.repository.ProjectPaymentEntryRepository;
 import com.ces.erp.project.repository.ProjectRepository;
 import com.ces.erp.project.repository.ProjectRevenueRepository;
+import com.ces.erp.project.repository.ProjectDowntimeRepository;
+import com.ces.erp.project.repository.ProjectEquipmentSwapRepository;
 import com.ces.erp.accounting.repository.InvoiceRepository;
 import com.ces.erp.accounting.entity.Invoice;
 import com.ces.erp.enums.InvoiceStatus;
@@ -55,6 +57,8 @@ public class ProjectService {
     private final ProjectExpenseRepository expenseRepository;
     private final ProjectRevenueRepository revenueRepository;
     private final ProjectPaymentEntryRepository paymentEntryRepository;
+    private final ProjectDowntimeRepository downtimeRepository;
+    private final ProjectEquipmentSwapRepository swapRepository;
     private final CoordinatorPlanRepository planRepository;
     private final EquipmentProjectHistoryRepository equipmentHistoryRepository;
     private final EquipmentRepository equipmentRepository;
@@ -483,6 +487,219 @@ public class ProjectService {
         paymentEntryRepository.saveAll(entries);
         auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "ÖDƏNIŞ BAĞLANDI",
                 "Ödəniş seriyası bağlandı");
+    }
+
+    // ─── İnsident, Dayanma və Texnika Əvəzləmə İdarəetməsi ───────────────────
+
+    @Transactional
+    public com.ces.erp.project.dto.ProjectDowntimeResponse pauseProject(Long id, com.ces.erp.project.dto.ProjectPauseRequest req) {
+        Project p = findOrThrow(id);
+        if (p.getStatus() != ProjectStatus.ACTIVE) {
+            throw new BusinessException("Yalnız aktiv (ACTIVE) layihə dayandırıla bilər");
+        }
+
+        com.ces.erp.project.entity.ProjectDowntime dt = com.ces.erp.project.entity.ProjectDowntime.builder()
+                .project(p)
+                .startDate(req.getStartDate() != null ? req.getStartDate() : LocalDate.now())
+                .reasonType(req.getReasonType())
+                .reasonDescription(req.getReasonDescription())
+                .isPaid(req.isPaid())
+                .standbyRate(req.getStandbyRate())
+                .autoExtendEndDate(req.isAutoExtendEndDate())
+                .status("ACTIVE")
+                .build();
+        dt = downtimeRepository.save(dt);
+
+        p.setStatus(ProjectStatus.PAUSED);
+        projectRepository.save(p);
+
+        workflowTelegramService.notifyProjectPaused(p, req.getReasonType(), req.getReasonDescription());
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "DURDURULDU",
+                "Layihə müvəqqəti dayandırıldı: " + req.getReasonType());
+
+        return com.ces.erp.project.dto.ProjectDowntimeResponse.from(dt);
+    }
+
+    @Transactional
+    public ProjectResponse resumeProject(Long id, com.ces.erp.project.dto.ProjectResumeRequest req) {
+        Project p = findOrThrow(id);
+        if (p.getStatus() != ProjectStatus.PAUSED) {
+            throw new BusinessException("Yalnız dayandırılmış (PAUSED) layihə bərpa edilə bilər");
+        }
+
+        LocalDate resumeDate = req.getResumeDate() != null ? req.getResumeDate() : LocalDate.now();
+        List<com.ces.erp.project.entity.ProjectDowntime> activeDowntimes = downtimeRepository.findByProjectIdAndStatusAndDeletedFalse(id, "ACTIVE");
+
+        long totalDaysPaused = 0;
+        boolean shouldExtend = req.isAutoExtendEndDate();
+
+        for (com.ces.erp.project.entity.ProjectDowntime dt : activeDowntimes) {
+            dt.setEndDate(resumeDate);
+            dt.setStatus("RESOLVED");
+            dt.setResolvedNotes(req.getResolvedNotes());
+            if (dt.getStartDate() != null && !resumeDate.isBefore(dt.getStartDate())) {
+                long days = java.time.temporal.ChronoUnit.DAYS.between(dt.getStartDate(), resumeDate);
+                if (days > 0) totalDaysPaused += days;
+            }
+            if (dt.isAutoExtendEndDate()) shouldExtend = true;
+            downtimeRepository.save(dt);
+        }
+
+        if (shouldExtend && totalDaysPaused > 0 && p.getEndDate() != null) {
+            p.setEndDate(p.getEndDate().plusDays(totalDaysPaused));
+        }
+
+        p.setStatus(ProjectStatus.ACTIVE);
+        projectRepository.save(p);
+
+        CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+        workflowTelegramService.notifyProjectResumed(p, p.getEndDate());
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "BƏRPA_EDİLDİ",
+                "Layihə bərpa edildi" + (totalDaysPaused > 0 ? ", bitmə tarixi " + totalDaysPaused + " gün uzadıldı" : ""));
+
+        return ProjectResponse.from(p, plan);
+    }
+
+    @Transactional
+    public com.ces.erp.project.dto.ProjectEquipmentSwapResponse swapEquipment(Long id, com.ces.erp.project.dto.ProjectEquipmentSwapRequest req) {
+        Project p = findOrThrow(id);
+        if (p.getStatus() == ProjectStatus.COMPLETED || p.getStatus() == ProjectStatus.CANCELLED) {
+            throw new BusinessException("Bağlanmış və ya ləğv edilmiş layihədə texnika dəyişdirilə bilməz");
+        }
+
+        Equipment oldEq = equipmentRepository.findById(req.getOldEquipmentId())
+                .orElseThrow(() -> new ResourceNotFoundException("Köhnə Texnika", req.getOldEquipmentId()));
+        Equipment newEq = equipmentRepository.findById(req.getNewEquipmentId())
+                .orElseThrow(() -> new ResourceNotFoundException("Yeni Texnika", req.getNewEquipmentId()));
+
+        if (newEq.getStatus() != com.ces.erp.enums.EquipmentStatus.AVAILABLE && newEq.getStatus() != com.ces.erp.enums.EquipmentStatus.IN_INSPECTION) {
+            throw new BusinessException("Seçilmiş yeni texnika hazırda sərbəst (AVAILABLE) deyil: " + newEq.getStatus());
+        }
+
+        // 1. Köhnə texnikanın sayğacını yenilə və təmirə/servisə yönləndir
+        if (req.getOldEquipmentFinalCounter() != null) {
+            oldEq.setHourKmCounter(BigDecimal.valueOf(req.getOldEquipmentFinalCounter()));
+        }
+        com.ces.erp.enums.EquipmentStatus oldNextStatus = com.ces.erp.enums.EquipmentStatus.valueOf(
+                req.getOldEquipmentNextStatus() != null ? req.getOldEquipmentNextStatus() : "IN_REPAIR"
+        );
+        equipmentService.changeStatus(oldEq, oldNextStatus,
+                "Layihədən çıxarıldı və əvəzləndi (" + p.getProjectCode() + "): " + req.getSwapReason(),
+                equipmentService.currentUserOrNull());
+        equipmentRepository.save(oldEq);
+
+        // 2. Yeni texnikanın ilkin sayğacını yaz və RENTED statusuna keçir
+        if (req.getNewEquipmentInitialCounter() != null) {
+            newEq.setHourKmCounter(BigDecimal.valueOf(req.getNewEquipmentInitialCounter()));
+        }
+        equipmentService.changeStatus(newEq, com.ces.erp.enums.EquipmentStatus.RENTED,
+                "Layihəyə əvəzedici olaraq təyin edildi (" + p.getProjectCode() + ")",
+                equipmentService.currentUserOrNull());
+        equipmentRepository.save(newEq);
+
+        // 3. Planda və Sorğuda texnika referanslarını yenilə
+        CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+        if (plan != null) {
+            if (plan.getItems() != null && !plan.getItems().isEmpty()) {
+                for (CoordinatorPlanItem it : plan.getItems()) {
+                    if (it.getEquipment() != null && it.getEquipment().getId().equals(oldEq.getId())) {
+                        it.setEquipment(newEq);
+                    }
+                }
+            }
+            if (plan.getSelectedEquipment() != null && plan.getSelectedEquipment().getId().equals(oldEq.getId())) {
+                plan.setSelectedEquipment(newEq);
+            }
+            planRepository.save(plan);
+        }
+        if (p.getRequest() != null && p.getRequest().getSelectedEquipment() != null
+                && p.getRequest().getSelectedEquipment().getId().equals(oldEq.getId())) {
+            p.getRequest().setSelectedEquipment(newEq);
+        }
+
+        // 4. Əvəzləmə qeydiyyatı yarat
+        com.ces.erp.project.entity.ProjectEquipmentSwap swap = com.ces.erp.project.entity.ProjectEquipmentSwap.builder()
+                .project(p)
+                .oldEquipment(oldEq)
+                .oldEquipmentFinalCounter(req.getOldEquipmentFinalCounter())
+                .oldEquipmentNextStatus(oldNextStatus.name())
+                .newEquipment(newEq)
+                .newEquipmentInitialCounter(req.getNewEquipmentInitialCounter())
+                .swapDate(req.getSwapDate() != null ? req.getSwapDate() : LocalDate.now())
+                .swapReason(req.getSwapReason())
+                .notes(req.getNotes())
+                .build();
+        swap = swapRepository.save(swap);
+
+        workflowTelegramService.notifyEquipmentSwapped(p, oldEq.getName(), newEq.getName(), req.getSwapReason());
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "TEXNİKA_ƏVƏZLƏNMƏSİ",
+                "Texnika əvəzləndi: " + oldEq.getName() + " -> " + newEq.getName());
+
+        return com.ces.erp.project.dto.ProjectEquipmentSwapResponse.from(swap);
+    }
+
+    @Transactional
+    public ProjectResponse earlyTerminate(Long id, com.ces.erp.project.dto.ProjectEarlyTerminateRequest req) {
+        Project p = findOrThrow(id);
+        if (p.getStatus() == ProjectStatus.COMPLETED || p.getStatus() == ProjectStatus.CANCELLED) {
+            throw new BusinessException("Bağlanmış və ya ləğv edilmiş layihə yenidən xitam edilə bilməz");
+        }
+
+        LocalDate termDate = req.getTerminationDate() != null ? req.getTerminationDate() : LocalDate.now();
+        p.setEndDate(termDate);
+        p.setStatus(ProjectStatus.CANCELLED);
+        projectRepository.save(p);
+
+        CoordinatorPlan plan = planRepository.findByRequestId(p.getRequest().getId()).orElse(null);
+
+        // Texnikaları sərbəstləşdir və ya servisə qaytar
+        List<Equipment> targetEquipments = new java.util.ArrayList<>();
+        if (plan != null && plan.getItems() != null && !plan.getItems().isEmpty()) {
+            for (CoordinatorPlanItem it : plan.getItems()) {
+                if (it.getEquipment() != null && !it.isDeleted()) targetEquipments.add(it.getEquipment());
+            }
+        }
+        if (targetEquipments.isEmpty()) {
+            Equipment eq = plan != null && plan.getSelectedEquipment() != null
+                    ? plan.getSelectedEquipment()
+                    : (p.getRequest() != null ? p.getRequest().getSelectedEquipment() : null);
+            if (eq != null) targetEquipments.add(eq);
+        }
+
+        com.ces.erp.enums.EquipmentStatus nextStatus = req.isRequiresInspection()
+                ? com.ces.erp.enums.EquipmentStatus.IN_INSPECTION
+                : com.ces.erp.enums.EquipmentStatus.AVAILABLE;
+
+        for (Equipment eq : targetEquipments) {
+            if (req.getFinalHourKmCounter() != null) {
+                eq.setHourKmCounter(BigDecimal.valueOf(req.getFinalHourKmCounter()));
+            }
+            equipmentService.changeStatus(eq, nextStatus,
+                    "Vaxtından əvvəl xitam verildi (" + p.getProjectCode() + ")" + (req.getReturnNotes() != null ? ": " + req.getReturnNotes() : ""),
+                    equipmentService.currentUserOrNull());
+            equipmentRepository.save(eq);
+        }
+
+        auditService.log("LAYİHƏ", p.getId(), p.getProjectCode(), "VAXTINDAN_ƏVVƏL_XİTAM",
+                "Layihə vaxtından əvvəl xitam verildi: " + req.getTerminationReason());
+
+        return ProjectResponse.from(p, plan);
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.ces.erp.project.dto.ProjectDowntimeResponse> getDowntimes(Long projectId) {
+        findOrThrow(projectId);
+        return downtimeRepository.findByProjectIdAndDeletedFalseOrderByStartDateDesc(projectId).stream()
+                .map(com.ces.erp.project.dto.ProjectDowntimeResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.ces.erp.project.dto.ProjectEquipmentSwapResponse> getEquipmentSwaps(Long projectId) {
+        findOrThrow(projectId);
+        return swapRepository.findByProjectIdAndDeletedFalseOrderBySwapDateDesc(projectId).stream()
+                .map(com.ces.erp.project.dto.ProjectEquipmentSwapResponse::from)
+                .toList();
     }
 
     // ─── Yardımçı ─────────────────────────────────────────────────────────────

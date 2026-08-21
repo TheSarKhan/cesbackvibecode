@@ -36,6 +36,7 @@ import java.util.Map;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final com.ces.erp.project.service.ProjectIncidentPdfService incidentPdfService;
 
     @GetMapping
     @PreAuthorize("hasAuthority('PROJECTS:GET')")
@@ -204,5 +205,89 @@ public class ProjectController {
     public ResponseEntity<ApiResponse<Void>> closePayment(@PathVariable Long id) {
         projectService.closePayment(id);
         return ResponseEntity.ok(ApiResponse.ok("Ödəniş bağlandı"));
+    }
+
+    // ─── İnsident, Dayanma və Texnika Əvəzləmə İdarəetməsi ───────────────────
+
+    @PostMapping("/{id}/pause")
+    @PreAuthorize("hasAuthority('PROJECTS:PUT')")
+    @Operation(summary = "Layihəni müvəqqəti dayandır / dondur (Pause)")
+    public ResponseEntity<ApiResponse<com.ces.erp.project.dto.ProjectDowntimeResponse>> pauseProject(
+            @PathVariable Long id,
+            @Valid @RequestBody com.ces.erp.project.dto.ProjectPauseRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Layihə müvəqqəti dayandırıldı",
+                projectService.pauseProject(id, req)));
+    }
+
+    @PostMapping("/{id}/resume")
+    @PreAuthorize("hasAuthority('PROJECTS:PUT')")
+    @Operation(summary = "Dayandırılmış layihəni bərpa et (Resume)")
+    public ResponseEntity<ApiResponse<ProjectResponse>> resumeProject(
+            @PathVariable Long id,
+            @Valid @RequestBody com.ces.erp.project.dto.ProjectResumeRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Layihə icrası bərpa edildi",
+                projectService.resumeProject(id, req)));
+    }
+
+    @PostMapping("/{id}/equipment-swap")
+    @PreAuthorize("hasAuthority('PROJECTS:PUT')")
+    @Operation(summary = "Sahədə texnikanı əvəzlə (Equipment Swap)")
+    public ResponseEntity<ApiResponse<com.ces.erp.project.dto.ProjectEquipmentSwapResponse>> swapEquipment(
+            @PathVariable Long id,
+            @Valid @RequestBody com.ces.erp.project.dto.ProjectEquipmentSwapRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Texnika uğurla əvəzləndi",
+                projectService.swapEquipment(id, req)));
+    }
+
+    @PostMapping("/{id}/early-terminate")
+    @PreAuthorize("hasAuthority('PROJECTS:PUT')")
+    @Operation(summary = "Layihəyə vaxtından əvvəl xitam ver (Early Terminate)")
+    public ResponseEntity<ApiResponse<ProjectResponse>> earlyTerminate(
+            @PathVariable Long id,
+            @Valid @RequestBody com.ces.erp.project.dto.ProjectEarlyTerminateRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Layihəyə vaxtından əvvəl xitam verildi",
+                projectService.earlyTerminate(id, req)));
+    }
+
+    @GetMapping("/{id}/downtimes")
+    @PreAuthorize("hasAuthority('PROJECTS:GET')")
+    @Operation(summary = "Layihənin dayanma tarixçəsini gətir")
+    public ResponseEntity<ApiResponse<List<com.ces.erp.project.dto.ProjectDowntimeResponse>>> getDowntimes(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(projectService.getDowntimes(id)));
+    }
+
+    @GetMapping("/{id}/equipment-swaps")
+    @PreAuthorize("hasAuthority('PROJECTS:GET')")
+    @Operation(summary = "Layihənin texnika əvəzləmə tarixçəsini gətir")
+    public ResponseEntity<ApiResponse<List<com.ces.erp.project.dto.ProjectEquipmentSwapResponse>>> getEquipmentSwaps(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(projectService.getEquipmentSwaps(id)));
+    }
+
+    @GetMapping("/{id}/downtimes/{downtimeId}/act/pdf")
+    @PreAuthorize("hasAuthority('PROJECTS:GET')")
+    @Operation(summary = "Dayanma / Gözləmə Aktı PDF-ini yüklə")
+    public ResponseEntity<byte[]> downloadDowntimeAct(
+            @PathVariable Long id,
+            @PathVariable Long downtimeId) {
+        byte[] pdf = incidentPdfService.generateDowntimeActPdf(downtimeId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"Dayanma_Akt_" + downtimeId + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
+    }
+
+    @GetMapping("/{id}/equipment-swaps/{swapId}/act/pdf")
+    @PreAuthorize("hasAuthority('PROJECTS:GET')")
+    @Operation(summary = "Texnika Əvəzləmə Aktı PDF-ini yüklə")
+    public ResponseEntity<byte[]> downloadEquipmentSwapAct(
+            @PathVariable Long id,
+            @PathVariable Long swapId) {
+        byte[] pdf = incidentPdfService.generateEquipmentSwapActPdf(swapId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"Texnika_Evezleme_Akt_" + swapId + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 }

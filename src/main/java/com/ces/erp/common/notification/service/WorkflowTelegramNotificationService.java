@@ -189,6 +189,71 @@ public class WorkflowTelegramNotificationService {
         sendAsync(msg);
     }
 
+    public void notifyProjectPaused(com.ces.erp.project.entity.Project project, String reasonType, String reasonDesc) {
+        String reqCode = project.getRequest() != null ? project.getRequest().getRequestCode() : "-";
+        String client = project.getRequest() != null ? project.getRequest().getCompanyName() : "-";
+        String msg = String.format(
+                "⏸️ <b>LAYİHƏ MÜVƏQQƏTİ DAYANDIRILDI (PAUSED)</b>\n\n" +
+                "📁 <b>Layihə Kodu:</b> %s\n" +
+                "📝 <b>Sorğu:</b> %s\n" +
+                "🏢 <b>Müştəri:</b> %s\n" +
+                "⚠️ <b>Səbəb:</b> %s\n" +
+                "📋 <b>Təsvir:</b> %s\n" +
+                "🕒 <b>Tarix:</b> %s\n" +
+                "👉 <i>Layihə icrası dayandırıldı və donduruldu.</i>",
+                escape(project.getProjectCode()),
+                escape(reqCode),
+                escape(client),
+                escape(reasonType),
+                escape(reasonDesc != null ? reasonDesc : "-"),
+                LocalDateTime.now().format(DATE_FMT)
+        );
+        sendAsync(msg);
+    }
+
+    public void notifyProjectResumed(com.ces.erp.project.entity.Project project, java.time.LocalDate newEndDate) {
+        String reqCode = project.getRequest() != null ? project.getRequest().getRequestCode() : "-";
+        String client = project.getRequest() != null ? project.getRequest().getCompanyName() : "-";
+        String msg = String.format(
+                "▶️ <b>LAYİHƏ İCRASI BƏRPA EDİLDİ (RESUMED)</b>\n\n" +
+                "📁 <b>Layihə Kodu:</b> %s\n" +
+                "📝 <b>Sorğu:</b> %s\n" +
+                "🏢 <b>Müştəri:</b> %s\n" +
+                "📅 <b>Yeni Bitmə Tarixi:</b> %s\n" +
+                "🕒 <b>Tarix:</b> %s\n" +
+                "👉 <i>Layihə statusu yenidən AKTİV (ACTIVE) oldu.</i>",
+                escape(project.getProjectCode()),
+                escape(reqCode),
+                escape(client),
+                newEndDate != null ? newEndDate.toString() : "-",
+                LocalDateTime.now().format(DATE_FMT)
+        );
+        sendAsync(msg);
+    }
+
+    public void notifyEquipmentSwapped(com.ces.erp.project.entity.Project project, String oldEqName, String newEqName, String reason) {
+        String reqCode = project.getRequest() != null ? project.getRequest().getRequestCode() : "-";
+        String client = project.getRequest() != null ? project.getRequest().getCompanyName() : "-";
+        String msg = String.format(
+                "🔄 <b>TEXNİKA ƏVƏZLƏNMƏSİ (EQUIPMENT SWAP)</b>\n\n" +
+                "📁 <b>Layihə Kodu:</b> %s\n" +
+                "📝 <b>Sorğu:</b> %s\n" +
+                "🏢 <b>Müştəri:</b> %s\n" +
+                "🚜 <b>Köhnə Texnika:</b> %s ➔ Təmir/Servisə çıxarıldı\n" +
+                "🚜 <b>Yeni Texnika:</b> %s ➔ Layihəyə təyin edildi\n" +
+                "⚠️ <b>Səbəb:</b> %s\n" +
+                "🕒 <b>Tarix:</b> %s",
+                escape(project.getProjectCode()),
+                escape(reqCode),
+                escape(client),
+                escape(oldEqName),
+                escape(newEqName),
+                escape(reason),
+                LocalDateTime.now().format(DATE_FMT)
+        );
+        sendAsync(msg);
+    }
+
     private void sendAsync(String htmlMessage) {
         if (!isConfigured()) return;
         CompletableFuture.runAsync(() -> {
