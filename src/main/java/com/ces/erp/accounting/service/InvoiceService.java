@@ -254,7 +254,6 @@ public class InvoiceService implements ApprovalHandler {
             }
         }
 
-        notificationService.success("Yeni faktura", "Faktura yaradıldı: " + saved.getInvoiceNumber(), "ACCOUNTING");
         auditService.log("FAKTURA", saved.getId(), saved.getInvoiceNumber(), "YARADILDI", "Yeni faktura qeydiyyatı");
         return InvoiceResponse.from(saved);
     }
