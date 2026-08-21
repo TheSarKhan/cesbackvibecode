@@ -38,7 +38,7 @@ public class InvestorSeeder implements CommandLineRunner {
 
                 Investor.builder()
                         .companyName("Ceyran Səmədova")
-                        .voen("VOEN yoxdur - Ceyran Səmədova")
+                        .voen("VOEN-YOXDUR-CS")
                         .status(ContractorStatus.ACTIVE)
                         .riskLevel(RiskLevel.LOW)
                         .notes("Fiziki şəxs, VÖEN mövcud deyil. Qarajda 3 texnikası var.")
@@ -54,7 +54,7 @@ public class InvestorSeeder implements CommandLineRunner {
 
                 Investor.builder()
                         .companyName("Azər Seyidov")
-                        .voen("VOEN yoxdur - Azər Seyidov")
+                        .voen("VOEN-YOXDUR-AS")
                         .status(ContractorStatus.ACTIVE)
                         .riskLevel(RiskLevel.LOW)
                         .notes("Fiziki şəxs, VÖEN mövcud deyil. Qarajda 4 texnikası var.")
